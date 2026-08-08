@@ -25,6 +25,7 @@ if (!prompt) {
     // Try the smaller 4-bit model with float16 computation on the CPU backend.
     dtype: 'q4f16',
     local_files_only: true,
+    model_file_name: 'instrumented',
   });
 
   const messages: Message[] = [
