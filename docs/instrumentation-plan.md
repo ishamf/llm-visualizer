@@ -103,6 +103,10 @@ The ONNX graph must expose the 28 post-RoPE query tensors needed for these
 calculations. The implementation options and their tradeoffs are documented in
 the [instrumentation strategy](./instrumentation-strategy.md).
 
+A proposed extension that calculates source-token contribution magnitudes after
+each attention output projection is documented in the
+[extended instrumentation plan](./extended-instrumentation-plan.md).
+
 ## Generation-time data flow
 
 Generation has two relevant phases:
