@@ -151,9 +151,138 @@ sufficient.
 - The patch touches prebuilt package bundles, which are less maintainable than
   source-level changes
 
+## Option 3: patch ONNX Runtime
+
+Patch ONNX Runtime so a session option can promote existing internal graph
+values to graph outputs while the model is being loaded. The original ONNX file
+and its serialized bytes remain unchanged.
+
+For example, add a runtime option such as:
+
+```ts
+type InstrumentedSessionOptions = InferenceSession.SessionOptions & {
+  extraOutputNames?: readonly string[];
+};
+```
+
+Transformers.js already accepts `session_options` when loading a model and
+passes them to `InferenceSession.create`. The application could therefore load
+the regular artifact with:
+
+```ts
+const generator = await pipeline('text-generation', modelId, {
+  dtype: 'q4f16',
+  session_options: {
+    extraOutputNames: queryOutputNames,
+  },
+});
+```
+
+The ONNX Runtime patch should apply the option after the original model has
+been deserialized but before graph resolution and optimization. For every
+requested name, it should:
+
+1. Find the existing graph value (`NodeArg`).
+2. Fail clearly if the value does not exist or cannot be returned.
+3. Append that value to the graph outputs without changing its name, type,
+   shape, producer, or consumers.
+4. Preserve the model's existing outputs and reject duplicate requests.
+
+After that small graph mutation, normal graph resolution, optimization, and
+session initialization continue. The promoted values then appear in the
+session's output metadata and are returned by normal inference calls.
+
+ONNX Runtime also provides a Model Editor C API in recent releases. It can
+augment an existing model before finalizing an inference session and may allow
+the feature to be implemented mostly in the JavaScript bindings rather than in
+the core graph loader. The JavaScript packages do not currently expose that
+API, and promoting internal values may still be simpler as a small core change.
+Both implementation paths should be evaluated in the initial Node prototype.
+
+### Integration scope
+
+The installed Transformers.js version passes session options through and does
+not select a restricted list of outputs when it calls the runtime, so it should
+not require a model-loading patch for this option. Its public TypeScript types
+may need a small extension or local augmentation for the new runtime option.
+
+The generation-step callback described in Option 2 is still required if the
+application uses the built-in `generate` loop. The additional output tensors
+are present in each forward result, but that result is internal to the loop.
+The callback must process, copy, or reduce the query tensors before their
+lifetime ends. As an alternative, the application could own the generation
+loop and call the model's forward method directly.
+
+For WebGPU, the integration must also decide whether query outputs remain in
+GPU buffers or are copied to the CPU. GPU-resident outputs require appropriate
+`preferredOutputLocation` handling and explicit per-step disposal after the
+instrumentation calculation.
+
+### Memory behavior
+
+This avoids holding an original serialized model, a JavaScript protobuf object
+tree, and a second serialized model at the same time. In Node.js, ONNX Runtime
+can continue loading the original model by filesystem path. ONNX Runtime still
+incurs its normal model-loading memory, but the load-time graph mutation itself
+only adds output metadata.
+
+The promoted tensors have their own runtime cost. The 28 float16 query outputs
+contain approximately:
+
+```text
+28 layers × sequence length × 16 heads × 128 values × 2 bytes
+= 112 KiB per token
+```
+
+That is about 112 MiB for a 1,024-token prefill and about 112 KiB for each
+single-token decoding step, excluding tensor metadata, alignment, and any
+device-to-host copy. Consumers should process each step promptly rather than
+retain every raw query tensor.
+
+### Distribution and maintenance
+
+The Node.js binding ships ONNX Runtime as a compiled native addon, and the web
+binding ships compiled WebAssembly assets. A source-level package-manager patch
+is therefore not sufficient for the runtime change. The project must build and
+distribute patched runtime packages for each supported Node platform and a
+patched ONNX Runtime Web build. Transformers.js can be directed to those builds
+with package-manager overrides or compatible replacement packages.
+
+A sensible rollout is:
+
+1. Implement and validate the option in the Node CPU runtime.
+2. Confirm output metadata, tensor shapes, unchanged logits, and reconstructed
+   attention values.
+3. Add the generation-step callback and explicit tensor lifetime handling.
+4. Port the runtime option to ONNX Runtime Web and validate WebAssembly and
+   WebGPU execution separately.
+
+### Advantages
+
+- Does not rewrite or duplicate the serialized ONNX artifact
+- Avoids the peak memory cost of parsing and reserializing the model in
+  JavaScript
+- Continues using the normal model ID, dtype selection, and source artifact
+- Reuses ONNX Runtime's parsed graph and existing tensor type information
+- Makes extra internal outputs a reusable runtime capability rather than a
+  model-specific byte transformation
+
+### Disadvantages
+
+- Requires maintaining custom native and WebAssembly runtime builds
+- Must be ported and tested separately for Node and browser runtimes
+- Still requires a generation callback or application-owned generation loop
+- Additional graph outputs consume memory and may cause device-to-host copies
+- Promoting internal values can inhibit buffer reuse or graph optimizations and
+  must be benchmarked
+- Depends on ONNX Runtime internals or a JavaScript exposure of the Model Editor
+  API
+
 ## Decision status
 
-No option has been selected yet. Option 1 has fewer runtime integration risks;
-option 2 provides a more seamless loading and generation API. The ONNX
-transformation and numerical validation work are shared, so they can be
+No option has been selected yet. Option 1 has the fewest runtime integration
+risks. Option 2 preserves the existing runtime dependency but transforms the
+model in application memory. Option 3 has the lowest transformation-memory and
+artifact-storage cost, but requires distributing custom ONNX Runtime builds.
+The output manifest and numerical validation work are shared, so they can be
 developed before making the final integration decision.
