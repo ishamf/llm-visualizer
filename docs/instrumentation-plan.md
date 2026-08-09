@@ -107,6 +107,10 @@ A proposed extension that calculates source-token contribution magnitudes after
 each attention output projection is documented in the
 [extended instrumentation plan](./extended-instrumentation-plan.md).
 
+The nearer-term Node.js dataset pipeline using head-aggregated, unprojected
+contribution magnitudes is documented in the
+[pre-generated contribution data plan](./pre-generated-contribution-data-plan.md).
+
 ## Generation-time data flow
 
 Generation has two relevant phases:
