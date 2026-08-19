@@ -357,3 +357,69 @@ The following are explicitly deferred from this first dataset format:
 
 The schema's metric identifier must remain explicit so a later
 post-output-projection dataset cannot be confused with this initial aggregate.
+
+## Current implementation state
+
+As of 2026-08-09, the offline contribution-data pipeline is implemented.
+
+Reusable code now lives in `src/generation/`:
+
+- `config.ts` defines the model identity, geometry, tolerances, schema version,
+  metric identifier, and 1,000-token global ceiling.
+- `model-output-names.ts` centralizes promoted query/context and K/V cache names.
+- `attention.ts` implements stable scaled attention, grouped-query head mapping,
+  value-vector norms, and root-sum-square contribution aggregation.
+- `validation.ts` implements tensor-shape checks, logits comparison, and fused
+  attention-context reconstruction.
+- `generate.ts` owns prompt prefill, greedy incremental decoding, K/V cache and
+  tensor lifetime handling, contribution collection, and manifest construction.
+- `dataset.ts` validates complete causal triangles and writes a manifest plus 28
+  layer shards through a temporary sibling directory. Existing destinations are
+  rejected unless overwrite is explicitly enabled.
+- `types.ts`, `prompts.ts`, and their tests define the shared data structures and
+  validate prompt IDs, content, duplicate IDs, and generation limits.
+
+The exporter is `src/scripts/generate-contributions.ts` and is exposed as:
+
+```text
+pnpm generate:contributions
+pnpm generate:contributions --output <directory> --overwrite
+```
+
+It validates the prompt list before loading a model, loads the original model
+once to capture reference prompt logits, then loads the instrumented model once
+and processes configured prompts sequentially. Output defaults to
+`generated/contributions/`, which is ignored by Git. The final generated token,
+including EOS or the token at the configured limit, receives its own forward
+pass and contribution row.
+
+The instrumentation validator is now a thin consumer of the shared attention,
+cache, generation-helper, and validation modules. Its displayed strongest-token
+values consequently use the same root-sum-square metric as exported datasets.
+
+Automated verification currently passes:
+
+- 10 Vitest tests covering grouped-query mapping, RSS aggregation, prompt
+  validation, causal-triangle validation, layer serialization, overwrite
+  rejection, and the existing application test.
+- TypeScript and Vite production build.
+- ESLint and Prettier checks.
+- A real-model export using the local original and instrumented q4f16 models.
+
+The real-model smoke export generated 36 tokens and all 28 layer files. Every
+sampled layer contained 36 rows with a 36-value final row, prompt logits matched
+exactly (`max absolute error = 0`), and the worst reconstructed attention-context
+error was `0.011465109036279841`, below the `0.025` tolerance. Generation stopped
+at EOS and decoded to `Hello! How can I assist you today?`.
+
+The following planned work remains:
+
+- Add a command-line option to select a single configured prompt by ID.
+- Expand the synthetic tests so stable softmax, value norms, prefill indices,
+  and decoding indices each have dedicated cases rather than being covered only
+  through combined math tests and real-model validation.
+- Benchmark runtime, peak memory, and output size across increasing context
+  lengths.
+- Load and visualize a generated dataset in the browser.
+- Add source-model checksum and instrumentation-version metadata to detect stale
+  datasets.

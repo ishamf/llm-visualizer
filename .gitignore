@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 /models/
+/generated/
 
 # Editor directories and files
 .vscode/*
