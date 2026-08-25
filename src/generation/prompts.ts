@@ -11,6 +11,12 @@ export const prompts: PromptConfiguration[] = [
     systemPrompt: 'You are a helpful assistant.',
     maxNewTokens: 16,
   },
+  {
+    id: 'multiplication-place-values',
+    prompt: 'Calculate 5726*37',
+    assistantPrefix: '5000 * 7 = 35000\n700 * 7 = 4900\n',
+    maxNewTokens: 48,
+  },
 ];
 
 const SAFE_PROMPT_ID = /^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$/;
@@ -43,6 +49,14 @@ export function validatePrompts(
       configuration.systemPrompt.trim().length === 0
     ) {
       throw new Error(`Prompt ${configuration.id} has an empty system prompt`);
+    }
+    if (
+      configuration.assistantPrefix !== undefined &&
+      configuration.assistantPrefix.trim().length === 0
+    ) {
+      throw new Error(
+        `Prompt ${configuration.id} has an empty assistant prefix`,
+      );
     }
 
     const maxNewTokens = configuration.maxNewTokens ?? DEFAULT_MAX_NEW_TOKENS;

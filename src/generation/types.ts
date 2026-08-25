@@ -22,6 +22,10 @@ export type CausalLanguageModel = {
 
 export type Tokenizer = {
   eos_token_id: number | number[] | null;
+  encode: (
+    text: string,
+    options?: { add_special_tokens?: boolean },
+  ) => number[];
   apply_chat_template: (
     messages: Array<{ role: string; content: string }>,
     options: Record<string, unknown>,
@@ -42,6 +46,7 @@ export type PromptConfiguration = {
   id: string;
   prompt: string;
   systemPrompt?: string;
+  assistantPrefix?: string;
   maxNewTokens?: number;
 };
 
@@ -66,6 +71,7 @@ export type ContributionManifest = {
   };
   prompt: string;
   systemPrompt?: string;
+  assistantPrefix?: string;
   generatedText: string;
   promptTokenCount: number;
   tokens: DatasetToken[];

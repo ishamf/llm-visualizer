@@ -12,6 +12,10 @@ describe('prompt validation', () => {
   it.each([
     [[{ id: '../unsafe', prompt: 'Hello' }], 'unsafe ID'],
     [[{ id: 'empty', prompt: '  ' }], 'is empty'],
+    [
+      [{ id: 'empty-prefix', prompt: 'Hello', assistantPrefix: '  ' }],
+      'empty assistant prefix',
+    ],
     [[{ id: 'limit', prompt: 'Hello', maxNewTokens: 0 }], 'from 1 to 1000'],
     [
       [

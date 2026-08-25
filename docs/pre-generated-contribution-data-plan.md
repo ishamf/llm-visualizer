@@ -107,6 +107,7 @@ export const prompts = [
   {
     id: 'hello',
     prompt: 'Say hello.',
+    assistantPrefix: 'Hello',
     maxNewTokens: 64,
   },
 ];
@@ -117,6 +118,8 @@ Each entry should contain:
 - A stable, filesystem-safe ID
 - The user prompt
 - An optional system prompt
+- An optional assistant-response prefix, appended after the chat template's
+  assistant generation marker
 - An optional per-prompt generated-token limit
 
 Generation remains deterministic and greedy for reproducible data. The global
@@ -201,6 +204,7 @@ datasets under application assets.
     "instrumentation": "instrumented"
   },
   "prompt": "Say hello.",
+  "assistantPrefix": "Hello",
   "generatedText": "Hello!",
   "promptTokenCount": 26,
   "tokens": [

@@ -29,6 +29,7 @@ function exampleDataset(): ContributionDataset {
         instrumentation: 'test',
       },
       prompt: 'Hello',
+      assistantPrefix: 'The answer is',
       generatedText: ' world',
       promptTokenCount: 1,
       tokens: [

@@ -53,18 +53,35 @@ export function tokenizePrompt(
   }
   messages.push({ role: 'user', content: prompt.prompt });
 
-  const encoded = tokenizer.apply_chat_template(messages, {
-    tokenize: true,
-    return_tensor: true,
-    return_dict: true,
+  const rendered = tokenizer.apply_chat_template(messages, {
+    tokenize: false,
     add_generation_prompt: true,
     enable_thinking: false,
-  }) as { input_ids: Tensor; attention_mask: Tensor };
+  });
+  if (typeof rendered !== 'string') {
+    throw new Error('Chat template did not return text');
+  }
+
+  // The prefix follows the generation marker so it is part of an unfinished
+  // assistant response. Encoding once preserves merges at the boundary.
+  const tokenIds = tokenizer
+    .encode(rendered + (prompt.assistantPrefix ?? ''), {
+      add_special_tokens: false,
+    })
+    .map(BigInt);
+  if (tokenIds.length === 0) {
+    throw new Error(`Prompt ${prompt.id} produced no tokens`);
+  }
+  const dimensions = [1, tokenIds.length];
 
   return {
-    inputIds: encoded.input_ids,
-    attentionMask: encoded.attention_mask,
-    tokenIds: Array.from(encoded.input_ids.data as BigInt64Array),
+    inputIds: new Tensor('int64', tokenIds, dimensions),
+    attentionMask: new Tensor(
+      'int64',
+      Array<bigint>(tokenIds.length).fill(1n),
+      dimensions,
+    ),
+    tokenIds,
   };
 }
 
@@ -227,6 +244,9 @@ export async function generateContributionDataset({
         ...(prompt.systemPrompt === undefined
           ? {}
           : { systemPrompt: prompt.systemPrompt }),
+        ...(prompt.assistantPrefix === undefined
+          ? {}
+          : { assistantPrefix: prompt.assistantPrefix }),
         generatedText: tokenizer.decode(generatedTokenIds, {
           skip_special_tokens: true,
           clean_up_tokenization_spaces: false,
