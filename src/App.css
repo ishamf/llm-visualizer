@@ -8,6 +8,42 @@
   gap: 18px;
 }
 
+.home-shell {
+  display: grid;
+  place-items: center;
+}
+
+.home-container {
+  display: grid;
+  width: 100%;
+  gap: 28px;
+}
+
+.home-header {
+  display: grid;
+  gap: 8px;
+}
+
+.home-header h1 {
+  margin: 0;
+  font-size: clamp(2.4rem, 7vw, 4.5rem);
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.selector-card {
+  background: light-dark(
+    color-mix(in srgb, var(--mantine-color-white) 92%, transparent),
+    color-mix(in srgb, var(--mantine-color-dark-8) 92%, transparent)
+  );
+  box-shadow: var(--mantine-shadow-md);
+}
+
+.back-link {
+  width: max-content;
+  padding-inline: 0;
+}
+
 .page-header {
   display: flex;
   align-items: flex-end;
@@ -42,6 +78,15 @@
   background: light-dark(
     var(--mantine-color-violet-0),
     color-mix(in srgb, var(--mantine-color-violet-9) 35%, transparent)
+  );
+}
+
+.dataset-note {
+  border: 1px solid
+    light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-6));
+  background: light-dark(
+    var(--mantine-color-white),
+    var(--mantine-color-dark-8)
   );
 }
 

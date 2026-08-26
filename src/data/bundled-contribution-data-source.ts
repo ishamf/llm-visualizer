@@ -19,6 +19,25 @@ const layerModules = import.meta.glob<JsonModule>(
   '../../generated/contributions/*/layer-*.json',
 );
 
+export type BundledContributionDataset = {
+  id: string;
+  manifest: ContributionManifest;
+};
+
+const bundledDatasets = Object.entries(manifestModules)
+  .map(([path, module]): BundledContributionDataset => {
+    const id = path.match(/\/contributions\/([^/]+)\/manifest\.json$/)?.[1];
+    if (!id) {
+      throw new Error(`Could not determine dataset ID from ${path}`);
+    }
+    return { id, manifest: parseContributionManifest(module.default) };
+  })
+  .sort((left, right) => left.id.localeCompare(right.id));
+
+export function getBundledContributionDatasets(): readonly BundledContributionDataset[] {
+  return bundledDatasets;
+}
+
 export class BundledContributionDataSource implements ContributionDataSource {
   readonly id: string;
   readonly #manifest: ContributionManifest;
