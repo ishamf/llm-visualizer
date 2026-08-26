@@ -14,6 +14,11 @@ export const HEAD_DIMENSION = 128;
 export const HIDDEN_SIZE = QUERY_HEAD_COUNT * HEAD_DIMENSION;
 
 export const MAX_GENERATED_TOKENS = 1_000;
+export const DEFAULT_GENERATION_SEED = 42;
+export const GENERATION_TEMPERATURE = 0.6;
+export const GENERATION_TOP_K = 20;
+export const GENERATION_TOP_P = 0.95;
+export const GENERATION_EOS_TOKEN_IDS = [151645, 151643] as const;
 export const CONTEXT_ABSOLUTE_TOLERANCE = 0.025;
 export const LOGITS_ABSOLUTE_TOLERANCE = 1e-5;
 export const DATASET_SCHEMA_VERSION = 1 as const;

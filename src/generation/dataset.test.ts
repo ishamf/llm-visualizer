@@ -4,6 +4,7 @@ import os from 'node:os';
 
 import { describe, expect, it } from 'vitest';
 
+import { assertDatasetDestinationAvailable } from './atomic-dataset.ts';
 import {
   validateContributionDataset,
   writeContributionDataset,
@@ -43,6 +44,12 @@ describe('contribution datasets', () => {
       await expect(
         writeContributionDataset(root, 'example', exampleDataset()),
       ).rejects.toThrow('use --overwrite');
+      await expect(
+        assertDatasetDestinationAvailable(root, 'example', false),
+      ).rejects.toThrow('use --overwrite');
+      await expect(
+        assertDatasetDestinationAvailable(root, 'example', true),
+      ).resolves.toBeUndefined();
     } finally {
       await rm(root, { recursive: true, force: true });
     }

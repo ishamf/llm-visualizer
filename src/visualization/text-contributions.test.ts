@@ -24,6 +24,16 @@ describe('summed text contributions', () => {
     expect(predictionContributionRow(totals, 0)).toBeUndefined();
   });
 
+  it('maps compact rows directly to generated target tokens', () => {
+    const rows = [
+      [1, 2],
+      [3, 4, 5],
+    ];
+    expect(predictionContributionRow(rows, 1, 2)).toBeUndefined();
+    expect(predictionContributionRow(rows, 2, 2)).toBe(rows[0]);
+    expect(predictionContributionRow(rows, 3, 2)).toBe(rows[1]);
+  });
+
   it('normalizes opacity while preserving a visible floor', () => {
     const row = [0, 5, 10];
     expect(contributionOpacity(row, 0, 0.2)).toBe(0.2);

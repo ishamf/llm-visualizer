@@ -92,7 +92,8 @@ describe('contribution data sources', () => {
       metric: CONTRIBUTION_METRIC,
       aggregation: 'sum',
       layerCount: 1,
-      rows: [[1], [0.4, 2]],
+      targetTokenStart: 1,
+      rows: [[1]],
     });
   });
 

@@ -21,7 +21,8 @@ function exampleSummedDataset(): SummedContributionDataset {
       metric: layered.manifest.metric,
       aggregation: 'sum',
       layerCount: LAYER_COUNT,
-      rows: [[LAYER_COUNT], [0.5 * LAYER_COUNT, 2 * LAYER_COUNT]],
+      targetTokenStart: layered.manifest.promptTokenCount,
+      rows: [[LAYER_COUNT]],
     },
   };
 }
@@ -29,9 +30,9 @@ function exampleSummedDataset(): SummedContributionDataset {
 describe('summed contribution datasets', () => {
   it('rejects incomplete causal triangles', () => {
     const dataset = exampleSummedDataset();
-    dataset.contributions.rows[1] = [1];
+    dataset.contributions.rows[0] = [];
     expect(() => validateSummedContributionDataset(dataset)).toThrow(
-      'row 1 has length 1, expected 2',
+      'row 0 has length 0, expected 1',
     );
   });
 
@@ -49,7 +50,7 @@ describe('summed contribution datasets', () => {
         await readFile(path.join(destination, 'contributions.json'), 'utf8'),
       ) as { aggregation: string; rows: unknown[] };
       expect(contributions.aggregation).toBe('sum');
-      expect(contributions.rows).toHaveLength(2);
+      expect(contributions.rows).toHaveLength(1);
       await expect(
         writeSummedContributionDataset(root, 'example', exampleSummedDataset()),
       ).rejects.toThrow('use --overwrite');

@@ -11,6 +11,11 @@ describe('prompt validation', () => {
         prompt: 'Hello',
         maxNewTokens: 64,
         contributionFormats: ['layered', 'summed'],
+        enableThinking: false,
+        seed: 42,
+        temperature: 0.6,
+        topK: 20,
+        topP: 0.95,
       },
     ]);
   });
@@ -27,6 +32,14 @@ describe('prompt validation', () => {
       [{ id: 'format', prompt: 'Hello', contributionFormats: [] }],
       'contributionFormats',
     ],
+    [
+      [{ id: 'thinking', prompt: 'Hello', enableThinking: 'yes' }],
+      'enableThinking',
+    ],
+    [[{ id: 'seed', prompt: 'Hello', seed: -1 }], 'seed'],
+    [[{ id: 'temperature', prompt: 'Hello', temperature: 0 }], 'temperature'],
+    [[{ id: 'top-k', prompt: 'Hello', topK: 1.5 }], 'topK'],
+    [[{ id: 'top-p', prompt: 'Hello', topP: 1.1 }], 'topP'],
     [
       [
         {
@@ -48,6 +61,20 @@ describe('prompt validation', () => {
     expect(() =>
       validatePrompts(configurations as PromptConfiguration[]),
     ).toThrow(message);
+  });
+
+  it('preserves per-prompt sampling overrides', () => {
+    expect(
+      validatePrompts([
+        {
+          id: 'custom-sampling',
+          prompt: 'Hello',
+          temperature: 0.8,
+          topK: 50,
+          topP: 0.9,
+        },
+      ])[0],
+    ).toMatchObject({ temperature: 0.8, topK: 50, topP: 0.9 });
   });
 });
 

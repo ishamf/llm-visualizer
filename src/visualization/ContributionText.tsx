@@ -3,6 +3,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 
 import type { SummedContributionDataSource } from '../data/summed-contribution-data-source.ts';
 import type { ContributionManifest } from '../generation/types.ts';
+import type { SummedContributions } from '../generation/types.ts';
 import {
   contributionOpacity,
   type ContributionOpacityScale,
@@ -12,7 +13,7 @@ import {
 
 type AggregateState =
   | { status: 'loading' }
-  | { status: 'ready'; totals: number[][] }
+  | { status: 'ready'; contributions: SummedContributions }
   | { status: 'error'; error: Error };
 
 type ContributionTextProps = {
@@ -36,7 +37,7 @@ export function ContributionText({ source, manifest }: ContributionTextProps) {
       if (!controller.signal.aborted) {
         setAggregate({
           status: 'ready',
-          totals: contributions.rows,
+          contributions,
         });
       }
     };
@@ -74,7 +75,11 @@ export function ContributionText({ source, manifest }: ContributionTextProps) {
   const row =
     hoveredToken === null
       ? undefined
-      : predictionContributionRow(aggregate.totals, hoveredToken);
+      : predictionContributionRow(
+          aggregate.contributions.rows,
+          hoveredToken,
+          aggregate.contributions.targetTokenStart,
+        );
 
   return (
     <Paper className="text-visualization" withBorder radius="lg" p="xl">
@@ -151,8 +156,8 @@ export function ContributionText({ source, manifest }: ContributionTextProps) {
         <Text size="xs" c="dimmed" className="hovered-token-detail">
           {hoveredToken === null
             ? 'Hover or focus a token to reveal its sources.'
-            : hoveredToken === 0
-              ? 'The first token has no preceding prediction position.'
+            : hoveredToken < manifest.promptTokenCount
+              ? 'Prompt-token contribution rows are not stored for this view.'
               : `Token ${hoveredToken} uses contributions at position ${hoveredToken - 1}, summed across all layers.`}
         </Text>
       </div>

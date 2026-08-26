@@ -1,8 +1,9 @@
-import { Tensor } from '@huggingface/transformers';
+import { random, Tensor } from '@huggingface/transformers';
 
 import {
   CONTRIBUTION_METRIC,
   DATASET_SCHEMA_VERSION,
+  GENERATION_EOS_TOKEN_IDS,
   HEAD_DIMENSION,
   INSTRUMENTED_MODEL_NAME,
   KV_HEAD_COUNT,
@@ -11,7 +12,7 @@ import {
   MODEL_ID,
   QUERY_HEAD_COUNT,
 } from './config.ts';
-import { contributionRows } from './attention.ts';
+import { contributionRow, contributionRows } from './attention.ts';
 import {
   pastKeyInputName,
   pastValueInputName,
@@ -30,6 +31,7 @@ import type {
   Tokenizer,
   ValidatedPromptConfiguration,
 } from './types.ts';
+import { sampleToken } from './sampling.ts';
 import { validateLogits, validateModelStep } from './validation.ts';
 
 type TokenizedPrompt = {
@@ -44,6 +46,8 @@ export type GenerateContributionDatasetOptions = {
   prompt: ValidatedPromptConfiguration;
   validate?: boolean;
   originalLogits?: NumericArray;
+  onProgress?: (generatedTokenCount: number) => void;
+  onGeneratedToken?: (token: bigint) => void;
 };
 
 type ContributionRowsConsumer = (
@@ -54,6 +58,7 @@ type ContributionRowsConsumer = (
 
 type GenerateContributionRunOptions = GenerateContributionDatasetOptions & {
   consumeRows: ContributionRowsConsumer;
+  contributionScope: 'all' | 'generated';
 };
 
 export function tokenizePrompt(
@@ -69,7 +74,7 @@ export function tokenizePrompt(
   const rendered = tokenizer.apply_chat_template(messages, {
     tokenize: false,
     add_generation_prompt: true,
-    enable_thinking: false,
+    enable_thinking: prompt.enableThinking,
   });
   if (typeof rendered !== 'string') {
     throw new Error('Chat template did not return text');
@@ -165,9 +170,22 @@ function isEosToken(tokenizer: Tokenizer, token: bigint) {
   const eosTokenIds = Array.isArray(tokenizer.eos_token_id)
     ? tokenizer.eos_token_id
     : [tokenizer.eos_token_id];
-  return eosTokenIds.some(
+  return [...eosTokenIds, ...GENERATION_EOS_TOKEN_IDS].some(
     (eosTokenId) => eosTokenId !== null && BigInt(eosTokenId) === token,
   );
+}
+
+function sampleLastToken(
+  logits: ModelTensor,
+  generator: { random: () => number },
+  prompt: ValidatedPromptConfiguration,
+) {
+  return sampleToken(lastLogits(logits), {
+    temperature: prompt.temperature,
+    topK: prompt.topK,
+    topP: prompt.topP,
+    random: generator.random.bind(generator),
+  });
 }
 
 function numericTokenId(token: bigint) {
@@ -184,7 +202,10 @@ async function generateContributionRun({
   prompt,
   validate = false,
   originalLogits,
+  onProgress,
+  onGeneratedToken,
   consumeRows,
+  contributionScope,
 }: GenerateContributionRunOptions): Promise<ContributionManifest> {
   const encoded = tokenizePrompt(tokenizer, prompt);
   const promptTokenCount = encoded.tokenIds.length;
@@ -194,6 +215,7 @@ async function generateContributionRun({
   let contextsMaximumError: number | undefined;
   let stopReason: 'eos' | 'max_new_tokens' = 'max_new_tokens';
   let outputs: ModelOutputs | undefined;
+  const generator = new random.Random(prompt.seed);
 
   try {
     outputs = await model.forward({
@@ -212,13 +234,31 @@ async function generateContributionRun({
       contextsMaximumError = validateModelStep(outputs).maxAbsoluteError;
     }
     for (let layer = 0; layer < LAYER_COUNT; ++layer) {
-      consumeRows(layer, 0, contributionRows(outputs, layer));
+      if (contributionScope === 'all') {
+        consumeRows(layer, 0, contributionRows(outputs, layer));
+      } else {
+        consumeRows(layer, promptTokenCount - 1, [
+          contributionRow(outputs, layer, promptTokenCount - 1),
+        ]);
+      }
+      if (onProgress) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
     }
 
-    let nextToken = argmaxLastLogit(outputs.logits);
+    let nextToken = sampleLastToken(outputs.logits, generator, prompt);
     for (let step = 0; step < prompt.maxNewTokens; ++step) {
       tokenIds.push(nextToken);
       generatedTokenIds.push(nextToken);
+      onGeneratedToken?.(nextToken);
+      onProgress?.(generatedTokenIds.length);
+
+      const reachedEos = isEosToken(tokenizer, nextToken);
+      const reachedLimit = step + 1 >= prompt.maxNewTokens;
+      if (contributionScope === 'generated' && (reachedEos || reachedLimit)) {
+        if (reachedEos) stopReason = 'eos';
+        break;
+      }
 
       const inputIds = oneTokenTensor(nextToken);
       const mask = attentionMask(tokenIds.length);
@@ -244,19 +284,19 @@ async function generateContributionRun({
         );
       }
       for (let layer = 0; layer < LAYER_COUNT; ++layer) {
-        consumeRows(
-          layer,
-          tokenIds.length - 1,
-          contributionRows(outputs, layer),
-        );
+        const destination = tokenIds.length - 1;
+        consumeRows(layer, destination, contributionRows(outputs, layer));
+        if (onProgress) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        }
       }
 
-      if (isEosToken(tokenizer, nextToken)) {
+      if (reachedEos) {
         stopReason = 'eos';
         break;
       }
-      if (step + 1 < prompt.maxNewTokens) {
-        nextToken = argmaxLastLogit(outputs.logits);
+      if (!reachedLimit) {
+        nextToken = sampleLastToken(outputs.logits, generator, prompt);
       }
     }
 
@@ -296,9 +336,14 @@ async function generateContributionRun({
         headDimension: HEAD_DIMENSION,
       },
       generation: {
-        method: 'greedy',
+        method: 'sampling',
         maxNewTokens: prompt.maxNewTokens,
         stopReason,
+        enableThinking: prompt.enableThinking,
+        seed: prompt.seed,
+        temperature: prompt.temperature,
+        topK: prompt.topK,
+        topP: prompt.topP,
       },
       ...(logitsMaximumError === undefined || contextsMaximumError === undefined
         ? {}
@@ -329,6 +374,7 @@ export async function generateContributionDataset(
       }
       layerRows[layer].push(...rows);
     },
+    contributionScope: 'all',
   });
   return {
     manifest,
@@ -366,11 +412,18 @@ export async function generateSummedContributionDataset(
   options: GenerateContributionDatasetOptions,
 ): Promise<SummedContributionDataset> {
   const rows: number[][] = [];
+  let firstContributionDestination: number | undefined;
   const manifest = await generateContributionRun({
     ...options,
     consumeRows(_layer, firstDestination, incomingRows) {
-      addSummedContributionRows(rows, firstDestination, incomingRows);
+      firstContributionDestination ??= firstDestination;
+      addSummedContributionRows(
+        rows,
+        firstDestination - firstContributionDestination,
+        incomingRows,
+      );
     },
+    contributionScope: 'generated',
   });
   return {
     manifest,
@@ -379,6 +432,7 @@ export async function generateSummedContributionDataset(
       metric: CONTRIBUTION_METRIC,
       aggregation: 'sum',
       layerCount: LAYER_COUNT,
+      targetTokenStart: manifest.promptTokenCount,
       rows,
     },
   };

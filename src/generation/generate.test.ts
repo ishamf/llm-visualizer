@@ -24,6 +24,11 @@ describe('prompt tokenization', () => {
       assistantPrefix: '2 * 3 =',
       maxNewTokens: 8,
       contributionFormats: ['layered', 'summed'],
+      enableThinking: false,
+      seed: 42,
+      temperature: 0.6,
+      topK: 20,
+      topP: 0.95,
     });
 
     try {

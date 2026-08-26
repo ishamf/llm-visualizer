@@ -71,8 +71,7 @@ export function valueVectorNorms(value: NumericArray, sourceCount: number) {
   return norms;
 }
 
-/** Calculates causal RSS contribution rows for every query in one model pass. */
-export function contributionRows(outputs: ModelOutputs, layer: number) {
+function contributionInputs(outputs: ModelOutputs, layer: number) {
   const query = outputs[queryOutputName(layer)];
   const key = outputs[presentKeyOutputName(layer)];
   const value = outputs[presentValueOutputName(layer)];
@@ -89,37 +88,75 @@ export function contributionRows(outputs: ModelOutputs, layer: number) {
     );
   }
 
-  const norms = valueVectorNorms(value.data, sourceCount);
+  return {
+    query,
+    key,
+    norms: valueVectorNorms(value.data, sourceCount),
+    queryCount,
+    sourceCount,
+    firstQueryPosition,
+  };
+}
+
+function calculateContributionRow(
+  inputs: ReturnType<typeof contributionInputs>,
+  queryIndex: number,
+) {
+  const { query, key, norms, queryCount, sourceCount, firstQueryPosition } =
+    inputs;
+  if (
+    !Number.isSafeInteger(queryIndex) ||
+    queryIndex < 0 ||
+    queryIndex >= queryCount
+  ) {
+    throw new Error(`Query ${queryIndex} is outside this model pass`);
+  }
+  const visibleSourceCount = firstQueryPosition + queryIndex + 1;
+  const squaredMagnitudes = new Float64Array(visibleSourceCount);
+
+  for (let queryHead = 0; queryHead < QUERY_HEAD_COUNT; ++queryHead) {
+    const kvHead = queryHeadToKvHead(queryHead);
+    const queryOffset =
+      (queryIndex * QUERY_HEAD_COUNT + queryHead) * HEAD_DIMENSION;
+    const kvHeadOffset = kvHead * sourceCount * HEAD_DIMENSION;
+    const weights = attentionWeights(
+      query.data,
+      key.data,
+      queryOffset,
+      kvHeadOffset,
+      visibleSourceCount,
+    );
+
+    for (let source = 0; source < visibleSourceCount; ++source) {
+      const magnitude = weights[source] * norms[kvHead][source];
+      squaredMagnitudes[source] += magnitude * magnitude;
+    }
+  }
+
+  return Array.from(squaredMagnitudes, (squaredMagnitude) =>
+    Math.sqrt(squaredMagnitude),
+  );
+}
+
+/** Calculates the causal RSS contribution row for one query in a model pass. */
+export function contributionRow(
+  outputs: ModelOutputs,
+  layer: number,
+  queryIndex: number,
+) {
+  return calculateContributionRow(
+    contributionInputs(outputs, layer),
+    queryIndex,
+  );
+}
+
+/** Calculates causal RSS contribution rows for every query in one model pass. */
+export function contributionRows(outputs: ModelOutputs, layer: number) {
+  const inputs = contributionInputs(outputs, layer);
   const rows: number[][] = [];
 
-  for (let queryIndex = 0; queryIndex < queryCount; ++queryIndex) {
-    const visibleSourceCount = firstQueryPosition + queryIndex + 1;
-    const squaredMagnitudes = new Float64Array(visibleSourceCount);
-
-    for (let queryHead = 0; queryHead < QUERY_HEAD_COUNT; ++queryHead) {
-      const kvHead = queryHeadToKvHead(queryHead);
-      const queryOffset =
-        (queryIndex * QUERY_HEAD_COUNT + queryHead) * HEAD_DIMENSION;
-      const kvHeadOffset = kvHead * sourceCount * HEAD_DIMENSION;
-      const weights = attentionWeights(
-        query.data,
-        key.data,
-        queryOffset,
-        kvHeadOffset,
-        visibleSourceCount,
-      );
-
-      for (let source = 0; source < visibleSourceCount; ++source) {
-        const magnitude = weights[source] * norms[kvHead][source];
-        squaredMagnitudes[source] += magnitude * magnitude;
-      }
-    }
-
-    rows.push(
-      Array.from(squaredMagnitudes, (squaredMagnitude) =>
-        Math.sqrt(squaredMagnitude),
-      ),
-    );
+  for (let queryIndex = 0; queryIndex < inputs.queryCount; ++queryIndex) {
+    rows.push(calculateContributionRow(inputs, queryIndex));
   }
 
   return rows;

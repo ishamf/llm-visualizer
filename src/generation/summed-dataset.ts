@@ -26,21 +26,36 @@ export function validateSummedContributions(
   ) {
     throw new Error('Summed contribution metadata is inconsistent');
   }
-  if (contributions.rows.length !== manifest.tokens.length) {
+  const targetTokenStart = contributions.targetTokenStart;
+  const expectedRows =
+    targetTokenStart === undefined
+      ? manifest.tokens.length
+      : manifest.tokens.length - targetTokenStart;
+  if (
+    targetTokenStart !== undefined &&
+    targetTokenStart !== manifest.promptTokenCount
+  ) {
+    throw new Error('Summed contribution target token start is inconsistent');
+  }
+  if (contributions.rows.length !== expectedRows) {
     throw new Error(
-      `Summed contributions have ${contributions.rows.length} rows for ${manifest.tokens.length} tokens`,
+      `Summed contributions have ${contributions.rows.length} rows, expected ${expectedRows}`,
     );
   }
-  for (const [destination, row] of contributions.rows.entries()) {
-    if (row.length !== destination + 1) {
+  for (const [rowIndex, row] of contributions.rows.entries()) {
+    const expectedSources =
+      targetTokenStart === undefined
+        ? rowIndex + 1
+        : targetTokenStart + rowIndex;
+    if (row.length !== expectedSources) {
       throw new Error(
-        `Summed contribution row ${destination} has length ${row.length}, expected ${destination + 1}`,
+        `Summed contribution row ${rowIndex} has length ${row.length}, expected ${expectedSources}`,
       );
     }
     for (const value of row) {
       if (!Number.isFinite(value) || value < 0) {
         throw new Error(
-          `Summed contribution row ${destination} contains an invalid value`,
+          `Summed contribution row ${rowIndex} contains an invalid value`,
         );
       }
     }

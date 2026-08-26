@@ -1,4 +1,10 @@
-import { MAX_GENERATED_TOKENS } from './config.ts';
+import {
+  DEFAULT_GENERATION_SEED,
+  GENERATION_TEMPERATURE,
+  GENERATION_TOP_K,
+  GENERATION_TOP_P,
+  MAX_GENERATED_TOKENS,
+} from './config.ts';
 import type {
   ContributionFormat,
   PromptConfiguration,
@@ -20,23 +26,24 @@ export const prompts: PromptConfiguration[] = [
   },
   {
     id: 'fix-average-off-by-one',
-    systemPrompt:
-      'You are a careful programmer. Fix the bug with the smallest reasonable change and return only the corrected code.',
-    prompt: `This JavaScript function should calculate the average of its input, but it returns NaN. Fix it with a minimal change.
+    systemPrompt: 'You are a helpful assistant. You should strive to provide a concise answer.',
+    prompt: `This JavaScript function should calculate the average of its input, but it crashes with ReferenceError: array is not defined instead. Why did it happen? Can you fix it?
 
-\`\`\`js
-function average(numbers) {
+
+function arrayAverage(numbers) {
   let total = 0;
-  for (let index = 0; index <= numbers.length; index++) {
-    total += numbers[index];
+  for (let index = 0; index < array.length; index++) {
+    total += array[index];
   }
-  return total / numbers.length;
+  return total / array.length;
 }
 
-console.log(average([2, 4, 6]));
-\`\`\``,
-    maxNewTokens: 128,
+console.log(arrayAverage([2, 4, 6]));
+`,
+    assistantPrefix: `The bug is a simple naming mismatch: the function parameter is called numbers, but the body references array`,
+    maxNewTokens: 1000,
     contributionFormats: ['summed'],
+
   },
 ];
 
@@ -110,7 +117,47 @@ export function validatePrompts(
       );
     }
 
-    return { ...configuration, maxNewTokens, contributionFormats };
+    const enableThinking = configuration.enableThinking ?? false;
+    if (typeof enableThinking !== 'boolean') {
+      throw new Error(
+        `Prompt ${configuration.id} enableThinking must be boolean`,
+      );
+    }
+    const seed = configuration.seed ?? DEFAULT_GENERATION_SEED;
+    if (!Number.isSafeInteger(seed) || seed < 0) {
+      throw new Error(
+        `Prompt ${configuration.id} seed must be a non-negative safe integer`,
+      );
+    }
+    const temperature = configuration.temperature ?? GENERATION_TEMPERATURE;
+    if (!Number.isFinite(temperature) || temperature <= 0) {
+      throw new Error(
+        `Prompt ${configuration.id} temperature must be a positive finite number`,
+      );
+    }
+    const topK = configuration.topK ?? GENERATION_TOP_K;
+    if (!Number.isSafeInteger(topK) || topK < 1) {
+      throw new Error(
+        `Prompt ${configuration.id} topK must be a positive safe integer`,
+      );
+    }
+    const topP = configuration.topP ?? GENERATION_TOP_P;
+    if (!Number.isFinite(topP) || topP <= 0 || topP > 1) {
+      throw new Error(
+        `Prompt ${configuration.id} topP must be a finite number in (0, 1]`,
+      );
+    }
+
+    return {
+      ...configuration,
+      maxNewTokens,
+      contributionFormats,
+      enableThinking,
+      seed,
+      temperature,
+      topK,
+      topP,
+    };
   });
 }
 

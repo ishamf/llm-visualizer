@@ -25,14 +25,27 @@ export function parseSummedContributions(
     value.aggregation !== 'sum' ||
     value.layerCount !== manifest.geometry.layers ||
     !Array.isArray(value.rows) ||
-    value.rows.length !== manifest.tokens.length
+    (value.targetTokenStart !== undefined &&
+      value.targetTokenStart !== manifest.promptTokenCount)
   ) {
     throw new Error('Summed contributions have an invalid shape');
   }
 
-  for (const [destination, row] of value.rows.entries()) {
-    if (!Array.isArray(row) || row.length !== destination + 1) {
-      throw new Error(`Summed contribution row ${destination} is not causal`);
+  const targetTokenStart = value.targetTokenStart as number | undefined;
+  const expectedRows =
+    targetTokenStart === undefined
+      ? manifest.tokens.length
+      : manifest.tokens.length - targetTokenStart;
+  if (value.rows.length !== expectedRows) {
+    throw new Error('Summed contributions have an invalid row count');
+  }
+  for (const [rowIndex, row] of value.rows.entries()) {
+    const expectedSources =
+      targetTokenStart === undefined
+        ? rowIndex + 1
+        : targetTokenStart + rowIndex;
+    if (!Array.isArray(row) || row.length !== expectedSources) {
+      throw new Error(`Summed contribution row ${rowIndex} is not causal`);
     }
     for (const contribution of row) {
       if (
@@ -41,7 +54,7 @@ export function parseSummedContributions(
         contribution < 0
       ) {
         throw new Error(
-          `Summed contribution row ${destination} contains an invalid value`,
+          `Summed contribution row ${rowIndex} contains an invalid value`,
         );
       }
     }
@@ -69,14 +82,16 @@ export class LayerSummingContributionDataSource implements SummedContributionDat
         this.#source.getLayer(layer, signal),
       ),
     );
-    const rows = Array.from(
-      { length: manifest.tokens.length },
-      (_, destination) => Array<number>(destination + 1).fill(0),
+    const generatedTokenCount =
+      manifest.tokens.length - manifest.promptTokenCount;
+    const rows = Array.from({ length: generatedTokenCount }, (_, rowIndex) =>
+      Array<number>(manifest.promptTokenCount + rowIndex).fill(0),
     );
     for (const layer of layers) {
-      for (const [destination, incoming] of layer.rows.entries()) {
+      for (let rowIndex = 0; rowIndex < rows.length; ++rowIndex) {
+        const incoming = layer.rows[manifest.promptTokenCount - 1 + rowIndex];
         for (const [source, contribution] of incoming.entries()) {
-          rows[destination][source] += contribution;
+          rows[rowIndex][source] += contribution;
         }
       }
     }
@@ -85,6 +100,7 @@ export class LayerSummingContributionDataSource implements SummedContributionDat
       metric: manifest.metric,
       aggregation: 'sum' as const,
       layerCount: manifest.geometry.layers,
+      targetTokenStart: manifest.promptTokenCount,
       rows,
     };
   }

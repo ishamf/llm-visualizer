@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { contributionRows, queryHeadToKvHead } from './attention.ts';
+import {
+  contributionRow,
+  contributionRows,
+  queryHeadToKvHead,
+} from './attention.ts';
 import { HEAD_DIMENSION, KV_HEAD_COUNT, QUERY_HEAD_COUNT } from './config.ts';
 import {
   presentKeyOutputName,
@@ -64,5 +68,6 @@ describe('grouped-query contribution math', () => {
     expect(rows[0]).toEqual([4]);
     expect(rows[1][0]).toBeCloseTo(2, 12);
     expect(rows[1][1]).toBeCloseTo(4, 12);
+    expect(contributionRow(outputs, layer, 1)).toEqual(rows[1]);
   });
 });

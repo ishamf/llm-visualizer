@@ -8,8 +8,9 @@ await runContributionGeneration(process.argv.slice(2), {
   format: 'summed',
   defaultOutputRoot: 'generated/summed-contributions',
   noun: 'summed contributions for',
+  showProgress: true,
   generate: generateSummedContributionDataset,
   write: writeSummedContributionDataset,
   outputDescription: (dataset) =>
-    `in one matrix summed across ${dataset.contributions.layerCount} layers`,
+    `as ${dataset.contributions.rows.length} generated-token rows summed across ${dataset.contributions.layerCount} layers`,
 });

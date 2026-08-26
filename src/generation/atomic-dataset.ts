@@ -11,6 +11,19 @@ async function pathExists(target: string) {
   }
 }
 
+export async function assertDatasetDestinationAvailable(
+  outputRoot: string,
+  datasetId: string,
+  overwrite: boolean,
+) {
+  const destination = path.join(outputRoot, datasetId);
+  if (!overwrite && (await pathExists(destination))) {
+    throw new Error(
+      `Dataset destination already exists: ${destination} (use --overwrite to replace it)`,
+    );
+  }
+}
+
 export async function writeDatasetAtomically(
   outputRoot: string,
   datasetId: string,
@@ -20,11 +33,7 @@ export async function writeDatasetAtomically(
 ) {
   await mkdir(outputRoot, { recursive: true });
   const destination = path.join(outputRoot, datasetId);
-  if (!overwrite && (await pathExists(destination))) {
-    throw new Error(
-      `Dataset destination already exists: ${destination} (use --overwrite to replace it)`,
-    );
-  }
+  await assertDatasetDestinationAvailable(outputRoot, datasetId, overwrite);
 
   const temporary = await mkdtemp(path.join(outputRoot, `.${datasetId}.tmp-`));
   let backup: string | undefined;

@@ -49,13 +49,29 @@ export function validateContributionManifest(manifest: ContributionManifest) {
   const generatedTokenCount =
     manifest.tokens.length - manifest.promptTokenCount;
   if (
-    manifest.generation.method !== 'greedy' ||
+    (manifest.generation.method !== 'greedy' &&
+      manifest.generation.method !== 'sampling') ||
     !Number.isSafeInteger(manifest.generation.maxNewTokens) ||
     generatedTokenCount > manifest.generation.maxNewTokens ||
     (manifest.generation.stopReason === 'max_new_tokens' &&
       generatedTokenCount !== manifest.generation.maxNewTokens)
   ) {
     throw new Error('Manifest generation metadata is inconsistent');
+  }
+  if (
+    manifest.generation.method === 'sampling' &&
+    (!Number.isSafeInteger(manifest.generation.seed) ||
+      (manifest.generation.seed ?? -1) < 0 ||
+      typeof manifest.generation.enableThinking !== 'boolean' ||
+      !Number.isFinite(manifest.generation.temperature) ||
+      (manifest.generation.temperature ?? 0) <= 0 ||
+      !Number.isSafeInteger(manifest.generation.topK) ||
+      (manifest.generation.topK ?? 0) < 1 ||
+      !Number.isFinite(manifest.generation.topP) ||
+      (manifest.generation.topP ?? 0) <= 0 ||
+      (manifest.generation.topP ?? 0) > 1)
+  ) {
+    throw new Error('Manifest sampling metadata is inconsistent');
   }
   for (const [index, token] of manifest.tokens.entries()) {
     if (!Number.isSafeInteger(token.id)) {

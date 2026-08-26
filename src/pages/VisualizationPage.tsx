@@ -103,7 +103,11 @@ export function VisualizationPage() {
             </Text>
           </div>
           <Group gap="xs" className="header-badges">
-            <Badge variant="light">Greedy generation</Badge>
+            <Badge variant="light">
+              {dataset.manifest.generation.method === 'sampling'
+                ? `Sampled · seed ${dataset.manifest.generation.seed}`
+                : 'Greedy generation'}
+            </Badge>
             <Badge variant="outline">Unprojected contribution</Badge>
           </Group>
         </header>

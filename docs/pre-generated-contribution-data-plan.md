@@ -88,7 +88,7 @@ Suggested responsibilities:
   and head aggregation
 - `validation.ts`: tensor shapes, unchanged logits, and fused-context
   reconstruction checks
-- `generate.ts`: application-owned greedy generation loop and tensor lifetime
+- `generate.ts`: application-owned seeded sampling loop and tensor lifetime
   management
 - `dataset.ts`: versioned JSON structures and serialization helpers
 - `types.ts`: shared model-output, contribution, prompt, and manifest types
@@ -121,10 +121,15 @@ Each entry should contain:
 - An optional assistant-response prefix, appended after the chat template's
   assistant generation marker
 - An optional per-prompt generated-token limit
+- Optional thinking mode, disabled by default
+- An optional sampling seed, defaulting to the shared generation seed
+- Optional temperature, top-k, and top-p sampling overrides
 
-Generation remains deterministic and greedy for reproducible data. The global
-generated-token ceiling remains 1,000, but initial prompt entries should use
-substantially smaller limits because contribution matrices grow quadratically.
+Generation uses reproducible top-k/top-p sampling. The shared defaults are
+temperature 0.6, top-k 20, and top-p 0.95, and prompts may override each value
+independently. The global generated-token ceiling remains 1,000, but initial
+prompt entries should use substantially smaller limits because contribution
+matrices grow quadratically.
 
 Duplicate IDs, unsafe path characters, empty prompts, and limits outside the
 allowed range should fail before model loading begins.
@@ -138,7 +143,7 @@ process prompts sequentially:
 2. Run prompt prefill directly through `model.forward()`.
 3. Validate all promoted Q, K, V, and fused-context outputs.
 4. Calculate contribution rows for every prompt token and layer.
-5. Select the next token greedily from the final logits.
+5. Sample the next token from the filtered final logits.
 6. Run each generated token through a direct incremental forward pass.
 7. Calculate its new contribution row for every layer.
 8. Dispose the previous step's outputs after its K/V cache has been consumed.
@@ -218,9 +223,14 @@ datasets under application assets.
     "headDimension": 128
   },
   "generation": {
-    "method": "greedy",
+    "method": "sampling",
     "maxNewTokens": 64,
-    "stopReason": "eos"
+    "stopReason": "eos",
+    "enableThinking": false,
+    "seed": 42,
+    "temperature": 0.6,
+    "topK": 20,
+    "topP": 0.95
   },
   "validation": {
     "logitsMaxAbsoluteError": 0,
@@ -375,8 +385,9 @@ Reusable code now lives in `src/generation/`:
   value-vector norms, and root-sum-square contribution aggregation.
 - `validation.ts` implements tensor-shape checks, logits comparison, and fused
   attention-context reconstruction.
-- `generate.ts` owns prompt prefill, greedy incremental decoding, K/V cache and
-  tensor lifetime handling, contribution collection, and manifest construction.
+- `generate.ts` owns prompt prefill, seeded top-k/top-p sampling, incremental
+  decoding, K/V cache and tensor lifetime handling, contribution collection,
+  and manifest construction.
 - `dataset.ts` validates complete causal triangles and writes a manifest plus 28
   layer shards through a temporary sibling directory. Existing destinations are
   rejected unless overwrite is explicitly enabled.
@@ -390,6 +401,7 @@ pnpm generate:contributions
 pnpm generate:contributions --id <dataset-id>
 pnpm generate:contributions --output <directory> --overwrite
 pnpm generate:contributions --id <dataset-id> --validate
+pnpm generate:contributions --id <dataset-id> --no-stream
 ```
 
 A second exporter stores the exact layer sum consumed by the contribution-text
@@ -400,15 +412,18 @@ pnpm generate:summed-contributions
 pnpm generate:summed-contributions --id <dataset-id>
 pnpm generate:summed-contributions --output <directory> --overwrite
 pnpm generate:summed-contributions --id <dataset-id> --validate
+pnpm generate:summed-contributions --id <dataset-id> --no-stream
 ```
 
 Its output defaults to `generated/summed-contributions/<dataset-id>/` and
 contains an eagerly discovered `manifest.json` plus one lazily loaded
-`contributions.json`. The latter is a causal triangle produced by adding each
-layer's rows into the final matrix as model steps complete. Individual layer
-matrices are never retained by this exporter. This reduces retained and
-downloaded contribution values from `layers × tokens² / 2` to `tokens² / 2`;
-the underlying attention reconstruction remains quadratic in token count.
+`contributions.json`. The latter contains one source-contribution row per
+generated target token, produced by adding layers as model steps complete.
+Prompt-target rows, the unused row after the final generated token, and
+individual layer matrices are never computed or retained by this exporter.
+For `P` prompt tokens and `G` generated tokens, this stores approximately
+`G × P + G² / 2` values instead of `layers × (P + G)² / 2`. The underlying
+attention work for the retained generated targets remains quadratic overall.
 
 Prompt configurations may set `contributionFormats` to control automatic bulk
 runs:
@@ -418,25 +433,33 @@ runs:
   id: 'long-example',
   prompt: '...',
   contributionFormats: ['summed'],
+  enableThinking: true,
+  seed: 1234,
+  temperature: 0.8,
+  topK: 50,
+  topP: 0.9,
 }
 ```
 
-Omitting the property enables both `layered` and `summed`. Each script filters
-the prompt list for its format before loading models. An explicitly selected
-incompatible `--id` is rejected as well, preventing accidental heavy exports
-of summed-only prompts.
+Omitting `contributionFormats` enables both `layered` and `summed`.
+`enableThinking` defaults to false, `seed` defaults to 42, and omitted sampling
+parameters use the shared defaults. Each script filters the prompt list for its
+format before loading models. An explicitly selected incompatible `--id` is
+rejected as well, preventing accidental heavy exports of summed-only prompts.
 
 Both exporters validate and filter prompt configuration before loading a model.
 Passing `--id` selects one compatible configured dataset; omitting it processes
-every compatible dataset. Runtime model validation is disabled by default, so
+every compatible dataset. All selected destinations are checked before loading
+the tokenizer or either model, so an existing output fails immediately unless
+`--overwrite` is supplied. Runtime model validation is disabled by default, so
 only the instrumented model is loaded. Passing `--validate` first loads the
 original model to capture final-position reference logits and also reconstructs
 instrumented attention contexts at every generation step. Validation statistics
 are included in the manifest only when this flag is enabled. Layered output
 defaults to `generated/contributions/`; both generated roots are ignored by Git.
-The final generated token,
-including EOS or the token at the configured limit, receives its own forward
-pass and contribution row.
+The summed exporter reports generated-token count and elapsed time about once
+per second. Unlike layered exports, it stops before the unused forward pass
+after EOS or the token at the configured limit.
 
 The instrumentation validator is now a thin consumer of the shared attention,
 cache, generation-helper, and validation modules. Its displayed strongest-token

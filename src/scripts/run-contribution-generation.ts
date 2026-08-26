@@ -4,6 +4,7 @@ import {
   AutoModelForCausalLM,
   AutoTokenizer,
   env,
+  TextStreamer,
 } from '@huggingface/transformers';
 
 import {
@@ -12,6 +13,7 @@ import {
   MODEL_ID,
   MODEL_ROOT,
 } from '../generation/config.ts';
+import { assertDatasetDestinationAvailable } from '../generation/atomic-dataset.ts';
 import {
   disposeOutputs,
   disposeTokenizedPrompt,
@@ -36,6 +38,7 @@ type CommandLineOptions = {
   datasetId?: string;
   outputRoot: string;
   overwrite: boolean;
+  stream: boolean;
   validate: boolean;
 };
 
@@ -45,6 +48,7 @@ type ContributionGenerationTarget<
   format: ContributionFormat;
   defaultOutputRoot: string;
   noun: string;
+  showProgress?: boolean;
   generate: (options: GenerateContributionDatasetOptions) => Promise<Dataset>;
   write: (
     outputRoot: string,
@@ -55,13 +59,14 @@ type ContributionGenerationTarget<
   outputDescription: (dataset: Dataset) => string;
 };
 
-function parseArguments(
+export function parseArguments(
   arguments_: string[],
   defaultOutputRoot: string,
 ): CommandLineOptions {
   let datasetId: string | undefined;
   let outputRoot = path.resolve(defaultOutputRoot);
   let overwrite = false;
+  let stream = true;
   let validate = false;
   for (let index = 0; index < arguments_.length; ++index) {
     const argument = arguments_[index];
@@ -78,6 +83,8 @@ function parseArguments(
       datasetId = value;
     } else if (argument === '--overwrite') {
       overwrite = true;
+    } else if (argument === '--no-stream') {
+      stream = false;
     } else if (argument === '--validate') {
       validate = true;
     } else if (argument === '--output') {
@@ -88,7 +95,7 @@ function parseArguments(
       throw new Error(`Unknown argument: ${argument}`);
     }
   }
-  return { datasetId, outputRoot, overwrite, validate };
+  return { datasetId, outputRoot, overwrite, stream, validate };
 }
 
 async function originalPromptLogits(
@@ -138,6 +145,15 @@ export async function runContributionGeneration<
     );
     return;
   }
+  await Promise.all(
+    configurations.map((prompt) =>
+      assertDatasetDestinationAvailable(
+        options.outputRoot,
+        prompt.id,
+        options.overwrite,
+      ),
+    ),
+  );
 
   env.localModelPath = MODEL_ROOT;
   env.allowRemoteModels = false;
@@ -164,13 +180,58 @@ export async function runContributionGeneration<
       if (options.validate && !originalLogits) {
         throw new Error(`Missing original logits for prompt ${prompt.id}`);
       }
-      const dataset = await target.generate({
-        model,
-        tokenizer,
-        prompt,
-        validate: options.validate,
-        originalLogits,
-      });
+      let generatedTokenCount = 0;
+      const startedAt = Date.now();
+      const reportProgress = () => {
+        const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
+        const message = `Generated ${generatedTokenCount}/${prompt.maxNewTokens} tokens · ${elapsedSeconds}s`;
+        if (process.stderr.isTTY) {
+          process.stderr.write(`\r${message}`);
+        } else {
+          console.error(message);
+        }
+      };
+      const progressTimer = target.showProgress
+        ? setInterval(reportProgress, 1_000)
+        : undefined;
+      const streamer = options.stream
+        ? new TextStreamer(tokenizer as never, {
+            skip_special_tokens: true,
+            decode_kwargs: { clean_up_tokenization_spaces: false },
+            callback_function: (text) => process.stdout.write(text),
+          })
+        : undefined;
+      if (streamer) {
+        process.stdout.write(`Generated text (${prompt.id}):\n`);
+      }
+      let dataset: Dataset;
+      try {
+        dataset = await target.generate({
+          model,
+          tokenizer,
+          prompt,
+          validate: options.validate,
+          originalLogits,
+          onProgress: target.showProgress
+            ? (count) => {
+                generatedTokenCount = count;
+              }
+            : undefined,
+          onGeneratedToken: streamer
+            ? (token) => streamer.put([[token]])
+            : undefined,
+        });
+      } finally {
+        if (streamer) {
+          streamer.end();
+          process.stdout.write('\n');
+        }
+        if (progressTimer) {
+          clearInterval(progressTimer);
+          reportProgress();
+          if (process.stderr.isTTY) process.stderr.write('\n');
+        }
+      }
       const destination = await target.write(
         options.outputRoot,
         prompt.id,

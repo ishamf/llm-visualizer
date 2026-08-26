@@ -4,9 +4,17 @@ import { fileURLToPath } from 'node:url';
 import {
   env,
   pipeline,
+  random,
   TextStreamer,
   type Message,
 } from '@huggingface/transformers';
+
+import {
+  DEFAULT_GENERATION_SEED,
+  GENERATION_TEMPERATURE,
+  GENERATION_TOP_K,
+  GENERATION_TOP_P,
+} from '../generation/config.ts';
 
 const MODEL_ID = 'Qwen3-0.6B-ONNX';
 const MODEL_ROOT = fileURLToPath(new URL('../../models/', import.meta.url));
@@ -14,6 +22,7 @@ const prompt = process.argv.slice(2).join(' ').trim();
 
 env.localModelPath = MODEL_ROOT;
 env.allowRemoteModels = false;
+random.seed(DEFAULT_GENERATION_SEED);
 
 if (!prompt) {
   console.error('Usage: pnpm generate "Your prompt"');
@@ -36,7 +45,10 @@ if (!prompt) {
   try {
     await generator(messages, {
       max_new_tokens: 256,
-      do_sample: false,
+      do_sample: true,
+      temperature: GENERATION_TEMPERATURE,
+      top_k: GENERATION_TOP_K,
+      top_p: GENERATION_TOP_P,
       tokenizer_encode_kwargs: { enable_thinking: false },
       streamer: new TextStreamer(generator.tokenizer, {
         skip_prompt: true,

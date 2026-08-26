@@ -51,14 +51,30 @@ export type PromptConfiguration = {
   assistantPrefix?: string;
   maxNewTokens?: number;
   contributionFormats?: ContributionFormat[];
+  enableThinking?: boolean;
+  seed?: number;
+  temperature?: number;
+  topK?: number;
+  topP?: number;
 };
 
 export type ValidatedPromptConfiguration = Omit<
   PromptConfiguration,
-  'contributionFormats'
+  | 'contributionFormats'
+  | 'enableThinking'
+  | 'maxNewTokens'
+  | 'seed'
+  | 'temperature'
+  | 'topK'
+  | 'topP'
 > & {
   maxNewTokens: number;
   contributionFormats: ContributionFormat[];
+  enableThinking: boolean;
+  seed: number;
+  temperature: number;
+  topK: number;
+  topP: number;
 };
 
 export type DatasetToken = {
@@ -89,9 +105,14 @@ export type ContributionManifest = {
     headDimension: number;
   };
   generation: {
-    method: 'greedy';
+    method: 'greedy' | 'sampling';
     maxNewTokens: number;
     stopReason: StopReason;
+    enableThinking?: boolean;
+    seed?: number;
+    temperature?: number;
+    topK?: number;
+    topP?: number;
   };
   validation?: {
     logitsMaxAbsoluteError: number;
@@ -116,6 +137,8 @@ export type SummedContributions = {
   metric: typeof CONTRIBUTION_METRIC;
   aggregation: 'sum';
   layerCount: number;
+  /** First generated token described by rows[0]. Absent in legacy full matrices. */
+  targetTokenStart?: number;
   rows: number[][];
 };
 

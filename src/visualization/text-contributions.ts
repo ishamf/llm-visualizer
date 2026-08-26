@@ -34,9 +34,14 @@ export function sumLayerContributions(
 export function predictionContributionRow(
   totals: number[][],
   hoveredToken: number,
+  targetTokenStart?: number,
 ): number[] | undefined {
-  if (hoveredToken < 1) return undefined;
-  return totals[hoveredToken - 1];
+  if (targetTokenStart === undefined) {
+    if (hoveredToken < 1) return undefined;
+    return totals[hoveredToken - 1];
+  }
+  if (hoveredToken < targetTokenStart) return undefined;
+  return totals[hoveredToken - targetTokenStart];
 }
 
 export function contributionOpacity(

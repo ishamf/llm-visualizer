@@ -10,6 +10,9 @@ import {
 import { contributionRows } from '../generation/attention.ts';
 import {
   CONTEXT_ABSOLUTE_TOLERANCE,
+  GENERATION_TEMPERATURE,
+  GENERATION_TOP_K,
+  GENERATION_TOP_P,
   INSTRUMENTED_MODEL_NAME,
   LAYER_COUNT,
   MODEL_DTYPE,
@@ -96,6 +99,11 @@ async function main() {
     systemPrompt: 'You are a helpful assistant.',
     maxNewTokens: Math.max(1, maxNewTokens),
     contributionFormats: ['layered', 'summed'],
+    enableThinking: false,
+    seed: 42,
+    temperature: GENERATION_TEMPERATURE,
+    topK: GENERATION_TOP_K,
+    topP: GENERATION_TOP_P,
   });
   const tokenIds = [...encoded.tokenIds];
 
