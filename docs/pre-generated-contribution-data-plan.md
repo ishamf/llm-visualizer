@@ -387,12 +387,14 @@ The exporter is `src/scripts/generate-contributions.ts` and is exposed as:
 
 ```text
 pnpm generate:contributions
+pnpm generate:contributions --id <dataset-id>
 pnpm generate:contributions --output <directory> --overwrite
 ```
 
-It validates the prompt list before loading a model, loads the original model
-once to capture reference prompt logits, then loads the instrumented model once
-and processes configured prompts sequentially. Output defaults to
+It validates the prompt list before loading a model. Passing `--id` selects one
+configured dataset; omitting it processes every configured dataset. It then
+loads the original model once to capture reference prompt logits, loads the
+instrumented model once, and processes the selection sequentially. Output defaults to
 `generated/contributions/`, which is ignored by Git. The final generated token,
 including EOS or the token at the configured limit, receives its own forward
 pass and contribution row.
@@ -418,7 +420,6 @@ at EOS and decoded to `Hello! How can I assist you today?`.
 
 The following planned work remains:
 
-- Add a command-line option to select a single configured prompt by ID.
 - Expand the synthetic tests so stable softmax, value norms, prefill indices,
   and decoding indices each have dedicated cases rather than being covered only
   through combined math tests and real-model validation.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { validatePrompts } from './prompts.ts';
+import { selectPromptConfigurations, validatePrompts } from './prompts.ts';
 
 describe('prompt validation', () => {
   it('applies the default generation limit', () => {
@@ -26,5 +26,28 @@ describe('prompt validation', () => {
     ],
   ])('rejects invalid configurations', (configurations, message) => {
     expect(() => validatePrompts(configurations)).toThrow(message);
+  });
+});
+
+describe('prompt selection', () => {
+  const configurations = validatePrompts([
+    { id: 'first', prompt: 'First' },
+    { id: 'second', prompt: 'Second' },
+  ]);
+
+  it('selects one configured dataset by ID', () => {
+    expect(selectPromptConfigurations(configurations, 'second')).toEqual([
+      expect.objectContaining({ id: 'second' }),
+    ]);
+  });
+
+  it('keeps all datasets when no ID is supplied', () => {
+    expect(selectPromptConfigurations(configurations)).toBe(configurations);
+  });
+
+  it('reports the available IDs when selection fails', () => {
+    expect(() => selectPromptConfigurations(configurations, 'missing')).toThrow(
+      'Unknown dataset ID "missing". Available IDs: first, second',
+    );
   });
 });

@@ -73,3 +73,20 @@ export function validatePrompts(
     return { ...configuration, maxNewTokens };
   });
 }
+
+export function selectPromptConfigurations(
+  configurations: ValidatedPromptConfiguration[],
+  id?: string,
+): ValidatedPromptConfiguration[] {
+  if (id === undefined) return configurations;
+
+  const selected = configurations.find(
+    (configuration) => configuration.id === id,
+  );
+  if (!selected) {
+    throw new Error(
+      `Unknown dataset ID ${JSON.stringify(id)}. Available IDs: ${configurations.map((configuration) => configuration.id).join(', ')}`,
+    );
+  }
+  return [selected];
+}

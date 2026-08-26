@@ -20,7 +20,11 @@ import {
   generateContributionDataset,
   tokenizePrompt,
 } from '../generation/generate.ts';
-import { prompts, validatePrompts } from '../generation/prompts.ts';
+import {
+  prompts,
+  selectPromptConfigurations,
+  validatePrompts,
+} from '../generation/prompts.ts';
 import type {
   CausalLanguageModel,
   ModelOutputs,
@@ -28,17 +32,28 @@ import type {
 } from '../generation/types.ts';
 
 type CommandLineOptions = {
+  datasetId?: string;
   outputRoot: string;
   overwrite: boolean;
 };
 
 function parseArguments(arguments_: string[]): CommandLineOptions {
+  let datasetId: string | undefined;
   let outputRoot = path.resolve('generated/contributions');
   let overwrite = false;
   for (let index = 0; index < arguments_.length; ++index) {
     const argument = arguments_[index];
     if (argument === '--') {
       continue;
+    } else if (argument === '--id') {
+      const value = arguments_[++index];
+      if (!value || value.startsWith('--')) {
+        throw new Error('--id requires a dataset ID');
+      }
+      if (datasetId !== undefined) {
+        throw new Error('--id may only be provided once');
+      }
+      datasetId = value;
     } else if (argument === '--overwrite') {
       overwrite = true;
     } else if (argument === '--output') {
@@ -49,7 +64,7 @@ function parseArguments(arguments_: string[]): CommandLineOptions {
       throw new Error(`Unknown argument: ${argument}`);
     }
   }
-  return { outputRoot, overwrite };
+  return { datasetId, outputRoot, overwrite };
 }
 
 async function originalPromptLogits(
@@ -86,7 +101,10 @@ async function originalPromptLogits(
 async function main() {
   const options = parseArguments(process.argv.slice(2));
   // Prompt validation deliberately happens before any model is loaded.
-  const configurations = validatePrompts(prompts);
+  const configurations = selectPromptConfigurations(
+    validatePrompts(prompts),
+    options.datasetId,
+  );
 
   env.localModelPath = MODEL_ROOT;
   env.allowRemoteModels = false;
