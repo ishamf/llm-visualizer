@@ -15,7 +15,7 @@ export const prompts: PromptConfiguration[] = [
     id: 'multiplication-place-values',
     prompt: 'Calculate 5726*37',
     assistantPrefix: '5000 * 7 = 35000\n700 * 7 = 4900\n',
-    maxNewTokens: 48,
+    maxNewTokens: 256,
   },
 ];
 
