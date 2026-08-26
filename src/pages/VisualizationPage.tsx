@@ -16,6 +16,7 @@ import {
   getBundledContributionDatasets,
 } from '../data/bundled-contribution-data-source.ts';
 import { ContributionGrid } from '../visualization/ContributionGrid.tsx';
+import { ContributionText } from '../visualization/ContributionText.tsx';
 import { getVisualization } from '../visualization/registry.ts';
 
 export function VisualizationPage() {
@@ -84,16 +85,25 @@ export function VisualizationPage() {
           </Text>
         </Paper>
 
-        <Paper className="metric-note" radius="md" p="sm">
-          <Text size="sm">
-            Circles are token positions. Hover a circle to reveal its strongest
-            causal source contributions; line width shows relative magnitude
-            within that destination row. Click to pin, and press Escape to
-            clear.
-          </Text>
-        </Paper>
-
-        <ContributionGrid source={source} />
+        {visualization.kind === 'contribution-grid' ? (
+          <>
+            <Paper className="metric-note" radius="md" p="sm">
+              <Text size="sm">
+                Circles are token positions. Hover a circle to reveal its
+                strongest causal source contributions; line width shows relative
+                magnitude within that destination row. Click to pin, and press
+                Escape to clear.
+              </Text>
+            </Paper>
+            <ContributionGrid source={source} />
+          </>
+        ) : (
+          <ContributionText
+            key={dataset.id}
+            source={source}
+            manifest={dataset.manifest}
+          />
+        )}
       </Container>
     </main>
   );

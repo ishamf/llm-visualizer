@@ -90,6 +90,101 @@
   );
 }
 
+.text-visualization-state {
+  display: flex;
+  min-height: 240px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.text-visualization {
+  overflow: hidden;
+  background: light-dark(
+    var(--mantine-color-white),
+    var(--mantine-color-dark-8)
+  );
+  box-shadow: var(--mantine-shadow-sm);
+}
+
+.text-visualization-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 220px));
+  gap: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid
+    light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-6));
+}
+
+.contribution-text {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: clamp(0.88rem, 1.8vw, 1.08rem);
+  line-height: 1.9;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.contribution-text-token {
+  border-radius: 3px;
+  opacity: var(--token-opacity);
+  transition:
+    opacity 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.contribution-text-token:hover,
+.contribution-text-token:focus-visible {
+  background: light-dark(
+    var(--mantine-color-violet-1),
+    var(--mantine-color-violet-9)
+  );
+  box-shadow: 0 0 0 2px
+    light-dark(var(--mantine-color-violet-1), var(--mantine-color-violet-9));
+  outline: none;
+}
+
+.generated-text-token {
+  color: light-dark(var(--mantine-color-cyan-9), var(--mantine-color-cyan-2));
+}
+
+.generation-start-token {
+  border-left: 2px solid var(--mantine-color-cyan-6);
+  margin-left: 0.18em;
+  padding-left: 0.18em;
+}
+
+.text-visualization-legend {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 24px;
+  padding-top: 14px;
+  border-top: 1px solid
+    light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-6));
+}
+
+.legend-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.prompt-swatch {
+  background: var(--mantine-color-gray-6);
+}
+
+.generated-swatch {
+  margin-left: 8px;
+  background: var(--mantine-color-cyan-6);
+}
+
+.hovered-token-detail {
+  margin-left: auto;
+  text-align: right;
+}
+
 .grid-frame {
   overflow: hidden;
   background: light-dark(
@@ -419,6 +514,10 @@
   }
 
   .ranked-contributions {
+    grid-template-columns: 1fr;
+  }
+
+  .text-visualization-controls {
     grid-template-columns: 1fr;
   }
 }
