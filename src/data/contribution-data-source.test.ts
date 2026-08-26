@@ -10,6 +10,10 @@ import {
   parseContributionLayer,
   parseContributionManifest,
 } from './contribution-data-source.ts';
+import {
+  LayerSummingContributionDataSource,
+  parseSummedContributions,
+} from './summed-contribution-data-source.ts';
 
 function dataset(): ContributionDataset {
   return {
@@ -73,6 +77,49 @@ describe('contribution data sources', () => {
         { ...value.layers[0], rows: [[1], [0.4]] },
         manifest,
         0,
+      ),
+    ).toThrow('not causal');
+  });
+
+  it('adapts layered data to the summed-data contract', async () => {
+    const value = dataset();
+    const source = new LayerSummingContributionDataSource(
+      new InMemoryContributionDataSource('memory', value),
+    );
+
+    await expect(source.getContributions()).resolves.toEqual({
+      schemaVersion: DATASET_SCHEMA_VERSION,
+      metric: CONTRIBUTION_METRIC,
+      aggregation: 'sum',
+      layerCount: 1,
+      rows: [[1], [0.4, 2]],
+    });
+  });
+
+  it('validates pre-summed causal rows', () => {
+    const manifest = dataset().manifest;
+    expect(
+      parseSummedContributions(
+        {
+          schemaVersion: DATASET_SCHEMA_VERSION,
+          metric: CONTRIBUTION_METRIC,
+          aggregation: 'sum',
+          layerCount: 1,
+          rows: [[1], [0.4, 2]],
+        },
+        manifest,
+      ).rows,
+    ).toHaveLength(2);
+    expect(() =>
+      parseSummedContributions(
+        {
+          schemaVersion: DATASET_SCHEMA_VERSION,
+          metric: CONTRIBUTION_METRIC,
+          aggregation: 'sum',
+          layerCount: 1,
+          rows: [[1], [0.4]],
+        },
+        manifest,
       ),
     ).toThrow('not causal');
   });

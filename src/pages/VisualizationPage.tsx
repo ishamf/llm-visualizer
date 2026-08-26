@@ -15,6 +15,11 @@ import {
   BundledContributionDataSource,
   getBundledContributionDatasets,
 } from '../data/bundled-contribution-data-source.ts';
+import {
+  BundledSummedContributionDataSource,
+  getBundledSummedContributionDatasets,
+} from '../data/bundled-summed-contribution-data-source.ts';
+import { LayerSummingContributionDataSource } from '../data/summed-contribution-data-source.ts';
 import { ContributionGrid } from '../visualization/ContributionGrid.tsx';
 import { ContributionText } from '../visualization/ContributionText.tsx';
 import { getVisualization } from '../visualization/registry.ts';
@@ -22,13 +27,40 @@ import { getVisualization } from '../visualization/registry.ts';
 export function VisualizationPage() {
   const { visualizationId = '', datasetId = '' } = useParams();
   const visualization = getVisualization(visualizationId);
-  const dataset = getBundledContributionDatasets().find(
+  const layeredDataset = getBundledContributionDatasets().find(
     (candidate) => candidate.id === datasetId,
   );
-  const source = useMemo(
-    () => (dataset ? new BundledContributionDataSource(dataset.id) : null),
-    [dataset],
+  const summedDataset = getBundledSummedContributionDatasets().find(
+    (candidate) => candidate.id === datasetId,
   );
+  const dataset =
+    visualization?.preferredFormat === 'layered'
+      ? layeredDataset
+      : (summedDataset ?? layeredDataset);
+  const layeredSource = useMemo(
+    () =>
+      layeredDataset
+        ? new BundledContributionDataSource(layeredDataset.id)
+        : null,
+    [layeredDataset],
+  );
+  const summedSource = useMemo(
+    () =>
+      summedDataset
+        ? new BundledSummedContributionDataSource(summedDataset.id)
+        : null,
+    [summedDataset],
+  );
+  const textSource = useMemo(
+    () =>
+      summedSource ??
+      (layeredSource
+        ? new LayerSummingContributionDataSource(layeredSource)
+        : null),
+    [layeredSource, summedSource],
+  );
+  const source =
+    visualization?.kind === 'contribution-grid' ? layeredSource : textSource;
 
   if (!visualization || !dataset || !source) {
     return (
@@ -95,12 +127,12 @@ export function VisualizationPage() {
                 Escape to clear.
               </Text>
             </Paper>
-            <ContributionGrid source={source} />
+            <ContributionGrid source={layeredSource!} />
           </>
         ) : (
           <ContributionText
             key={dataset.id}
-            source={source}
+            source={textSource!}
             manifest={dataset.manifest}
           />
         )}

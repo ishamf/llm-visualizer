@@ -95,6 +95,7 @@ async function main() {
     prompt,
     systemPrompt: 'You are a helpful assistant.',
     maxNewTokens: Math.max(1, maxNewTokens),
+    contributionFormats: ['layered', 'summed'],
   });
   const tokenIds = [...encoded.tokenIds];
 

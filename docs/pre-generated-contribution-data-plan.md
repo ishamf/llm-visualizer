@@ -389,13 +389,52 @@ The exporter is `src/scripts/generate-contributions.ts` and is exposed as:
 pnpm generate:contributions
 pnpm generate:contributions --id <dataset-id>
 pnpm generate:contributions --output <directory> --overwrite
+pnpm generate:contributions --id <dataset-id> --validate
 ```
 
-It validates the prompt list before loading a model. Passing `--id` selects one
-configured dataset; omitting it processes every configured dataset. It then
-loads the original model once to capture reference prompt logits, loads the
-instrumented model once, and processes the selection sequentially. Output defaults to
-`generated/contributions/`, which is ignored by Git. The final generated token,
+A second exporter stores the exact layer sum consumed by the contribution-text
+visualization instead of retaining and serializing every layer:
+
+```text
+pnpm generate:summed-contributions
+pnpm generate:summed-contributions --id <dataset-id>
+pnpm generate:summed-contributions --output <directory> --overwrite
+pnpm generate:summed-contributions --id <dataset-id> --validate
+```
+
+Its output defaults to `generated/summed-contributions/<dataset-id>/` and
+contains an eagerly discovered `manifest.json` plus one lazily loaded
+`contributions.json`. The latter is a causal triangle produced by adding each
+layer's rows into the final matrix as model steps complete. Individual layer
+matrices are never retained by this exporter. This reduces retained and
+downloaded contribution values from `layers × tokens² / 2` to `tokens² / 2`;
+the underlying attention reconstruction remains quadratic in token count.
+
+Prompt configurations may set `contributionFormats` to control automatic bulk
+runs:
+
+```ts
+{
+  id: 'long-example',
+  prompt: '...',
+  contributionFormats: ['summed'],
+}
+```
+
+Omitting the property enables both `layered` and `summed`. Each script filters
+the prompt list for its format before loading models. An explicitly selected
+incompatible `--id` is rejected as well, preventing accidental heavy exports
+of summed-only prompts.
+
+Both exporters validate and filter prompt configuration before loading a model.
+Passing `--id` selects one compatible configured dataset; omitting it processes
+every compatible dataset. Runtime model validation is disabled by default, so
+only the instrumented model is loaded. Passing `--validate` first loads the
+original model to capture final-position reference logits and also reconstructs
+instrumented attention contexts at every generation step. Validation statistics
+are included in the manifest only when this flag is enabled. Layered output
+defaults to `generated/contributions/`; both generated roots are ignored by Git.
+The final generated token,
 including EOS or the token at the configured limit, receives its own forward
 pass and contribution row.
 

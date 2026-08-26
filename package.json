@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "generate": "tsx src/scripts/generate.ts",
     "generate:contributions": "tsx src/scripts/generate-contributions.ts",
+    "generate:summed-contributions": "tsx src/scripts/generate-summed-contributions.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",

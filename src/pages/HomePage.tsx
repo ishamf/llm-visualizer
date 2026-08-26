@@ -11,17 +11,33 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { getBundledContributionDatasets } from '../data/bundled-contribution-data-source.ts';
+import { getBundledSummedContributionDatasets } from '../data/bundled-summed-contribution-data-source.ts';
 import { VISUALIZATIONS } from '../visualization/registry.ts';
 
-const datasets = getBundledContributionDatasets();
+const layeredDatasets = getBundledContributionDatasets();
+const summedDatasets = getBundledSummedContributionDatasets();
+
+function datasetsForVisualization(visualizationId: string | null) {
+  const visualization = VISUALIZATIONS.find(
+    (candidate) => candidate.id === visualizationId,
+  );
+  if (visualization?.preferredFormat === 'layered') return layeredDatasets;
+
+  const summedIds = new Set(summedDatasets.map(({ id }) => id));
+  return [
+    ...summedDatasets,
+    ...layeredDatasets.filter(({ id }) => !summedIds.has(id)),
+  ];
+}
 
 export function HomePage() {
   const navigate = useNavigate();
   const [visualizationId, setVisualizationId] = useState<string | null>(
     VISUALIZATIONS[0]?.id ?? null,
   );
+  const datasets = datasetsForVisualization(visualizationId);
   const [datasetId, setDatasetId] = useState<string | null>(
-    datasets[0]?.id ?? null,
+    datasetsForVisualization(VISUALIZATIONS[0]?.id ?? null)[0]?.id ?? null,
   );
   const selectedVisualization = VISUALIZATIONS.find(
     (visualization) => visualization.id === visualizationId,
@@ -33,6 +49,14 @@ export function HomePage() {
     navigate(
       `/visualizations/${encodeURIComponent(visualizationId)}/${encodeURIComponent(datasetId)}`,
     );
+  };
+
+  const selectVisualization = (value: string | null) => {
+    setVisualizationId(value);
+    const compatibleDatasets = datasetsForVisualization(value);
+    if (!compatibleDatasets.some(({ id }) => id === datasetId)) {
+      setDatasetId(compatibleDatasets[0]?.id ?? null);
+    }
   };
 
   return (
@@ -58,7 +82,7 @@ export function HomePage() {
                 label,
               }))}
               value={visualizationId}
-              onChange={setVisualizationId}
+              onChange={selectVisualization}
               allowDeselect={false}
             />
 

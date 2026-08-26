@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { disposeTokenizedPrompt, tokenizePrompt } from './generate.ts';
+import {
+  addSummedContributionRows,
+  disposeTokenizedPrompt,
+  tokenizePrompt,
+} from './generate.ts';
 import type { Tokenizer } from './types.ts';
 
 describe('prompt tokenization', () => {
@@ -19,6 +23,7 @@ describe('prompt tokenization', () => {
       prompt: 'Calculate 2*3',
       assistantPrefix: '2 * 3 =',
       maxNewTokens: 8,
+      contributionFormats: ['layered', 'summed'],
     });
 
     try {
@@ -41,5 +46,16 @@ describe('prompt tokenization', () => {
     } finally {
       disposeTokenizedPrompt(encoded);
     }
+  });
+});
+
+describe('summed contribution collection', () => {
+  it('adds corresponding causal rows without retaining layers', () => {
+    const totals: number[][] = [];
+    addSummedContributionRows(totals, 0, [[1], [2, 3]]);
+    addSummedContributionRows(totals, 0, [[0.5], [4, 5]]);
+    addSummedContributionRows(totals, 2, [[6, 7, 8]]);
+
+    expect(totals).toEqual([[1.5], [6, 8], [6, 7, 8]]);
   });
 });

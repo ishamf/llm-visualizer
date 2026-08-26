@@ -1,14 +1,13 @@
 import { Alert, Loader, NumberInput, Paper, Select, Text } from '@mantine/core';
 import { useEffect, useState, type CSSProperties } from 'react';
 
-import type { ContributionDataSource } from '../data/contribution-data-source.ts';
+import type { SummedContributionDataSource } from '../data/summed-contribution-data-source.ts';
 import type { ContributionManifest } from '../generation/types.ts';
 import {
   contributionOpacity,
   type ContributionOpacityScale,
   MINIMUM_TOKEN_OPACITY,
   predictionContributionRow,
-  sumLayerContributions,
 } from './text-contributions.ts';
 
 type AggregateState =
@@ -17,7 +16,7 @@ type AggregateState =
   | { status: 'error'; error: Error };
 
 type ContributionTextProps = {
-  source: ContributionDataSource;
+  source: SummedContributionDataSource;
   manifest: ContributionManifest;
 };
 
@@ -33,15 +32,11 @@ export function ContributionText({ source, manifest }: ContributionTextProps) {
   useEffect(() => {
     const controller = new AbortController();
     const load = async () => {
-      const layers = await Promise.all(
-        Array.from({ length: manifest.geometry.layers }, (_, layer) =>
-          source.getLayer(layer, controller.signal),
-        ),
-      );
+      const contributions = await source.getContributions(controller.signal);
       if (!controller.signal.aborted) {
         setAggregate({
           status: 'ready',
-          totals: sumLayerContributions(layers, manifest.tokens.length),
+          totals: contributions.rows,
         });
       }
     };
@@ -62,7 +57,7 @@ export function ContributionText({ source, manifest }: ContributionTextProps) {
       <Paper className="text-visualization-state" withBorder radius="lg" p="xl">
         <Loader size="sm" />
         <Text size="sm" c="dimmed">
-          Loading and summing {manifest.geometry.layers} contribution layers…
+          Loading contributions summed across {manifest.geometry.layers} layers…
         </Text>
       </Paper>
     );

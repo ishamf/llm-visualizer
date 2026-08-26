@@ -1,5 +1,6 @@
 import { MAX_GENERATED_TOKENS } from './config.ts';
 import type {
+  ContributionFormat,
   PromptConfiguration,
   ValidatedPromptConfiguration,
 } from './types.ts';
@@ -17,10 +18,34 @@ export const prompts: PromptConfiguration[] = [
     assistantPrefix: '5000 * 7 = 35000\n700 * 7 = 4900\n',
     maxNewTokens: 256,
   },
+  {
+    id: 'fix-average-off-by-one',
+    systemPrompt:
+      'You are a careful programmer. Fix the bug with the smallest reasonable change and return only the corrected code.',
+    prompt: `This JavaScript function should calculate the average of its input, but it returns NaN. Fix it with a minimal change.
+
+\`\`\`js
+function average(numbers) {
+  let total = 0;
+  for (let index = 0; index <= numbers.length; index++) {
+    total += numbers[index];
+  }
+  return total / numbers.length;
+}
+
+console.log(average([2, 4, 6]));
+\`\`\``,
+    maxNewTokens: 128,
+    contributionFormats: ['summed'],
+  },
 ];
 
 const SAFE_PROMPT_ID = /^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$/;
 const DEFAULT_MAX_NEW_TOKENS = 64;
+const DEFAULT_CONTRIBUTION_FORMATS: ContributionFormat[] = [
+  'layered',
+  'summed',
+];
 
 export function validatePrompts(
   configurations: PromptConfiguration[],
@@ -70,15 +95,37 @@ export function validatePrompts(
       );
     }
 
-    return { ...configuration, maxNewTokens };
+    const contributionFormats = configuration.contributionFormats ?? [
+      ...DEFAULT_CONTRIBUTION_FORMATS,
+    ];
+    if (
+      contributionFormats.length === 0 ||
+      contributionFormats.some(
+        (format) => format !== 'layered' && format !== 'summed',
+      ) ||
+      new Set(contributionFormats).size !== contributionFormats.length
+    ) {
+      throw new Error(
+        `Prompt ${configuration.id} contributionFormats must contain unique layered and/or summed values`,
+      );
+    }
+
+    return { ...configuration, maxNewTokens, contributionFormats };
   });
 }
 
 export function selectPromptConfigurations(
   configurations: ValidatedPromptConfiguration[],
   id?: string,
+  format?: ContributionFormat,
 ): ValidatedPromptConfiguration[] {
-  if (id === undefined) return configurations;
+  const eligible =
+    format === undefined
+      ? configurations
+      : configurations.filter((configuration) =>
+          configuration.contributionFormats.includes(format),
+        );
+  if (id === undefined) return eligible;
 
   const selected = configurations.find(
     (configuration) => configuration.id === id,
@@ -86,6 +133,11 @@ export function selectPromptConfigurations(
   if (!selected) {
     throw new Error(
       `Unknown dataset ID ${JSON.stringify(id)}. Available IDs: ${configurations.map((configuration) => configuration.id).join(', ')}`,
+    );
+  }
+  if (format !== undefined && !selected.contributionFormats.includes(format)) {
+    throw new Error(
+      `Dataset ${JSON.stringify(id)} is not configured for ${format} contributions`,
     );
   }
   return [selected];

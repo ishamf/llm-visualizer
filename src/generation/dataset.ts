@@ -1,14 +1,5 @@
-import {
-  access,
-  mkdir,
-  mkdtemp,
-  readFile,
-  rename,
-  rm,
-  writeFile,
-} from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
 
 import {
   CONTRIBUTION_METRIC,
@@ -23,15 +14,7 @@ import type {
   ContributionLayer,
   ContributionManifest,
 } from './types.ts';
-
-async function pathExists(target: string) {
-  try {
-    await access(target);
-    return true;
-  } catch {
-    return false;
-  }
-}
+import { writeDatasetAtomically } from './atomic-dataset.ts';
 
 function assertFiniteNonNegative(value: number, location: string) {
   if (!Number.isFinite(value) || value < 0) {
@@ -39,8 +22,7 @@ function assertFiniteNonNegative(value: number, location: string) {
   }
 }
 
-export function validateContributionDataset(dataset: ContributionDataset) {
-  const { manifest, layers } = dataset;
+export function validateContributionManifest(manifest: ContributionManifest) {
   if (manifest.schemaVersion !== DATASET_SCHEMA_VERSION) {
     throw new Error(`Unsupported manifest schema ${manifest.schemaVersion}`);
   }
@@ -83,14 +65,21 @@ export function validateContributionDataset(dataset: ContributionDataset) {
       throw new Error(`Token ${index} text must be a string`);
     }
   }
-  assertFiniteNonNegative(
-    manifest.validation.logitsMaxAbsoluteError,
-    'Logits validation error',
-  );
-  assertFiniteNonNegative(
-    manifest.validation.contextsMaxAbsoluteError,
-    'Context validation error',
-  );
+  if (manifest.validation !== undefined) {
+    assertFiniteNonNegative(
+      manifest.validation.logitsMaxAbsoluteError,
+      'Logits validation error',
+    );
+    assertFiniteNonNegative(
+      manifest.validation.contextsMaxAbsoluteError,
+      'Context validation error',
+    );
+  }
+}
+
+export function validateContributionDataset(dataset: ContributionDataset) {
+  const { manifest, layers } = dataset;
+  validateContributionManifest(manifest);
 
   if (layers.length !== LAYER_COUNT) {
     throw new Error(
@@ -132,7 +121,7 @@ function layerFileName(layer: number) {
   return `layer-${layer.toString().padStart(2, '0')}.json`;
 }
 
-function serializedJson(value: unknown) {
+export function serializedJson(value: unknown) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
@@ -158,46 +147,24 @@ export async function writeContributionDataset(
   overwrite = false,
 ) {
   validateContributionDataset(dataset);
-  await mkdir(outputRoot, { recursive: true });
-
-  const destination = path.join(outputRoot, promptId);
-  if (!overwrite && (await pathExists(destination))) {
-    throw new Error(
-      `Dataset destination already exists: ${destination} (use --overwrite to replace it)`,
-    );
-  }
-
-  const temporary = await mkdtemp(path.join(outputRoot, `.${promptId}.tmp-`));
-  let backup: string | undefined;
-  try {
-    await writeFile(
-      path.join(temporary, 'manifest.json'),
-      serializedJson(dataset.manifest),
-    );
-    await Promise.all(
-      dataset.layers.map((layer) =>
-        writeFile(
-          path.join(temporary, layerFileName(layer.layer)),
-          serializedJson(layer),
+  return writeDatasetAtomically(
+    outputRoot,
+    promptId,
+    overwrite,
+    async (temporary) => {
+      await writeFile(
+        path.join(temporary, 'manifest.json'),
+        serializedJson(dataset.manifest),
+      );
+      await Promise.all(
+        dataset.layers.map((layer) =>
+          writeFile(
+            path.join(temporary, layerFileName(layer.layer)),
+            serializedJson(layer),
+          ),
         ),
-      ),
-    );
-    await validateStagedDataset(temporary);
-
-    if (await pathExists(destination)) {
-      backup = `${destination}.backup-${randomUUID()}`;
-      await rename(destination, backup);
-    }
-    try {
-      await rename(temporary, destination);
-    } catch (error) {
-      if (backup) await rename(backup, destination);
-      throw error;
-    }
-    if (backup) await rm(backup, { recursive: true });
-    return destination;
-  } catch (error) {
-    await rm(temporary, { recursive: true, force: true });
-    throw error;
-  }
+      );
+    },
+    validateStagedDataset,
+  );
 }

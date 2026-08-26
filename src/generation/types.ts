@@ -42,16 +42,23 @@ export type ValidationStats = {
   meanAbsoluteError: number;
 };
 
+export type ContributionFormat = 'layered' | 'summed';
+
 export type PromptConfiguration = {
   id: string;
   prompt: string;
   systemPrompt?: string;
   assistantPrefix?: string;
   maxNewTokens?: number;
+  contributionFormats?: ContributionFormat[];
 };
 
-export type ValidatedPromptConfiguration = PromptConfiguration & {
+export type ValidatedPromptConfiguration = Omit<
+  PromptConfiguration,
+  'contributionFormats'
+> & {
   maxNewTokens: number;
+  contributionFormats: ContributionFormat[];
 };
 
 export type DatasetToken = {
@@ -86,7 +93,7 @@ export type ContributionManifest = {
     maxNewTokens: number;
     stopReason: StopReason;
   };
-  validation: {
+  validation?: {
     logitsMaxAbsoluteError: number;
     contextsMaxAbsoluteError: number;
   };
@@ -102,4 +109,17 @@ export type ContributionLayer = {
 export type ContributionDataset = {
   manifest: ContributionManifest;
   layers: ContributionLayer[];
+};
+
+export type SummedContributions = {
+  schemaVersion: typeof DATASET_SCHEMA_VERSION;
+  metric: typeof CONTRIBUTION_METRIC;
+  aggregation: 'sum';
+  layerCount: number;
+  rows: number[][];
+};
+
+export type SummedContributionDataset = {
+  manifest: ContributionManifest;
+  contributions: SummedContributions;
 };
