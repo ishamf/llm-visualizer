@@ -31,6 +31,41 @@ During development, optionally promote each layer's
 us validate that attention reconstructed from Q, K, and V matches the fused
 operator. They can be omitted after validation.
 
+## Instrumentation tool
+
+The repository contains `tools/onnx/instrument_model.py`, which performs this
+transformation using only the official ONNX Python library. It discovers the
+layer count from the graph and copies each tensor's actual type and shape, so
+the same command supports FP16, Q4, Q4F16, and INT8 model artifacts.
+
+Create the project-local Python environment once:
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-instrumentation.txt
+```
+
+Instrument a model with:
+
+```sh
+pnpm instrument:model -- models/Qwen3-0.6B-ONNX/onnx/model_q4f16.onnx
+```
+
+For a source named `model_<dtype>.onnx`, the default destination is
+`instrumented_<dtype>.onnx` in the same directory, matching the filename used
+by the visualizer. Pass `--output <path>` to choose another destination. Add
+`--validation-outputs` when the fused GroupQueryAttention context outputs are
+needed by `pnpm validate:instrumentation`.
+
+Run the instrumenter unit tests with:
+
+```sh
+pnpm instrument:test
+```
+
+The `.venv` directory and model artifacts are local, generated files and are
+not committed.
+
 ## Option 1: modify and store the artifact
 
 Create a persistent instrumented copy of the official ONNX model:
@@ -40,7 +75,7 @@ Official model_q4f16.onnx
           │
           │ one-time transformation
           ▼
-Generated model_q4f16.instrumented.onnx
+Generated instrumented_q4f16.onnx
 ```
 
 The official artifact remains immutable. Store the generated model in a
