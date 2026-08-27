@@ -199,9 +199,10 @@ async function run(promptValues: BrowserGenerationPrompt) {
           contributions: emptyContributions(manifest.promptTokenCount),
         });
       },
-      // A cooperative yield after each layer keeps the worker cancellable and
-      // lets the browser paint streamed updates between model steps.
-      onProgress: () => undefined,
+      // A single macrotask between model passes keeps cancellation responsive
+      // without paying the browser's timer-clamping cost once per layer.
+      yieldControl: () =>
+        new Promise<void>((resolve) => globalThis.setTimeout(resolve, 0)),
       onGeneratedToken(token) {
         generatedTokenIds.push(token);
         const rowIndex = generatedTokenIds.length - 1;

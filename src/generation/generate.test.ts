@@ -137,11 +137,13 @@ describe('summed contribution collection', () => {
     const promptManifests: Array<{ tokens: unknown[]; generatedText: string }> =
       [];
     const streamEvents: string[] = [];
+    const yieldControl = vi.fn(async () => undefined);
 
     const dataset = await generateSummedContributionDataset({
       model,
       tokenizer,
       prompt,
+      yieldControl,
       onPromptReady(manifest) {
         promptManifests.push(manifest);
         streamEvents.push('prompt');
@@ -160,6 +162,7 @@ describe('summed contribution collection', () => {
     ]);
     expect(rowUpdates).toEqual([[0, dataset.contributions.rows[0]]]);
     expect(streamEvents).toEqual(['prompt', 'row:0', 'token']);
+    expect(yieldControl).toHaveBeenCalledOnce();
     expect(dataset.manifest.generatedText).toBe(' answer');
   });
 

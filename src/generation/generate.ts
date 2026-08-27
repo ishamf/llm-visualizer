@@ -12,7 +12,11 @@ import {
   MODEL_ID,
   QUERY_HEAD_COUNT,
 } from './config.ts';
-import { contributionRow, contributionRows } from './attention.ts';
+import {
+  contributionRow,
+  contributionRows,
+  createContributionNormCache,
+} from './attention.ts';
 import {
   pastKeyInputName,
   pastValueInputName,
@@ -51,6 +55,8 @@ export type GenerateContributionDatasetOptions = {
   /** Called after prompt tokenization and before the first model step. */
   onPromptReady?: (manifest: ContributionManifest) => void;
   onProgress?: (generatedTokenCount: number) => void;
+  /** Gives hosts a chance to process cancellation and paint between passes. */
+  yieldControl?: () => Promise<void>;
   onGeneratedToken?: (token: bigint) => void;
   /** Called once for each row after it has been summed across every layer. */
   onSummedContributionRowUpdate?: (rowIndex: number, row: number[]) => void;
@@ -276,6 +282,7 @@ async function generateContributionRun({
   signal,
   onPromptReady,
   onProgress,
+  yieldControl,
   onGeneratedToken,
   consumeRows,
   contributionScope,
@@ -288,6 +295,7 @@ async function generateContributionRun({
   let contextsMaximumError: number | undefined;
   let stopReason: 'eos' | 'max_new_tokens' = 'max_new_tokens';
   let outputs: ModelOutputs | undefined;
+  const contributionNormCache = createContributionNormCache();
   const generator = new random.Random(prompt.seed);
 
   try {
@@ -320,16 +328,23 @@ async function generateContributionRun({
     for (let layer = 0; layer < LAYER_COUNT; ++layer) {
       throwIfGenerationAborted(signal);
       if (contributionScope === 'all') {
-        consumeRows(layer, 0, contributionRows(outputs, layer));
+        consumeRows(
+          layer,
+          0,
+          contributionRows(outputs, layer, contributionNormCache),
+        );
       } else {
         consumeRows(layer, promptTokenCount - 1, [
-          contributionRow(outputs, layer, promptTokenCount - 1),
+          contributionRow(
+            outputs,
+            layer,
+            promptTokenCount - 1,
+            contributionNormCache,
+          ),
         ]);
       }
-      if (onProgress) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
-      }
     }
+    await yieldControl?.();
 
     let nextToken = sampleLastToken(outputs.logits, generator, prompt);
     for (let step = 0; step < prompt.maxNewTokens; ++step) {
@@ -373,11 +388,13 @@ async function generateContributionRun({
       for (let layer = 0; layer < LAYER_COUNT; ++layer) {
         throwIfGenerationAborted(signal);
         const destination = tokenIds.length - 1;
-        consumeRows(layer, destination, contributionRows(outputs, layer));
-        if (onProgress) {
-          await new Promise<void>((resolve) => setTimeout(resolve, 0));
-        }
+        consumeRows(
+          layer,
+          destination,
+          contributionRows(outputs, layer, contributionNormCache),
+        );
       }
+      await yieldControl?.();
 
       if (reachedEos) {
         stopReason = 'eos';
