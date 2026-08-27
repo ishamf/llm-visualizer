@@ -48,15 +48,11 @@ export type GenerateContributionDatasetOptions = {
   originalLogits?: NumericArray;
   /** Stop at the next cooperative yield when the caller aborts a run. */
   signal?: AbortSignal;
+  /** Called after prompt tokenization and before the first model step. */
+  onPromptReady?: (manifest: ContributionManifest) => void;
   onProgress?: (generatedTokenCount: number) => void;
   onGeneratedToken?: (token: bigint) => void;
-  /**
-   * Called after a generated destination row has been summed across every
-   * instrumented layer. The rows are compact: row zero explains the first
-   * generated token, and so on.
-   */
-  onSummedContributionUpdate?: (rows: number[][]) => void;
-  /** A lower-allocation variant of onSummedContributionUpdate for streams. */
+  /** Called once for each row after it has been summed across every layer. */
   onSummedContributionRowUpdate?: (rowIndex: number, row: number[]) => void;
 };
 
@@ -206,6 +202,64 @@ function numericTokenId(token: bigint) {
   return id;
 }
 
+function createContributionManifest(
+  tokenizer: Tokenizer,
+  prompt: ValidatedPromptConfiguration,
+  tokenIds: bigint[],
+  generatedTokenIds: bigint[],
+  stopReason: 'eos' | 'max_new_tokens',
+  validation?: ContributionManifest['validation'],
+): ContributionManifest {
+  return {
+    schemaVersion: DATASET_SCHEMA_VERSION,
+    metric: CONTRIBUTION_METRIC,
+    model: {
+      id: MODEL_ID,
+      dtype: MODEL_DTYPE,
+      instrumentation: INSTRUMENTED_MODEL_NAME,
+    },
+    prompt: prompt.prompt,
+    ...(prompt.systemPrompt === undefined
+      ? {}
+      : { systemPrompt: prompt.systemPrompt }),
+    ...(prompt.assistantPrefix === undefined
+      ? {}
+      : { assistantPrefix: prompt.assistantPrefix }),
+    generatedText:
+      generatedTokenIds.length === 0
+        ? ''
+        : tokenizer.decode(generatedTokenIds, {
+            skip_special_tokens: true,
+            clean_up_tokenization_spaces: false,
+          }),
+    promptTokenCount: tokenIds.length - generatedTokenIds.length,
+    tokens: tokenIds.map((token) => ({
+      id: numericTokenId(token),
+      text: tokenizer.decode([token], {
+        skip_special_tokens: false,
+        clean_up_tokenization_spaces: false,
+      }),
+    })),
+    geometry: {
+      layers: LAYER_COUNT,
+      queryHeads: QUERY_HEAD_COUNT,
+      kvHeads: KV_HEAD_COUNT,
+      headDimension: HEAD_DIMENSION,
+    },
+    generation: {
+      method: 'sampling',
+      maxNewTokens: prompt.maxNewTokens,
+      stopReason,
+      enableThinking: prompt.enableThinking,
+      seed: prompt.seed,
+      temperature: prompt.temperature,
+      topK: prompt.topK,
+      topP: prompt.topP,
+    },
+    ...(validation ? { validation } : {}),
+  };
+}
+
 export function throwIfGenerationAborted(signal?: AbortSignal) {
   if (!signal?.aborted) return;
   const error = new Error('Generation cancelled');
@@ -220,6 +274,7 @@ async function generateContributionRun({
   validate = false,
   originalLogits,
   signal,
+  onPromptReady,
   onProgress,
   onGeneratedToken,
   consumeRows,
@@ -237,6 +292,15 @@ async function generateContributionRun({
 
   try {
     throwIfGenerationAborted(signal);
+    onPromptReady?.(
+      createContributionManifest(
+        tokenizer,
+        prompt,
+        tokenIds,
+        generatedTokenIds,
+        stopReason,
+      ),
+    );
     outputs = await model.forward({
       input_ids: encoded.inputIds,
       attention_mask: encoded.attentionMask,
@@ -324,60 +388,19 @@ async function generateContributionRun({
       }
     }
 
-    const tokens = tokenIds.map((token) => ({
-      id: numericTokenId(token),
-      text: tokenizer.decode([token], {
-        skip_special_tokens: false,
-        clean_up_tokenization_spaces: false,
-      }),
-    }));
-
-    return {
-      schemaVersion: DATASET_SCHEMA_VERSION,
-      metric: CONTRIBUTION_METRIC,
-      model: {
-        id: MODEL_ID,
-        dtype: MODEL_DTYPE,
-        instrumentation: INSTRUMENTED_MODEL_NAME,
-      },
-      prompt: prompt.prompt,
-      ...(prompt.systemPrompt === undefined
-        ? {}
-        : { systemPrompt: prompt.systemPrompt }),
-      ...(prompt.assistantPrefix === undefined
-        ? {}
-        : { assistantPrefix: prompt.assistantPrefix }),
-      generatedText: tokenizer.decode(generatedTokenIds, {
-        skip_special_tokens: true,
-        clean_up_tokenization_spaces: false,
-      }),
-      promptTokenCount,
-      tokens,
-      geometry: {
-        layers: LAYER_COUNT,
-        queryHeads: QUERY_HEAD_COUNT,
-        kvHeads: KV_HEAD_COUNT,
-        headDimension: HEAD_DIMENSION,
-      },
-      generation: {
-        method: 'sampling',
-        maxNewTokens: prompt.maxNewTokens,
-        stopReason,
-        enableThinking: prompt.enableThinking,
-        seed: prompt.seed,
-        temperature: prompt.temperature,
-        topK: prompt.topK,
-        topP: prompt.topP,
-      },
-      ...(logitsMaximumError === undefined || contextsMaximumError === undefined
-        ? {}
+    return createContributionManifest(
+      tokenizer,
+      prompt,
+      tokenIds,
+      generatedTokenIds,
+      stopReason,
+      logitsMaximumError === undefined || contextsMaximumError === undefined
+        ? undefined
         : {
-            validation: {
-              logitsMaxAbsoluteError: logitsMaximumError,
-              contextsMaxAbsoluteError: contextsMaximumError,
-            },
-          }),
-    };
+            logitsMaxAbsoluteError: logitsMaximumError,
+            contextsMaxAbsoluteError: contextsMaximumError,
+          },
+    );
   } finally {
     if (outputs) disposeOutputs(outputs);
     disposeTokenizedPrompt(encoded);
@@ -451,7 +474,6 @@ export async function generateSummedContributionDataset(
       // final layer avoids posting the same large partial matrix 28 times and
       // gives consumers a complete row for each streamed token.
       if (_layer === LAYER_COUNT - 1) {
-        options.onSummedContributionUpdate?.(rows.map((row) => [...row]));
         while (emittedRowCount < rows.length) {
           options.onSummedContributionRowUpdate?.(emittedRowCount, [
             ...rows[emittedRowCount],

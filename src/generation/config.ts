@@ -3,7 +3,8 @@ export const MODEL_DTYPE = 'q4f16';
 export const INSTRUMENTED_MODEL_NAME = 'instrumented';
 
 /** The static model directory exposed by the Vite app. */
-export const BROWSER_MODEL_PATH = '/models/Qwen3-0.6B-ONNX';
+export const BROWSER_MODEL_ROOT = '/models/';
+export const BROWSER_MODEL_PATH = `${BROWSER_MODEL_ROOT}${MODEL_ID}`;
 export const BROWSER_MODEL_WEIGHTS_PATH = `${BROWSER_MODEL_PATH}/onnx/${INSTRUMENTED_MODEL_NAME}_${MODEL_DTYPE}.onnx`;
 /** Approximate size of the instrumented q4f16 ONNX weights. */
 export const BROWSER_MODEL_SIZE_BYTES = 570_000_000;

@@ -82,8 +82,12 @@ describe('summed contribution collection', () => {
       eos_token_id: null,
       apply_chat_template: () => '<prompt>',
       encode: () => [10],
-      decode: (tokens: Array<number | bigint>) =>
-        tokens[0] === 10 ? 'prompt' : ' answer',
+      decode: (tokens: Array<number | bigint>) => {
+        if (tokens.length === 0) {
+          throw new Error('token_ids must be a non-empty array of integers');
+        }
+        return Number(tokens[0]) === 10 ? 'prompt' : ' answer';
+      },
     } as unknown as Tokenizer;
     const model = {
       forward: vi.fn(async () => {
@@ -129,21 +133,33 @@ describe('summed contribution collection', () => {
       topK: 20,
       topP: 0.95,
     };
-    const updates: number[][][] = [];
     const rowUpdates: Array<[number, number[]]> = [];
+    const promptManifests: Array<{ tokens: unknown[]; generatedText: string }> =
+      [];
+    const streamEvents: string[] = [];
 
     const dataset = await generateSummedContributionDataset({
       model,
       tokenizer,
       prompt,
-      onSummedContributionUpdate: (rows) => updates.push(rows),
-      onSummedContributionRowUpdate: (index, row) =>
-        rowUpdates.push([index, row]),
+      onPromptReady(manifest) {
+        promptManifests.push(manifest);
+        streamEvents.push('prompt');
+      },
+      onSummedContributionRowUpdate(index, row) {
+        rowUpdates.push([index, row]);
+        streamEvents.push(`row:${index}`);
+      },
+      onGeneratedToken() {
+        streamEvents.push('token');
+      },
     });
 
-    expect(updates).toHaveLength(1);
-    expect(updates[0]).toEqual(dataset.contributions.rows);
+    expect(promptManifests).toMatchObject([
+      { tokens: [{ id: 10, text: 'prompt' }], generatedText: '' },
+    ]);
     expect(rowUpdates).toEqual([[0, dataset.contributions.rows[0]]]);
+    expect(streamEvents).toEqual(['prompt', 'row:0', 'token']);
     expect(dataset.manifest.generatedText).toBe(' answer');
   });
 

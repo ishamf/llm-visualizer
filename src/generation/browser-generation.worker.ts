@@ -7,31 +7,21 @@ import {
 
 import {
   BROWSER_MODEL_PATH,
+  BROWSER_MODEL_ROOT,
   CONTRIBUTION_METRIC,
   DATASET_SCHEMA_VERSION,
-  HEAD_DIMENSION,
   INSTRUMENTED_MODEL_NAME,
-  KV_HEAD_COUNT,
   LAYER_COUNT,
   MODEL_DTYPE,
   MODEL_ID,
-  QUERY_HEAD_COUNT,
 } from './config.ts';
 import {
-  disposeTokenizedPrompt,
   generateSummedContributionDataset,
-  tokenizePrompt,
   throwIfGenerationAborted,
   type GenerateContributionDatasetOptions,
 } from './generate.ts';
 import { validatePrompts } from './prompts.ts';
-import type {
-  CausalLanguageModel,
-  ContributionManifest,
-  DatasetToken,
-  Tokenizer,
-  ValidatedPromptConfiguration,
-} from './types.ts';
+import type { CausalLanguageModel, DatasetToken, Tokenizer } from './types.ts';
 import type {
   BrowserGenerationPrompt,
   BrowserGenerationRequest,
@@ -101,7 +91,10 @@ async function loadModel(): Promise<LoadedModel> {
   // so subsequent runs do not download the ~570 MB weights again.
   env.allowLocalModels = true;
   env.allowRemoteModels = false;
-  env.localModelPath = new URL('/models/', globalThis.location.origin).href;
+  env.localModelPath = new URL(
+    BROWSER_MODEL_ROOT,
+    globalThis.location.origin,
+  ).href;
 
   const progress_callback = (info: ProgressInfo) => postProgress(info);
   const loading = (async () => {
@@ -157,56 +150,6 @@ function emptyContributions(promptTokenCount: number) {
   };
 }
 
-function promptManifest(
-  prompt: ValidatedPromptConfiguration,
-  tokenizer: Tokenizer,
-): ContributionManifest {
-  const encoded = tokenizePrompt(tokenizer, prompt);
-  try {
-    const tokens: DatasetToken[] = encoded.tokenIds.map((token) => ({
-      id: numericTokenId(token),
-      text: decodeToken(tokenizer, token),
-    }));
-    return {
-      schemaVersion: DATASET_SCHEMA_VERSION,
-      metric: CONTRIBUTION_METRIC,
-      model: {
-        id: MODEL_ID,
-        dtype: MODEL_DTYPE,
-        instrumentation: INSTRUMENTED_MODEL_NAME,
-      },
-      prompt: prompt.prompt,
-      ...(prompt.systemPrompt === undefined
-        ? {}
-        : { systemPrompt: prompt.systemPrompt }),
-      ...(prompt.assistantPrefix === undefined
-        ? {}
-        : { assistantPrefix: prompt.assistantPrefix }),
-      generatedText: '',
-      promptTokenCount: encoded.tokenIds.length,
-      tokens,
-      geometry: {
-        layers: LAYER_COUNT,
-        queryHeads: QUERY_HEAD_COUNT,
-        kvHeads: KV_HEAD_COUNT,
-        headDimension: HEAD_DIMENSION,
-      },
-      generation: {
-        method: 'sampling',
-        maxNewTokens: prompt.maxNewTokens,
-        stopReason: 'max_new_tokens',
-        enableThinking: prompt.enableThinking,
-        seed: prompt.seed,
-        temperature: prompt.temperature,
-        topK: prompt.topK,
-        topP: prompt.topP,
-      },
-    };
-  } finally {
-    disposeTokenizedPrompt(encoded);
-  }
-}
-
 function validatedPrompt(values: BrowserGenerationPrompt) {
   return validatePrompts([
     {
@@ -231,52 +174,61 @@ async function run(promptValues: BrowserGenerationPrompt) {
   post({
     type: 'status',
     status: 'loading-model',
-    message: 'Loading the instrumented model…',
   });
 
   try {
     const prompt = validatedPrompt(promptValues);
     const { model, tokenizer } = await loadModel();
     throwIfGenerationAborted(controller.signal);
-    const manifest = promptManifest(prompt, tokenizer);
-    post({
-      type: 'prompt-ready',
-      manifest,
-      contributions: emptyContributions(manifest.promptTokenCount),
-    });
     post({
       type: 'status',
       status: 'generating',
-      message: 'Running the instrumented model…',
     });
 
     const generatedTokenIds: bigint[] = [];
+    const contributionRows = new Map<number, number[]>();
     const options: GenerateContributionDatasetOptions = {
       model,
       tokenizer,
       prompt,
       signal: controller.signal,
+      onPromptReady(manifest) {
+        post({
+          type: 'prompt-ready',
+          manifest,
+          contributions: emptyContributions(manifest.promptTokenCount),
+        });
+      },
       // A cooperative yield after each layer keeps the worker cancellable and
       // lets the browser paint streamed updates between model steps.
       onProgress: () => undefined,
       onGeneratedToken(token) {
         generatedTokenIds.push(token);
+        const rowIndex = generatedTokenIds.length - 1;
+        const row = contributionRows.get(rowIndex);
+        if (!row) {
+          throw new Error(
+            `Missing contribution row for generated token ${rowIndex}`,
+          );
+        }
+        contributionRows.delete(rowIndex);
         const tokenValue: DatasetToken = {
           id: numericTokenId(token),
           text: decodeToken(tokenizer, token),
         };
         post({
-          type: 'token',
+          type: 'generation-step',
           token: tokenValue,
+          rowIndex,
+          row,
           generatedText: tokenizer.decode(generatedTokenIds, {
             skip_special_tokens: true,
             clean_up_tokenization_spaces: false,
           }),
-          generatedTokenCount: generatedTokenIds.length,
         });
       },
       onSummedContributionRowUpdate(rowIndex, row) {
-        post({ type: 'contribution-row', rowIndex, row });
+        contributionRows.set(rowIndex, row);
       },
     };
     const dataset = await generateSummedContributionDataset(options);
@@ -296,7 +248,6 @@ async function run(promptValues: BrowserGenerationPrompt) {
       post({
         type: 'status',
         status: 'cancelled',
-        message: 'Generation cancelled.',
       });
     } else {
       post({
@@ -316,7 +267,6 @@ workerScope.onmessage = (event) => {
       post({
         type: 'status',
         status: 'cancelling',
-        message: 'Finishing the current model step…',
       });
       activeController.abort();
     }

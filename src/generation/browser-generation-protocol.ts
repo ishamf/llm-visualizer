@@ -29,7 +29,6 @@ export type BrowserGenerationResponse =
         | 'cancelling'
         | 'complete'
         | 'cancelled';
-      message?: string;
     }
   | {
       type: 'model-progress';
@@ -45,19 +44,11 @@ export type BrowserGenerationResponse =
       contributions: SummedContributions;
     }
   | {
-      type: 'token';
+      type: 'generation-step';
       token: DatasetToken;
-      generatedText: string;
-      generatedTokenCount: number;
-    }
-  | {
-      type: 'contributions';
-      rows: number[][];
-    }
-  | {
-      type: 'contribution-row';
       rowIndex: number;
       row: number[];
+      generatedText: string;
     }
   | {
       type: 'complete';

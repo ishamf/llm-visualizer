@@ -14,7 +14,7 @@ import {
   Textarea,
   Title,
 } from '@mantine/core';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import {
@@ -53,6 +53,11 @@ type ModelProgress = {
   file?: string;
 };
 
+type GenerationResult = {
+  manifest: ContributionManifest;
+  contributions: SummedContributions;
+};
+
 const DEFAULT_MAX_NEW_TOKENS = 128;
 const DEFAULT_SYSTEM_PROMPT = 'You are a helpful assistant.';
 
@@ -85,12 +90,9 @@ export function GenerationPage() {
   const [enableThinking, setEnableThinking] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [status, setStatus] = useState<RunStatus>('idle');
-  const [statusMessage, setStatusMessage] = useState<string>();
   const [error, setError] = useState<Error>();
   const [modelProgress, setModelProgress] = useState<ModelProgress>({});
-  const [generatedTokenCount, setGeneratedTokenCount] = useState(0);
-  const [manifest, setManifest] = useState<ContributionManifest>();
-  const [contributions, setContributions] = useState<SummedContributions>();
+  const [result, setResult] = useState<GenerationResult>();
   const [modelCached, setModelCached] = useState<boolean>();
 
   const isBusy =
@@ -98,6 +100,9 @@ export function GenerationPage() {
     status === 'generating' ||
     status === 'cancelling';
   const canSubmit = prompt.trim().length > 0 && !isBusy;
+  const generatedTokenCount = result
+    ? result.manifest.tokens.length - result.manifest.promptTokenCount
+    : 0;
 
   useEffect(() => {
     let active = true;
@@ -124,12 +129,10 @@ export function GenerationPage() {
     };
   }, []);
 
-  const progressValue = useMemo(() => {
-    if (status === 'generating') {
-      return Math.min(100, (generatedTokenCount / maxNewTokens) * 100);
-    }
-    return Math.min(100, Math.max(0, modelProgress.progress ?? 0));
-  }, [generatedTokenCount, maxNewTokens, modelProgress.progress, status]);
+  const progressValue =
+    status === 'generating'
+      ? Math.min(100, (generatedTokenCount / maxNewTokens) * 100)
+      : Math.min(100, Math.max(0, modelProgress.progress ?? 0));
 
   const handleWorkerResponse = (
     worker: Worker,
@@ -139,7 +142,6 @@ export function GenerationPage() {
     switch (response.type) {
       case 'status':
         setStatus(response.status);
-        setStatusMessage(response.message);
         if (response.status === 'generating') setModelCached(true);
         break;
       case 'model-progress':
@@ -154,45 +156,35 @@ export function GenerationPage() {
         }));
         break;
       case 'prompt-ready':
-        setManifest(response.manifest);
-        setContributions(response.contributions);
+        setResult({
+          manifest: response.manifest,
+          contributions: response.contributions,
+        });
         break;
-      case 'token':
-        setGeneratedTokenCount(response.generatedTokenCount);
-        setManifest((current) =>
-          current
-            ? {
-                ...current,
-                generatedText: response.generatedText,
-                tokens: [...current.tokens, response.token],
-              }
-            : current,
-        );
-        break;
-      case 'contributions':
-        setContributions((current) =>
-          current ? { ...current, rows: response.rows } : current,
-        );
-        break;
-      case 'contribution-row':
-        setContributions((current) => {
+      case 'generation-step':
+        setResult((current) => {
           if (!current) return current;
-          const rows = [...current.rows];
+          const rows = [...current.contributions.rows];
           rows[response.rowIndex] = response.row;
-          return { ...current, rows };
+          return {
+            manifest: {
+              ...current.manifest,
+              generatedText: response.generatedText,
+              tokens: [...current.manifest.tokens, response.token],
+            },
+            contributions: { ...current.contributions, rows },
+          };
         });
         break;
       case 'complete':
-        setManifest(response.manifest);
-        setContributions(response.contributions);
-        setGeneratedTokenCount(
-          response.manifest.tokens.length - response.manifest.promptTokenCount,
-        );
+        setResult({
+          manifest: response.manifest,
+          contributions: response.contributions,
+        });
         break;
       case 'error':
         setError(new Error(response.message));
         setStatus('error');
-        setStatusMessage(undefined);
         break;
     }
   };
@@ -215,16 +207,12 @@ export function GenerationPage() {
         workerRef.current = null;
         setError(new Error(event.message || 'The generation worker stopped'));
         setStatus('error');
-        setStatusMessage(undefined);
       };
     }
     setStatus('loading-model');
-    setStatusMessage('Loading the instrumented model…');
     setError(undefined);
-    setManifest(undefined);
-    setContributions(undefined);
+    setResult(undefined);
     setModelProgress({});
-    setGeneratedTokenCount(0);
 
     const values: BrowserGenerationPrompt = {
       prompt: prompt.trim(),
@@ -244,7 +232,6 @@ export function GenerationPage() {
   const cancelGeneration = () => {
     if (!workerRef.current || !isBusy) return;
     setStatus('cancelling');
-    setStatusMessage('Finishing the current model step…');
     workerRef.current.postMessage({
       type: 'cancel',
     } satisfies BrowserGenerationRequest);
@@ -482,12 +469,15 @@ export function GenerationPage() {
                             : 'Generation failed'}
                 </Text>
                 <Text size="sm" c="dimmed">
-                  {statusMessage ??
-                    (status === 'loading-model'
-                      ? `Downloaded ${formatBytes(modelProgress.loaded)}${modelProgress.total ? ` of ${formatBytes(modelProgress.total)}` : ''}`
-                      : status === 'generating'
-                        ? `${generatedTokenCount} of ${maxNewTokens} tokens`
-                        : '')}
+                  {status === 'loading-model'
+                    ? `Downloaded ${formatBytes(modelProgress.loaded)}${modelProgress.total ? ` of ${formatBytes(modelProgress.total)}` : ''}`
+                    : status === 'generating'
+                      ? `${generatedTokenCount} of ${maxNewTokens} tokens`
+                      : status === 'cancelling'
+                        ? 'Finishing the current model step…'
+                        : status === 'cancelled'
+                          ? 'Generation cancelled.'
+                          : ''}
                 </Text>
               </div>
               <Badge
@@ -525,7 +515,7 @@ export function GenerationPage() {
           </Alert>
         )}
 
-        {manifest && contributions && (
+        {result && (
           <section className="generation-result" aria-live="polite">
             <header className="generation-result-header">
               <div>
@@ -535,13 +525,12 @@ export function GenerationPage() {
               <Text size="sm" c="dimmed">
                 {generatedTokenCount} generated token
                 {generatedTokenCount === 1 ? '' : 's'} · summed across{' '}
-                {manifest.geometry.layers} layers
+                {result.manifest.geometry.layers} layers
               </Text>
             </header>
             <ContributionText
-              manifest={manifest}
-              contributions={contributions}
-              loadingMessage="Waiting for contribution rows…"
+              manifest={result.manifest}
+              contributions={result.contributions}
             />
           </section>
         )}

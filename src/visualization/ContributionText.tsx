@@ -25,32 +25,23 @@ type AggregateState =
   | { status: 'error'; error: Error };
 
 type ContributionTextProps = {
-  /** A bundled/asynchronous source for completed visualizations. */
-  source?: SummedContributionDataSource;
   manifest: ContributionManifest;
-  /** Controlled rows used by the browser generation stream. */
-  contributions?: SummedContributions;
-  contributionError?: Error;
-  loadingMessage?: string;
-};
+} & (
+  | { source: SummedContributionDataSource; contributions?: never }
+  | { source?: never; contributions: SummedContributions }
+);
 
-export function ContributionText({
-  source,
-  manifest,
-  contributions,
-  contributionError,
-  loadingMessage,
-}: ContributionTextProps) {
+export function ContributionText(props: ContributionTextProps) {
+  const { manifest } = props;
+  const source = 'source' in props ? props.source : undefined;
+  const contributions =
+    'contributions' in props ? props.contributions : undefined;
   const [sourceAggregate, setSourceAggregate] = useState<AggregateState>({
     status: 'loading',
   });
   const aggregate: AggregateState = contributions
     ? { status: 'ready', contributions }
-    : contributionError
-      ? { status: 'error', error: contributionError }
-      : source
-        ? sourceAggregate
-        : { status: 'loading' };
+    : sourceAggregate;
   const [pointerToken, setPointerToken] = useState<number | null>(null);
   const [focusedToken, setFocusedToken] = useState<number | null>(null);
   const [opacityScale, setOpacityScale] =
@@ -63,7 +54,7 @@ export function ContributionText({
   >(undefined);
 
   useEffect(() => {
-    if (!source || contributions || contributionError) return;
+    if (!source) return;
     const controller = new AbortController();
     const load = async () => {
       const contributions = await source.getContributions(controller.signal);
@@ -84,7 +75,7 @@ export function ContributionText({
       }
     });
     return () => controller.abort();
-  }, [contributionError, contributions, manifest, source]);
+  }, [source]);
 
   useEffect(() => {
     const container = contributionText.current;
@@ -108,8 +99,7 @@ export function ContributionText({
       <Paper className="text-visualization-state" withBorder radius="lg" p="xl">
         <Loader size="sm" />
         <Text size="sm" c="dimmed">
-          {loadingMessage ??
-            `Loading contributions summed across ${manifest.geometry.layers} layers…`}
+          Loading contributions summed across {manifest.geometry.layers} layers…
         </Text>
       </Paper>
     );
