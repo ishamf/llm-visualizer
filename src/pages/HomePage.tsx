@@ -8,7 +8,7 @@ import {
   Title,
 } from '@mantine/core';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { getBundledContributionDatasets } from '../data/bundled-contribution-data-source.ts';
 import { getBundledSummedContributionDatasets } from '../data/bundled-summed-contribution-data-source.ts';
@@ -109,6 +109,9 @@ export function HomePage() {
               onClick={viewVisualization}
             >
               View
+            </Button>
+            <Button component={Link} to="/generate" variant="light" size="md">
+              Generate from a prompt
             </Button>
           </Stack>
         </Paper>

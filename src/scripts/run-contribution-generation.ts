@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   AutoModelForCausalLM,
@@ -11,7 +12,6 @@ import {
   INSTRUMENTED_MODEL_NAME,
   MODEL_DTYPE,
   MODEL_ID,
-  MODEL_ROOT,
 } from '../generation/config.ts';
 import { assertDatasetDestinationAvailable } from '../generation/atomic-dataset.ts';
 import {
@@ -33,6 +33,8 @@ import type {
   ModelOutputs,
   Tokenizer,
 } from '../generation/types.ts';
+
+const MODEL_ROOT = fileURLToPath(new URL('../../models/', import.meta.url));
 
 type CommandLineOptions = {
   datasetId?: string;

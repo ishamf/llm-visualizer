@@ -3,9 +3,22 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   addSummedContributionRows,
   disposeTokenizedPrompt,
+  generateSummedContributionDataset,
+  throwIfGenerationAborted,
   tokenizePrompt,
 } from './generate.ts';
-import type { Tokenizer } from './types.ts';
+import {
+  presentKeyOutputName,
+  presentValueOutputName,
+  queryOutputName,
+} from './model-output-names.ts';
+import {
+  HEAD_DIMENSION,
+  KV_HEAD_COUNT,
+  LAYER_COUNT,
+  QUERY_HEAD_COUNT,
+} from './config.ts';
+import type { Tokenizer, ValidatedPromptConfiguration } from './types.ts';
 
 describe('prompt tokenization', () => {
   it('appends an assistant prefix after the generation marker before tokenizing', () => {
@@ -62,5 +75,83 @@ describe('summed contribution collection', () => {
     addSummedContributionRows(totals, 2, [[6, 7, 8]]);
 
     expect(totals).toEqual([[1.5], [6, 8], [6, 7, 8]]);
+  });
+
+  it('streams each completed summed destination row', async () => {
+    const tokenizer = {
+      eos_token_id: null,
+      apply_chat_template: () => '<prompt>',
+      encode: () => [10],
+      decode: (tokens: Array<number | bigint>) =>
+        tokens[0] === 10 ? 'prompt' : ' answer',
+    } as unknown as Tokenizer;
+    const model = {
+      forward: vi.fn(async () => {
+        const outputs = {
+          logits: {
+            data: new Float32Array([0, 1]),
+            dims: [1, 1, 2],
+            type: 'float32',
+          },
+        } as Record<
+          string,
+          { data: Float32Array; dims: number[]; type: string }
+        >;
+        for (let layer = 0; layer < LAYER_COUNT; layer += 1) {
+          outputs[queryOutputName(layer)] = {
+            data: new Float32Array(QUERY_HEAD_COUNT * HEAD_DIMENSION).fill(1),
+            dims: [1, 1, QUERY_HEAD_COUNT * HEAD_DIMENSION],
+            type: 'float32',
+          };
+          outputs[presentKeyOutputName(layer)] = {
+            data: new Float32Array(KV_HEAD_COUNT * HEAD_DIMENSION).fill(1),
+            dims: [1, KV_HEAD_COUNT, 1, HEAD_DIMENSION],
+            type: 'float32',
+          };
+          outputs[presentValueOutputName(layer)] = {
+            data: new Float32Array(KV_HEAD_COUNT * HEAD_DIMENSION).fill(1),
+            dims: [1, KV_HEAD_COUNT, 1, HEAD_DIMENSION],
+            type: 'float32',
+          };
+        }
+        return outputs;
+      }),
+      dispose: vi.fn(async () => undefined),
+    };
+    const prompt: ValidatedPromptConfiguration = {
+      id: 'stream',
+      prompt: 'Prompt',
+      maxNewTokens: 1,
+      contributionFormats: ['summed'],
+      enableThinking: false,
+      seed: 42,
+      temperature: 0.6,
+      topK: 20,
+      topP: 0.95,
+    };
+    const updates: number[][][] = [];
+    const rowUpdates: Array<[number, number[]]> = [];
+
+    const dataset = await generateSummedContributionDataset({
+      model,
+      tokenizer,
+      prompt,
+      onSummedContributionUpdate: (rows) => updates.push(rows),
+      onSummedContributionRowUpdate: (index, row) =>
+        rowUpdates.push([index, row]),
+    });
+
+    expect(updates).toHaveLength(1);
+    expect(updates[0]).toEqual(dataset.contributions.rows);
+    expect(rowUpdates).toEqual([[0, dataset.contributions.rows[0]]]);
+    expect(dataset.manifest.generatedText).toBe(' answer');
+  });
+
+  it('throws a cooperative abort error before running the model', () => {
+    const controller = new AbortController();
+    controller.abort();
+    expect(() => throwIfGenerationAborted(controller.signal)).toThrow(
+      'Generation cancelled',
+    );
   });
 });

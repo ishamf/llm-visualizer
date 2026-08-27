@@ -1,0 +1,551 @@
+import {
+  Alert,
+  Badge,
+  Button,
+  Collapse,
+  Container,
+  Group,
+  NumberInput,
+  Paper,
+  Progress,
+  Stack,
+  Switch,
+  Text,
+  Textarea,
+  Title,
+} from '@mantine/core';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+
+import {
+  BROWSER_MODEL_WEIGHTS_PATH,
+  BROWSER_MODEL_SIZE_BYTES,
+  DEFAULT_GENERATION_SEED,
+  GENERATION_TEMPERATURE,
+  GENERATION_TOP_K,
+  GENERATION_TOP_P,
+  MAX_GENERATED_TOKENS,
+} from '../generation/config.ts';
+import type {
+  BrowserGenerationPrompt,
+  BrowserGenerationRequest,
+  BrowserGenerationResponse,
+} from '../generation/browser-generation-protocol.ts';
+import { ContributionText } from '../visualization/ContributionText.tsx';
+import type {
+  ContributionManifest,
+  SummedContributions,
+} from '../generation/types.ts';
+
+type RunStatus =
+  | 'idle'
+  | 'loading-model'
+  | 'generating'
+  | 'cancelling'
+  | 'complete'
+  | 'cancelled'
+  | 'error';
+
+type ModelProgress = {
+  progress?: number;
+  loaded?: number;
+  total?: number;
+  file?: string;
+};
+
+const DEFAULT_MAX_NEW_TOKENS = 128;
+const DEFAULT_SYSTEM_PROMPT = 'You are a helpful assistant.';
+
+function numberValue(value: string | number, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function formatBytes(bytes: number | undefined) {
+  if (!bytes || bytes < 1) return '—';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1_000 && unit < units.length - 1) {
+    value /= 1_000;
+    unit += 1;
+  }
+  return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+}
+
+export function GenerationPage() {
+  const workerRef = useRef<Worker | null>(null);
+  const [prompt, setPrompt] = useState('');
+  const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
+  const [assistantPrefix, setAssistantPrefix] = useState('');
+  const [maxNewTokens, setMaxNewTokens] = useState(DEFAULT_MAX_NEW_TOKENS);
+  const [temperature, setTemperature] = useState(GENERATION_TEMPERATURE);
+  const [topK, setTopK] = useState(GENERATION_TOP_K);
+  const [topP, setTopP] = useState(GENERATION_TOP_P);
+  const [seed, setSeed] = useState(DEFAULT_GENERATION_SEED);
+  const [enableThinking, setEnableThinking] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [status, setStatus] = useState<RunStatus>('idle');
+  const [statusMessage, setStatusMessage] = useState<string>();
+  const [error, setError] = useState<Error>();
+  const [modelProgress, setModelProgress] = useState<ModelProgress>({});
+  const [generatedTokenCount, setGeneratedTokenCount] = useState(0);
+  const [manifest, setManifest] = useState<ContributionManifest>();
+  const [contributions, setContributions] = useState<SummedContributions>();
+  const [modelCached, setModelCached] = useState<boolean>();
+
+  const isBusy =
+    status === 'loading-model' ||
+    status === 'generating' ||
+    status === 'cancelling';
+  const canSubmit = prompt.trim().length > 0 && !isBusy;
+
+  useEffect(() => {
+    let active = true;
+    const inspectModelCache = async () => {
+      if (!('caches' in globalThis)) {
+        if (active) setModelCached(false);
+        return;
+      }
+      try {
+        const cached = await globalThis.caches.match(
+          BROWSER_MODEL_WEIGHTS_PATH,
+        );
+        if (active) setModelCached(Boolean(cached));
+      } catch {
+        if (active) setModelCached(false);
+      }
+    };
+    void inspectModelCache();
+
+    return () => {
+      active = false;
+      workerRef.current?.terminate();
+      workerRef.current = null;
+    };
+  }, []);
+
+  const progressValue = useMemo(() => {
+    if (status === 'generating') {
+      return Math.min(100, (generatedTokenCount / maxNewTokens) * 100);
+    }
+    return Math.min(100, Math.max(0, modelProgress.progress ?? 0));
+  }, [generatedTokenCount, maxNewTokens, modelProgress.progress, status]);
+
+  const handleWorkerResponse = (
+    worker: Worker,
+    response: BrowserGenerationResponse,
+  ) => {
+    if (workerRef.current !== worker) return;
+    switch (response.type) {
+      case 'status':
+        setStatus(response.status);
+        setStatusMessage(response.message);
+        if (response.status === 'generating') setModelCached(true);
+        break;
+      case 'model-progress':
+        setModelProgress((current) => ({
+          ...current,
+          file: response.file ?? current.file,
+          ...(response.progress === undefined
+            ? {}
+            : { progress: response.progress }),
+          ...(response.loaded === undefined ? {} : { loaded: response.loaded }),
+          ...(response.total === undefined ? {} : { total: response.total }),
+        }));
+        break;
+      case 'prompt-ready':
+        setManifest(response.manifest);
+        setContributions(response.contributions);
+        break;
+      case 'token':
+        setGeneratedTokenCount(response.generatedTokenCount);
+        setManifest((current) =>
+          current
+            ? {
+                ...current,
+                generatedText: response.generatedText,
+                tokens: [...current.tokens, response.token],
+              }
+            : current,
+        );
+        break;
+      case 'contributions':
+        setContributions((current) =>
+          current ? { ...current, rows: response.rows } : current,
+        );
+        break;
+      case 'contribution-row':
+        setContributions((current) => {
+          if (!current) return current;
+          const rows = [...current.rows];
+          rows[response.rowIndex] = response.row;
+          return { ...current, rows };
+        });
+        break;
+      case 'complete':
+        setManifest(response.manifest);
+        setContributions(response.contributions);
+        setGeneratedTokenCount(
+          response.manifest.tokens.length - response.manifest.promptTokenCount,
+        );
+        break;
+      case 'error':
+        setError(new Error(response.message));
+        setStatus('error');
+        setStatusMessage(undefined);
+        break;
+    }
+  };
+
+  const startGeneration = () => {
+    if (!canSubmit) return;
+    let worker = workerRef.current;
+    if (!worker) {
+      const createdWorker = new Worker(
+        new URL('../generation/browser-generation.worker.ts', import.meta.url),
+        { type: 'module' },
+      );
+      worker = createdWorker;
+      workerRef.current = createdWorker;
+      createdWorker.onmessage = (
+        event: MessageEvent<BrowserGenerationResponse>,
+      ) => handleWorkerResponse(createdWorker, event.data);
+      createdWorker.onerror = (event) => {
+        if (workerRef.current !== createdWorker) return;
+        workerRef.current = null;
+        setError(new Error(event.message || 'The generation worker stopped'));
+        setStatus('error');
+        setStatusMessage(undefined);
+      };
+    }
+    setStatus('loading-model');
+    setStatusMessage('Loading the instrumented model…');
+    setError(undefined);
+    setManifest(undefined);
+    setContributions(undefined);
+    setModelProgress({});
+    setGeneratedTokenCount(0);
+
+    const values: BrowserGenerationPrompt = {
+      prompt: prompt.trim(),
+      ...(systemPrompt.trim() ? { systemPrompt: systemPrompt.trim() } : {}),
+      ...(assistantPrefix ? { assistantPrefix } : {}),
+      maxNewTokens,
+      enableThinking,
+      seed,
+      temperature,
+      topK,
+      topP,
+    };
+    const request: BrowserGenerationRequest = { type: 'start', prompt: values };
+    worker.postMessage(request);
+  };
+
+  const cancelGeneration = () => {
+    if (!workerRef.current || !isBusy) return;
+    setStatus('cancelling');
+    setStatusMessage('Finishing the current model step…');
+    workerRef.current.postMessage({
+      type: 'cancel',
+    } satisfies BrowserGenerationRequest);
+  };
+
+  return (
+    <main className="app-shell">
+      <Container size="xl" className="page-container generation-page">
+        <Button
+          component={Link}
+          to="/"
+          variant="subtle"
+          size="compact-sm"
+          className="back-link"
+        >
+          ← Back to visualizations
+        </Button>
+
+        <header className="page-header generation-header">
+          <div>
+            <Text className="eyebrow">In-browser generation</Text>
+            <Title order={1}>See a model think in tokens</Title>
+            <Text c="dimmed" maw={720}>
+              Run an arbitrary prompt through the instrumented Qwen3 model and
+              watch each generated token reveal its summed causal sources.
+            </Text>
+          </div>
+          <Badge variant="outline">Qwen3 · q4f16</Badge>
+        </header>
+
+        {modelCached === false && (
+          <Alert
+            className="model-download-note"
+            color="violet"
+            title="First run downloads the model"
+          >
+            Starting generation automatically downloads the instrumented model
+            (about {formatBytes(BROWSER_MODEL_SIZE_BYTES)}) into this browser’s
+            cache. The download happens only once per browser cache.
+          </Alert>
+        )}
+
+        <Paper
+          className="selector-card generation-form"
+          withBorder
+          radius="lg"
+          p="xl"
+        >
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              startGeneration();
+            }}
+          >
+            <Stack gap="lg">
+              <Textarea
+                label="Prompt"
+                description="Ask the local model anything. Nothing is sent to a server."
+                placeholder="Explain why the sky appears blue."
+                value={prompt}
+                onChange={(event) => setPrompt(event.currentTarget.value)}
+                minRows={5}
+                autosize
+                maxRows={12}
+                required
+              />
+
+              <Button
+                type="button"
+                variant="subtle"
+                className="advanced-options-toggle"
+                onClick={() => setAdvancedOpen((open) => !open)}
+                aria-expanded={advancedOpen}
+              >
+                {advancedOpen
+                  ? '⌃ Hide advanced options'
+                  : '⌄ Advanced options'}
+              </Button>
+
+              <Collapse expanded={advancedOpen}>
+                <div className="generation-advanced-options">
+                  <Textarea
+                    label="System prompt"
+                    placeholder="You are a helpful assistant."
+                    value={systemPrompt}
+                    onChange={(event) =>
+                      setSystemPrompt(event.currentTarget.value)
+                    }
+                    minRows={2}
+                  />
+                  <Textarea
+                    label="Assistant prefix"
+                    description="Optional text to place immediately before generation."
+                    value={assistantPrefix}
+                    onChange={(event) =>
+                      setAssistantPrefix(event.currentTarget.value)
+                    }
+                    minRows={2}
+                  />
+                  <div className="generation-number-grid">
+                    <NumberInput
+                      label="Max new tokens"
+                      value={maxNewTokens}
+                      onChange={(value) =>
+                        setMaxNewTokens(
+                          Math.min(
+                            MAX_GENERATED_TOKENS,
+                            Math.max(
+                              1,
+                              Math.round(
+                                numberValue(value, DEFAULT_MAX_NEW_TOKENS),
+                              ),
+                            ),
+                          ),
+                        )
+                      }
+                      min={1}
+                      max={MAX_GENERATED_TOKENS}
+                      step={1}
+                    />
+                    <NumberInput
+                      label="Temperature"
+                      value={temperature}
+                      onChange={(value) =>
+                        setTemperature(
+                          Math.min(
+                            2,
+                            Math.max(
+                              0.01,
+                              numberValue(value, GENERATION_TEMPERATURE),
+                            ),
+                          ),
+                        )
+                      }
+                      min={0.01}
+                      max={2}
+                      step={0.05}
+                      decimalScale={2}
+                    />
+                    <NumberInput
+                      label="Top K"
+                      value={topK}
+                      onChange={(value) =>
+                        setTopK(
+                          Math.max(
+                            1,
+                            Math.round(numberValue(value, GENERATION_TOP_K)),
+                          ),
+                        )
+                      }
+                      min={1}
+                      step={1}
+                    />
+                    <NumberInput
+                      label="Top P"
+                      value={topP}
+                      onChange={(value) =>
+                        setTopP(
+                          Math.min(
+                            1,
+                            Math.max(
+                              0.01,
+                              numberValue(value, GENERATION_TOP_P),
+                            ),
+                          ),
+                        )
+                      }
+                      min={0.01}
+                      max={1}
+                      step={0.05}
+                      decimalScale={2}
+                    />
+                    <NumberInput
+                      label="Seed"
+                      value={seed}
+                      onChange={(value) =>
+                        setSeed(
+                          Math.max(
+                            0,
+                            Math.round(
+                              numberValue(value, DEFAULT_GENERATION_SEED),
+                            ),
+                          ),
+                        )
+                      }
+                      min={0}
+                      step={1}
+                    />
+                  </div>
+                  <Switch
+                    label="Enable thinking"
+                    description="Include Qwen3's reasoning phase in the generated stream."
+                    checked={enableThinking}
+                    onChange={(event) =>
+                      setEnableThinking(event.currentTarget.checked)
+                    }
+                  />
+                </div>
+              </Collapse>
+
+              <Group justify="flex-end">
+                {isBusy && (
+                  <Button
+                    type="button"
+                    variant="light"
+                    color="red"
+                    onClick={cancelGeneration}
+                  >
+                    Cancel
+                  </Button>
+                )}
+                <Button type="submit" disabled={!canSubmit} loading={isBusy}>
+                  {isBusy ? 'Generating…' : 'Generate contributions'}
+                </Button>
+              </Group>
+            </Stack>
+          </form>
+        </Paper>
+
+        {status !== 'idle' && (
+          <Paper className="generation-status" withBorder radius="lg" p="lg">
+            <Group justify="space-between" align="flex-start" mb="xs">
+              <div>
+                <Text fw={700}>
+                  {status === 'loading-model'
+                    ? 'Preparing the model'
+                    : status === 'generating'
+                      ? 'Generating and measuring contributions'
+                      : status === 'cancelling'
+                        ? 'Cancelling generation'
+                        : status === 'complete'
+                          ? 'Generation complete'
+                          : status === 'cancelled'
+                            ? 'Generation cancelled'
+                            : 'Generation failed'}
+                </Text>
+                <Text size="sm" c="dimmed">
+                  {statusMessage ??
+                    (status === 'loading-model'
+                      ? `Downloaded ${formatBytes(modelProgress.loaded)}${modelProgress.total ? ` of ${formatBytes(modelProgress.total)}` : ''}`
+                      : status === 'generating'
+                        ? `${generatedTokenCount} of ${maxNewTokens} tokens`
+                        : '')}
+                </Text>
+              </div>
+              <Badge
+                color={
+                  status === 'error'
+                    ? 'red'
+                    : status === 'complete'
+                      ? 'teal'
+                      : status === 'cancelled'
+                        ? 'gray'
+                        : 'violet'
+                }
+                variant="light"
+              >
+                {status}
+              </Badge>
+            </Group>
+            {(status === 'loading-model' || status === 'generating') && (
+              <Progress
+                value={progressValue}
+                animated={status === 'loading-model'}
+              />
+            )}
+            {status === 'loading-model' && modelProgress.file && (
+              <Text size="xs" c="dimmed" mt="xs">
+                Loading {modelProgress.file}
+              </Text>
+            )}
+          </Paper>
+        )}
+
+        {error && (
+          <Alert color="red" title="Generation could not start">
+            {error.message}
+          </Alert>
+        )}
+
+        {manifest && contributions && (
+          <section className="generation-result" aria-live="polite">
+            <header className="generation-result-header">
+              <div>
+                <Text className="eyebrow">Live contribution text</Text>
+                <Title order={2}>What the model used</Title>
+              </div>
+              <Text size="sm" c="dimmed">
+                {generatedTokenCount} generated token
+                {generatedTokenCount === 1 ? '' : 's'} · summed across{' '}
+                {manifest.geometry.layers} layers
+              </Text>
+            </header>
+            <ContributionText
+              manifest={manifest}
+              contributions={contributions}
+              loadingMessage="Waiting for contribution rows…"
+            />
+          </section>
+        )}
+      </Container>
+    </main>
+  );
+}

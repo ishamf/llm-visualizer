@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 /models/
+/public/models
 /generated/
 
 # Editor directories and files

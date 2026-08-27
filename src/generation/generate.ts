@@ -46,8 +46,18 @@ export type GenerateContributionDatasetOptions = {
   prompt: ValidatedPromptConfiguration;
   validate?: boolean;
   originalLogits?: NumericArray;
+  /** Stop at the next cooperative yield when the caller aborts a run. */
+  signal?: AbortSignal;
   onProgress?: (generatedTokenCount: number) => void;
   onGeneratedToken?: (token: bigint) => void;
+  /**
+   * Called after a generated destination row has been summed across every
+   * instrumented layer. The rows are compact: row zero explains the first
+   * generated token, and so on.
+   */
+  onSummedContributionUpdate?: (rows: number[][]) => void;
+  /** A lower-allocation variant of onSummedContributionUpdate for streams. */
+  onSummedContributionRowUpdate?: (rowIndex: number, row: number[]) => void;
 };
 
 type ContributionRowsConsumer = (
@@ -196,12 +206,20 @@ function numericTokenId(token: bigint) {
   return id;
 }
 
+export function throwIfGenerationAborted(signal?: AbortSignal) {
+  if (!signal?.aborted) return;
+  const error = new Error('Generation cancelled');
+  error.name = 'AbortError';
+  throw error;
+}
+
 async function generateContributionRun({
   model,
   tokenizer,
   prompt,
   validate = false,
   originalLogits,
+  signal,
   onProgress,
   onGeneratedToken,
   consumeRows,
@@ -218,10 +236,12 @@ async function generateContributionRun({
   const generator = new random.Random(prompt.seed);
 
   try {
+    throwIfGenerationAborted(signal);
     outputs = await model.forward({
       input_ids: encoded.inputIds,
       attention_mask: encoded.attentionMask,
     });
+    throwIfGenerationAborted(signal);
     if (validate) {
       if (!originalLogits) {
         throw new Error('Validation requires original model logits');
@@ -234,6 +254,7 @@ async function generateContributionRun({
       contextsMaximumError = validateModelStep(outputs).maxAbsoluteError;
     }
     for (let layer = 0; layer < LAYER_COUNT; ++layer) {
+      throwIfGenerationAborted(signal);
       if (contributionScope === 'all') {
         consumeRows(layer, 0, contributionRows(outputs, layer));
       } else {
@@ -248,6 +269,7 @@ async function generateContributionRun({
 
     let nextToken = sampleLastToken(outputs.logits, generator, prompt);
     for (let step = 0; step < prompt.maxNewTokens; ++step) {
+      throwIfGenerationAborted(signal);
       tokenIds.push(nextToken);
       generatedTokenIds.push(nextToken);
       onGeneratedToken?.(nextToken);
@@ -275,6 +297,7 @@ async function generateContributionRun({
         mask.dispose();
       }
       disposeOutputs(previousOutputs);
+      throwIfGenerationAborted(signal);
 
       if (validate) {
         const decodeStats = validateModelStep(outputs);
@@ -284,6 +307,7 @@ async function generateContributionRun({
         );
       }
       for (let layer = 0; layer < LAYER_COUNT; ++layer) {
+        throwIfGenerationAborted(signal);
         const destination = tokenIds.length - 1;
         consumeRows(layer, destination, contributionRows(outputs, layer));
         if (onProgress) {
@@ -413,6 +437,7 @@ export async function generateSummedContributionDataset(
 ): Promise<SummedContributionDataset> {
   const rows: number[][] = [];
   let firstContributionDestination: number | undefined;
+  let emittedRowCount = 0;
   const manifest = await generateContributionRun({
     ...options,
     consumeRows(_layer, firstDestination, incomingRows) {
@@ -422,6 +447,18 @@ export async function generateSummedContributionDataset(
         firstDestination - firstContributionDestination,
         incomingRows,
       );
+      // A destination is delivered one layer at a time. Waiting until the
+      // final layer avoids posting the same large partial matrix 28 times and
+      // gives consumers a complete row for each streamed token.
+      if (_layer === LAYER_COUNT - 1) {
+        options.onSummedContributionUpdate?.(rows.map((row) => [...row]));
+        while (emittedRowCount < rows.length) {
+          options.onSummedContributionRowUpdate?.(emittedRowCount, [
+            ...rows[emittedRowCount],
+          ]);
+          emittedRowCount += 1;
+        }
+      }
     },
     contributionScope: 'generated',
   });

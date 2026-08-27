@@ -1,4 +1,5 @@
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 
 import {
   AutoModelForCausalLM,
@@ -17,7 +18,6 @@ import {
   LAYER_COUNT,
   MODEL_DTYPE,
   MODEL_ID,
-  MODEL_ROOT,
 } from '../generation/config.ts';
 import {
   argmaxLastLogit,
@@ -33,6 +33,8 @@ import type {
   ValidationStats,
 } from '../generation/types.ts';
 import { validateLogits, validateModelStep } from '../generation/validation.ts';
+
+const MODEL_ROOT = fileURLToPath(new URL('../../models/', import.meta.url));
 
 function oneTokenTensor(token: bigint) {
   return new Tensor('int64', [token], [1, 1]);
