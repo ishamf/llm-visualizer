@@ -1,5 +1,11 @@
 import { Alert, Loader, NumberInput, Paper, Select, Text } from '@mantine/core';
-import { useEffect, useState, type CSSProperties } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 
 import type { SummedContributionDataSource } from '../data/summed-contribution-data-source.ts';
 import type { ContributionManifest } from '../generation/types.ts';
@@ -8,7 +14,9 @@ import {
   contributionOpacity,
   type ContributionOpacityScale,
   MINIMUM_TOKEN_OPACITY,
+  nearestTokenIndex,
   predictionContributionRow,
+  type TokenRectangle,
 } from './text-contributions.ts';
 
 type AggregateState =
@@ -25,10 +33,16 @@ export function ContributionText({ source, manifest }: ContributionTextProps) {
   const [aggregate, setAggregate] = useState<AggregateState>({
     status: 'loading',
   });
-  const [hoveredToken, setHoveredToken] = useState<number | null>(null);
+  const [pointerToken, setPointerToken] = useState<number | null>(null);
+  const [focusedToken, setFocusedToken] = useState<number | null>(null);
   const [opacityScale, setOpacityScale] =
     useState<ContributionOpacityScale>('linear');
   const [minimumOpacity, setMinimumOpacity] = useState(MINIMUM_TOKEN_OPACITY);
+  const contributionText = useRef<HTMLDivElement>(null);
+  const tokenElements = useRef<Array<HTMLSpanElement | null>>([]);
+  const tokenRectangles = useRef<
+    ReadonlyArray<ReadonlyArray<TokenRectangle>> | undefined
+  >(undefined);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -53,6 +67,23 @@ export function ContributionText({ source, manifest }: ContributionTextProps) {
     return () => controller.abort();
   }, [manifest, source]);
 
+  useEffect(() => {
+    const container = contributionText.current;
+    if (!container) return;
+
+    const invalidateRectangles = () => {
+      tokenRectangles.current = undefined;
+    };
+    const observer = new ResizeObserver(invalidateRectangles);
+    observer.observe(container);
+    window.addEventListener('scroll', invalidateRectangles, true);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('scroll', invalidateRectangles, true);
+    };
+  }, [aggregate.status, manifest.tokens]);
+
   if (aggregate.status === 'loading') {
     return (
       <Paper className="text-visualization-state" withBorder radius="lg" p="xl">
@@ -72,14 +103,33 @@ export function ContributionText({ source, manifest }: ContributionTextProps) {
     );
   }
 
+  const activeToken = focusedToken ?? pointerToken;
   const row =
-    hoveredToken === null
+    activeToken === null
       ? undefined
       : predictionContributionRow(
           aggregate.contributions.rows,
-          hoveredToken,
+          activeToken,
           aggregate.contributions.targetTokenStart,
         );
+
+  const measureTokenRectangles = () => {
+    const rectangles = manifest.tokens.map((_, index) =>
+      tokenElements.current[index]
+        ? Array.from(tokenElements.current[index].getClientRects())
+        : [],
+    );
+    tokenRectangles.current = rectangles;
+    return rectangles;
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== 'mouse' && event.pointerType !== 'pen') return;
+    const rectangles = tokenRectangles.current ?? measureTokenRectangles();
+    setPointerToken(
+      nearestTokenIndex(event.clientX, event.clientY, rectangles),
+    );
+  };
 
   return (
     <Paper className="text-visualization" withBorder radius="lg" p="xl">
@@ -116,27 +166,34 @@ export function ContributionText({ source, manifest }: ContributionTextProps) {
       </div>
 
       <div
+        ref={contributionText}
         className="contribution-text"
         aria-label="Prompt and generated text by token"
-        onMouseLeave={() => setHoveredToken(null)}
+        onPointerEnter={() => {
+          tokenRectangles.current = undefined;
+        }}
+        onPointerMove={handlePointerMove}
+        onPointerLeave={() => setPointerToken(null)}
       >
         {manifest.tokens.map((token, index) => {
-          const active = hoveredToken === index;
+          const active = activeToken === index;
           const opacity =
-            hoveredToken === null || row === undefined || active
+            activeToken === null || row === undefined || active
               ? 1
               : contributionOpacity(row, index, minimumOpacity, opacityScale);
           const generated = index >= manifest.promptTokenCount;
           return (
             <span
+              ref={(element) => {
+                tokenElements.current[index] = element;
+              }}
               key={`${index}-${token.id}`}
-              className={`contribution-text-token ${generated ? 'generated-text-token' : 'prompt-text-token'} ${index === manifest.promptTokenCount ? 'generation-start-token' : ''}`}
+              className={`contribution-text-token ${active ? 'active-contribution-text-token' : ''} ${generated ? 'generated-text-token' : 'prompt-text-token'} ${index === manifest.promptTokenCount ? 'generation-start-token' : ''}`}
               style={{ '--token-opacity': opacity } as CSSProperties}
               tabIndex={0}
               aria-label={`Token ${index}, ID ${token.id}, ${JSON.stringify(token.text)}`}
-              onMouseEnter={() => setHoveredToken(index)}
-              onFocus={() => setHoveredToken(index)}
-              onBlur={() => setHoveredToken(null)}
+              onFocus={() => setFocusedToken(index)}
+              onBlur={() => setFocusedToken(null)}
             >
               {token.text}
             </span>
@@ -154,11 +211,11 @@ export function ContributionText({ source, manifest }: ContributionTextProps) {
           Generated
         </Text>
         <Text size="xs" c="dimmed" className="hovered-token-detail">
-          {hoveredToken === null
+          {activeToken === null
             ? 'Hover or focus a token to reveal its sources.'
-            : hoveredToken < manifest.promptTokenCount
+            : activeToken < manifest.promptTokenCount
               ? 'Prompt-token contribution rows are not stored for this view.'
-              : `Token ${hoveredToken} uses contributions at position ${hoveredToken - 1}, summed across all layers.`}
+              : `Token ${activeToken} uses contributions at position ${activeToken - 1}, summed across all layers.`}
         </Text>
       </div>
     </Paper>

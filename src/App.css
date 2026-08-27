@@ -134,7 +134,7 @@
     box-shadow 140ms ease;
 }
 
-.contribution-text-token:hover,
+.active-contribution-text-token,
 .contribution-text-token:focus-visible {
   background: light-dark(
     var(--mantine-color-violet-1),

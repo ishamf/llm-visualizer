@@ -3,6 +3,44 @@ import type { ContributionLayer } from '../generation/types.ts';
 export const MINIMUM_TOKEN_OPACITY = 0.15;
 export type ContributionOpacityScale = 'linear' | 'logarithmic';
 
+export type TokenRectangle = Pick<DOMRect, 'bottom' | 'left' | 'right' | 'top'>;
+
+export function nearestTokenIndex(
+  x: number,
+  y: number,
+  tokenRectangles: ReadonlyArray<ReadonlyArray<TokenRectangle>>,
+): number | null {
+  let nearestIndex: number | null = null;
+  let nearestDistanceSquared = Number.POSITIVE_INFINITY;
+
+  for (const [index, rectangles] of tokenRectangles.entries()) {
+    for (const rectangle of rectangles) {
+      const horizontalDistance =
+        x < rectangle.left
+          ? rectangle.left - x
+          : x > rectangle.right
+            ? x - rectangle.right
+            : 0;
+      const verticalDistance =
+        y < rectangle.top
+          ? rectangle.top - y
+          : y > rectangle.bottom
+            ? y - rectangle.bottom
+            : 0;
+      const distanceSquared =
+        horizontalDistance * horizontalDistance +
+        verticalDistance * verticalDistance;
+
+      if (distanceSquared < nearestDistanceSquared) {
+        nearestIndex = index;
+        nearestDistanceSquared = distanceSquared;
+      }
+    }
+  }
+
+  return nearestIndex;
+}
+
 export function sumLayerContributions(
   layers: ReadonlyArray<Pick<ContributionLayer, 'rows'>>,
   tokenCount: number,

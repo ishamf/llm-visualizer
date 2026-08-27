@@ -26,7 +26,8 @@ export const prompts: PromptConfiguration[] = [
   },
   {
     id: 'fix-average-off-by-one',
-    systemPrompt: 'You are a helpful assistant. You should strive to provide a concise answer.',
+    systemPrompt:
+      'You are a helpful assistant. You should strive to provide a concise answer.',
     prompt: `This JavaScript function should calculate the average of its input, but it crashes with ReferenceError: array is not defined instead. Why did it happen? Can you fix it?
 
 
@@ -43,7 +44,6 @@ console.log(arrayAverage([2, 4, 6]));
     assistantPrefix: `The bug is a simple naming mismatch: the function parameter is called numbers, but the body references array`,
     maxNewTokens: 1000,
     contributionFormats: ['summed'],
-
   },
 ];
 

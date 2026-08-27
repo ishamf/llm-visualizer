@@ -2,9 +2,53 @@ import { describe, expect, it } from 'vitest';
 
 import {
   contributionOpacity,
+  nearestTokenIndex,
   predictionContributionRow,
   sumLayerContributions,
 } from './text-contributions.ts';
+
+const rectangle = (
+  left: number,
+  top: number,
+  right: number,
+  bottom: number,
+) => ({ left, top, right, bottom });
+
+describe('nearest text token', () => {
+  const tokenRectangles = [
+    [rectangle(10, 10, 20, 20)],
+    [rectangle(30, 10, 40, 20)],
+  ];
+
+  it('selects a token directly beneath the pointer', () => {
+    expect(nearestTokenIndex(15, 15, tokenRectangles)).toBe(0);
+  });
+
+  it('selects the closest token across horizontal and vertical gaps', () => {
+    expect(nearestTokenIndex(26, 15, tokenRectangles)).toBe(1);
+    expect(nearestTokenIndex(15, 27, tokenRectangles)).toBe(0);
+  });
+
+  it('considers every rectangle of a wrapped token', () => {
+    const wrapped = [
+      [rectangle(10, 10, 40, 20), rectangle(10, 30, 20, 40)],
+      [rectangle(30, 30, 40, 40)],
+    ];
+    expect(nearestTokenIndex(18, 35, wrapped)).toBe(0);
+  });
+
+  it('selects the closest token even at a large distance', () => {
+    expect(nearestTokenIndex(100, 100, tokenRectangles)).toBe(1);
+  });
+
+  it('uses document order to break equal-distance ties', () => {
+    expect(nearestTokenIndex(25, 15, tokenRectangles)).toBe(0);
+  });
+
+  it('returns no token when there are no rectangles', () => {
+    expect(nearestTokenIndex(15, 15, [])).toBeNull();
+  });
+});
 
 describe('summed text contributions', () => {
   const totals = sumLayerContributions(
