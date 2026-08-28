@@ -91,7 +91,7 @@ export const BROWSER_DEVICE_OPTIONS = {
   },
   webgpu: {
     label: 'WebGPU',
-    available: false,
+    available: true,
     dtypes: ['q4f16'],
   },
 } as const satisfies Record<
@@ -114,9 +114,6 @@ export function browserModelProfile(
   selection: BrowserModelSelection,
 ): ModelProfile {
   const device = BROWSER_DEVICE_OPTIONS[selection.device];
-  if (!device.available) {
-    throw new Error(`${device.label} generation is not available yet`);
-  }
   if (!(device.dtypes as readonly ModelDtype[]).includes(selection.dtype)) {
     throw new Error(
       `${device.label} does not support the ${selection.dtype} model variant`,

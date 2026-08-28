@@ -123,6 +123,7 @@ async function loadModel(
     });
     const model = await AutoModelForCausalLM.from_pretrained(profile.id, {
       dtype: profile.dtype,
+      device: selection.device,
       local_files_only: true,
       model_file_name: profile.instrumentation,
       progress_callback,
