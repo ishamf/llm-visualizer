@@ -8,7 +8,6 @@ import {
   NumberInput,
   Paper,
   Progress,
-  Select,
   Stack,
   Switch,
   Text,
@@ -19,20 +18,13 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import {
-  BROWSER_DEVICE_OPTIONS,
-  browserModelSizeBytes,
-  browserModelWeightsPath,
-  DEFAULT_BROWSER_MODEL_SELECTION,
+  BROWSER_MODEL_WEIGHTS_PATH,
+  BROWSER_MODEL_SIZE_BYTES,
   DEFAULT_GENERATION_SEED,
   GENERATION_TEMPERATURE,
   GENERATION_TOP_K,
   GENERATION_TOP_P,
   MAX_GENERATED_TOKENS,
-  MODEL_PROFILES,
-  type BrowserDevice,
-  type BrowserModelSelection,
-  type ModelDtype,
-  type ModelKey,
 } from '../generation/config.ts';
 import type {
   BrowserGenerationPrompt,
@@ -87,9 +79,6 @@ function formatBytes(bytes: number | undefined) {
 
 export function GenerationPage() {
   const workerRef = useRef<Worker | null>(null);
-  const [modelSelection, setModelSelection] = useState<BrowserModelSelection>(
-    DEFAULT_BROWSER_MODEL_SELECTION,
-  );
   const [prompt, setPrompt] = useState('');
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
   const [assistantPrefix, setAssistantPrefix] = useState('');
@@ -105,10 +94,6 @@ export function GenerationPage() {
   const [modelProgress, setModelProgress] = useState<ModelProgress>({});
   const [result, setResult] = useState<GenerationResult>();
   const [modelCached, setModelCached] = useState<boolean>();
-  const selectedProfile = MODEL_PROFILES[modelSelection.modelKey];
-  const selectedDevice = BROWSER_DEVICE_OPTIONS[modelSelection.device];
-  const selectedWeightsPath = browserModelWeightsPath(modelSelection);
-  const selectedModelSize = browserModelSizeBytes(modelSelection);
 
   const isBusy =
     status === 'loading-model' ||
@@ -120,13 +105,6 @@ export function GenerationPage() {
     : 0;
 
   useEffect(() => {
-    return () => {
-      workerRef.current?.terminate();
-      workerRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
     let active = true;
     const inspectModelCache = async () => {
       if (!('caches' in globalThis)) {
@@ -134,7 +112,9 @@ export function GenerationPage() {
         return;
       }
       try {
-        const cached = await globalThis.caches.match(selectedWeightsPath);
+        const cached = await globalThis.caches.match(
+          BROWSER_MODEL_WEIGHTS_PATH,
+        );
         if (active) setModelCached(Boolean(cached));
       } catch {
         if (active) setModelCached(false);
@@ -144,15 +124,10 @@ export function GenerationPage() {
 
     return () => {
       active = false;
+      workerRef.current?.terminate();
+      workerRef.current = null;
     };
-  }, [selectedWeightsPath]);
-
-  const updateModelSelection = (update: Partial<BrowserModelSelection>) => {
-    setModelSelection((current) => ({ ...current, ...update }));
-    setResult(undefined);
-    setError(undefined);
-    setStatus('idle');
-  };
+  }, []);
 
   const progressValue =
     status === 'generating'
@@ -250,11 +225,7 @@ export function GenerationPage() {
       topK,
       topP,
     };
-    const request: BrowserGenerationRequest = {
-      type: 'start',
-      prompt: values,
-      selection: modelSelection,
-    };
+    const request: BrowserGenerationRequest = { type: 'start', prompt: values };
     worker.postMessage(request);
   };
 
@@ -288,10 +259,7 @@ export function GenerationPage() {
               watch each generated token reveal its summed causal sources.
             </Text>
           </div>
-          <Badge variant="outline">
-            {selectedProfile.id.replace('-ONNX', '')} · {modelSelection.dtype} ·{' '}
-            {selectedDevice.label}
-          </Badge>
+          <Badge variant="outline">Qwen3 0.6B · INT8 · CPU</Badge>
         </header>
 
         {modelCached === false && (
@@ -301,8 +269,8 @@ export function GenerationPage() {
             title="First run downloads the model"
           >
             Starting generation automatically downloads the instrumented model
-            (about {formatBytes(selectedModelSize)}) into this browser’s cache.
-            The download happens only once per browser cache.
+            (about {formatBytes(BROWSER_MODEL_SIZE_BYTES)}) into this browser’s
+            cache. The download happens only once per browser cache.
           </Alert>
         )}
 
@@ -319,64 +287,6 @@ export function GenerationPage() {
             }}
           >
             <Stack gap="lg">
-              <div className="generation-model-grid">
-                <Select
-                  label="Model"
-                  description="Choose the Qwen3 model size to run locally."
-                  data={Object.entries(MODEL_PROFILES).map(
-                    ([value, profile]) => ({
-                      value,
-                      label: profile.id.replace('-ONNX', ''),
-                    }),
-                  )}
-                  value={modelSelection.modelKey}
-                  onChange={(value) =>
-                    value &&
-                    updateModelSelection({ modelKey: value as ModelKey })
-                  }
-                  allowDeselect={false}
-                  disabled={isBusy}
-                />
-                <Select
-                  label="Runtime"
-                  description="WebGPU support will be enabled in a later update."
-                  data={Object.entries(BROWSER_DEVICE_OPTIONS).map(
-                    ([value, option]) => ({
-                      value,
-                      label: option.available
-                        ? option.label
-                        : `${option.label} (coming soon)`,
-                      disabled: !option.available,
-                    }),
-                  )}
-                  value={modelSelection.device}
-                  onChange={(value) => {
-                    if (!value) return;
-                    const device = value as BrowserDevice;
-                    const dtype = BROWSER_DEVICE_OPTIONS[device]
-                      .dtypes[0] as ModelDtype;
-                    updateModelSelection({ device, dtype });
-                  }}
-                  allowDeselect={false}
-                  disabled={isBusy}
-                />
-                <Select
-                  label="Variant"
-                  description="CPU is limited to the INT8 model variant."
-                  data={selectedDevice.dtypes.map((dtype) => ({
-                    value: dtype,
-                    label: dtype.toUpperCase(),
-                  }))}
-                  value={modelSelection.dtype}
-                  onChange={(value) =>
-                    value &&
-                    updateModelSelection({ dtype: value as ModelDtype })
-                  }
-                  allowDeselect={false}
-                  disabled={isBusy || selectedDevice.dtypes.length === 1}
-                />
-              </div>
-
               <Textarea
                 label="Prompt"
                 description="Ask the local model anything. Nothing is sent to a server."

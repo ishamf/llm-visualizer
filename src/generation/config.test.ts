@@ -1,50 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  browserModelProfile,
-  browserModelWeightsPath,
-  DEFAULT_BROWSER_MODEL_SELECTION,
+  BROWSER_MODEL_PATH,
+  BROWSER_MODEL_PROFILE,
+  BROWSER_MODEL_WEIGHTS_PATH,
 } from './config.ts';
 
-describe('browser model selection', () => {
-  it('defaults to the smaller CPU int8 model', () => {
-    expect(DEFAULT_BROWSER_MODEL_SELECTION).toEqual({
-      modelKey: 'qwen3-0.6b',
-      device: 'cpu',
+describe('browser model configuration', () => {
+  it('pins browser generation to the 0.6B INT8 model', () => {
+    expect(BROWSER_MODEL_PROFILE).toMatchObject({
+      key: 'qwen3-0.6b',
+      id: 'Qwen3-0.6B-ONNX',
       dtype: 'int8',
     });
-  });
-
-  it('resolves the selected model and artifact', () => {
-    const selection = {
-      modelKey: 'qwen3-1.7b',
-      device: 'cpu',
-      dtype: 'int8',
-    } as const;
-
-    expect(browserModelProfile(selection).id).toBe('Qwen3-1.7B-ONNX');
-    expect(browserModelWeightsPath(selection)).toBe(
-      '/models/Qwen3-1.7B-ONNX/onnx/instrumented_int8.onnx',
+    expect(BROWSER_MODEL_PATH).toBe('/models/Qwen3-0.6B-ONNX');
+    expect(BROWSER_MODEL_WEIGHTS_PATH).toBe(
+      '/models/Qwen3-0.6B-ONNX/onnx/instrumented_int8.onnx',
     );
-  });
-
-  it('rejects variants unsupported by the selected runtime', () => {
-    expect(() =>
-      browserModelProfile({
-        modelKey: 'qwen3-0.6b',
-        device: 'cpu',
-        dtype: 'q4f16',
-      }),
-    ).toThrow('CPU does not support the q4f16 model variant');
-  });
-
-  it('keeps WebGPU unavailable until its execution path is implemented', () => {
-    expect(() =>
-      browserModelProfile({
-        modelKey: 'qwen3-0.6b',
-        device: 'webgpu',
-        dtype: 'q4f16',
-      }),
-    ).toThrow('WebGPU generation is not available yet');
   });
 });

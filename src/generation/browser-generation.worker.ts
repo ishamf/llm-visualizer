@@ -6,13 +6,12 @@ import {
 } from '@huggingface/transformers';
 
 import {
+  BROWSER_MODEL_PATH,
+  BROWSER_MODEL_PROFILE,
   BROWSER_MODEL_ROOT,
-  browserModelPath,
-  browserModelProfile,
   CONTRIBUTION_METRIC,
   DATASET_SCHEMA_VERSION,
-  type BrowserModelSelection,
-  type ModelProfile,
+  LAYER_COUNT,
 } from './config.ts';
 import {
   generateSummedContributionDataset,
@@ -28,7 +27,6 @@ import type {
 } from './browser-generation-protocol.ts';
 
 type LoadedModel = {
-  key: string;
   model: CausalLanguageModel;
   tokenizer: Tokenizer;
 };
@@ -39,7 +37,6 @@ type WorkerScope = {
 };
 
 const workerScope = globalThis as unknown as WorkerScope;
-let loadedModel: LoadedModel | undefined;
 let modelPromise: Promise<LoadedModel> | undefined;
 let activeController: AbortController | undefined;
 let activeRun: Promise<void> | undefined;
@@ -84,22 +81,8 @@ function postProgress(info: ProgressInfo) {
   }
 }
 
-function selectionKey(selection: BrowserModelSelection) {
-  return `${selection.device}:${selection.modelKey}:${selection.dtype}`;
-}
-
-async function loadModel(
-  selection: BrowserModelSelection,
-  profile: ModelProfile,
-): Promise<LoadedModel> {
-  const key = selectionKey(selection);
-  if (loadedModel?.key === key) return loadedModel;
+async function loadModel(): Promise<LoadedModel> {
   if (modelPromise) return modelPromise;
-
-  if (loadedModel) {
-    await loadedModel.model.dispose();
-    loadedModel = undefined;
-  }
 
   // The model is served from the repository's ignored models/ directory via
   // public/models. Transformers.js will cache these responses in the browser,
@@ -113,35 +96,33 @@ async function loadModel(
 
   const progress_callback = (info: ProgressInfo) => postProgress(info);
   const loading = (async () => {
-    const modelPath = browserModelPath(selection);
     // Tokenizer auto-discovery in Transformers.js 4.2 does not recognize an
     // absolute localModelPath. Keep its small files on the root-relative path,
     // and finish loading them before starting the much larger model request.
-    const tokenizer = await AutoTokenizer.from_pretrained(modelPath, {
+    const tokenizer = await AutoTokenizer.from_pretrained(BROWSER_MODEL_PATH, {
       local_files_only: true,
       progress_callback,
     });
-    const model = await AutoModelForCausalLM.from_pretrained(profile.id, {
-      dtype: profile.dtype,
-      local_files_only: true,
-      model_file_name: profile.instrumentation,
-      progress_callback,
-    });
+    const model = await AutoModelForCausalLM.from_pretrained(
+      BROWSER_MODEL_PROFILE.id,
+      {
+        dtype: BROWSER_MODEL_PROFILE.dtype,
+        device: 'cpu',
+        local_files_only: true,
+        model_file_name: BROWSER_MODEL_PROFILE.instrumentation,
+        progress_callback,
+      },
+    );
     return {
-      key,
       tokenizer: tokenizer as unknown as Tokenizer,
       model: model as unknown as CausalLanguageModel,
     };
   })();
 
-  modelPromise = loading
-    .then((value) => {
-      loadedModel = value;
-      return value;
-    })
-    .finally(() => {
-      modelPromise = undefined;
-    });
+  modelPromise = loading.catch((error: unknown) => {
+    modelPromise = undefined;
+    throw error;
+  });
   return modelPromise;
 }
 
@@ -160,21 +141,18 @@ function decodeToken(tokenizer: Tokenizer, token: bigint) {
   });
 }
 
-function emptyContributions(promptTokenCount: number, layerCount: number) {
+function emptyContributions(promptTokenCount: number) {
   return {
     schemaVersion: DATASET_SCHEMA_VERSION,
     metric: CONTRIBUTION_METRIC,
     aggregation: 'sum' as const,
-    layerCount,
+    layerCount: LAYER_COUNT,
     targetTokenStart: promptTokenCount,
     rows: [] as number[][],
   };
 }
 
-function validatedPrompt(
-  values: BrowserGenerationPrompt,
-  profile: ModelProfile,
-) {
+function validatedPrompt(values: BrowserGenerationPrompt) {
   return validatePrompts(
     [
       {
@@ -191,14 +169,11 @@ function validatedPrompt(
         topP: values.topP,
       },
     ],
-    profile.generation,
+    BROWSER_MODEL_PROFILE.generation,
   )[0];
 }
 
-async function run(
-  promptValues: BrowserGenerationPrompt,
-  selection: BrowserModelSelection,
-) {
+async function run(promptValues: BrowserGenerationPrompt) {
   const controller = new AbortController();
   activeController = controller;
   post({
@@ -207,9 +182,8 @@ async function run(
   });
 
   try {
-    const modelProfile = browserModelProfile(selection);
-    const prompt = validatedPrompt(promptValues, modelProfile);
-    const { model, tokenizer } = await loadModel(selection, modelProfile);
+    const prompt = validatedPrompt(promptValues);
+    const { model, tokenizer } = await loadModel();
     throwIfGenerationAborted(controller.signal);
     post({
       type: 'status',
@@ -219,7 +193,7 @@ async function run(
     const generatedTokenIds: bigint[] = [];
     const contributionRows = new Map<number, number[]>();
     const options: GenerateContributionDatasetOptions = {
-      modelProfile,
+      modelProfile: BROWSER_MODEL_PROFILE,
       model,
       tokenizer,
       prompt,
@@ -228,10 +202,7 @@ async function run(
         post({
           type: 'prompt-ready',
           manifest,
-          contributions: emptyContributions(
-            manifest.promptTokenCount,
-            modelProfile.geometry.layers,
-          ),
+          contributions: emptyContributions(manifest.promptTokenCount),
         });
       },
       // A single macrotask between model passes keeps cancellation responsive
@@ -309,7 +280,7 @@ workerScope.onmessage = (event) => {
     return;
   }
   if (activeRun) return;
-  activeRun = run(request.prompt, request.selection).finally(() => {
+  activeRun = run(request.prompt).finally(() => {
     activeRun = undefined;
   });
 };
