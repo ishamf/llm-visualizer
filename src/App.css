@@ -506,6 +506,12 @@
   max-width: 920px;
 }
 
+.generation-model-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
 .advanced-options-toggle {
   width: max-content;
   padding-inline: 0;
@@ -589,5 +595,9 @@
 
   .generation-number-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .generation-model-grid {
+    grid-template-columns: 1fr;
   }
 }
