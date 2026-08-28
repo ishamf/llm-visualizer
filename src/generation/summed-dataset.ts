@@ -1,11 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import {
-  CONTRIBUTION_METRIC,
-  DATASET_SCHEMA_VERSION,
-  LAYER_COUNT,
-} from './config.ts';
+import { CONTRIBUTION_METRIC, DATASET_SCHEMA_VERSION } from './config.ts';
 import { writeDatasetAtomically } from './atomic-dataset.ts';
 import { serializedJson, validateContributionManifest } from './dataset.ts';
 import type {
@@ -22,7 +18,7 @@ export function validateSummedContributions(
     contributions.schemaVersion !== DATASET_SCHEMA_VERSION ||
     contributions.metric !== CONTRIBUTION_METRIC ||
     contributions.aggregation !== 'sum' ||
-    contributions.layerCount !== LAYER_COUNT
+    contributions.layerCount !== manifest.geometry.layers
   ) {
     throw new Error('Summed contribution metadata is inconsistent');
   }

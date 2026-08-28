@@ -76,6 +76,18 @@ describe('prompt validation', () => {
       ])[0],
     ).toMatchObject({ temperature: 0.8, topK: 50, topP: 0.9 });
   });
+
+  it('uses model-specific sampling defaults', () => {
+    expect(
+      validatePrompts([{ id: 'profile-defaults', prompt: 'Hello' }], {
+        maxGeneratedTokens: 512,
+        seed: 7,
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.9,
+      })[0],
+    ).toMatchObject({ seed: 7, temperature: 0.7, topK: 40, topP: 0.9 });
+  });
 });
 
 describe('prompt selection', () => {

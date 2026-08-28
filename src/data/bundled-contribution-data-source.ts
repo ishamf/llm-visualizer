@@ -2,6 +2,7 @@ import type {
   ContributionLayer,
   ContributionManifest,
 } from '../generation/types.ts';
+import { UI_MODEL_KEY } from '../generation/config.ts';
 import {
   parseContributionLayer,
   parseContributionManifest,
@@ -12,11 +13,11 @@ type JsonModule = { default: unknown };
 type JsonLoader = () => Promise<JsonModule>;
 
 const manifestModules = import.meta.glob<JsonModule>(
-  '../../generated/contributions/*/manifest.json',
+  '../../generated/contributions/*/*/manifest.json',
   { eager: true },
 );
 const layerModules = import.meta.glob<JsonModule>(
-  '../../generated/contributions/*/layer-*.json',
+  '../../generated/contributions/*/*/layer-*.json',
 );
 
 export type BundledContributionDataset = {
@@ -25,8 +26,11 @@ export type BundledContributionDataset = {
 };
 
 const bundledDatasets = Object.entries(manifestModules)
+  .filter(([path]) => path.includes(`/contributions/${UI_MODEL_KEY}/`))
   .map(([path, module]): BundledContributionDataset => {
-    const id = path.match(/\/contributions\/([^/]+)\/manifest\.json$/)?.[1];
+    const id = path.match(
+      /\/contributions\/[^/]+\/([^/]+)\/manifest\.json$/,
+    )?.[1];
     if (!id) {
       throw new Error(`Could not determine dataset ID from ${path}`);
     }
@@ -45,7 +49,7 @@ export class BundledContributionDataSource implements ContributionDataSource {
 
   constructor(id: string) {
     this.id = id;
-    const root = `../../generated/contributions/${id}`;
+    const root = `../../generated/contributions/${UI_MODEL_KEY}/${id}`;
     const manifestModule = manifestModules[`${root}/manifest.json`];
     if (!manifestModule) {
       throw new Error(`Bundled contribution dataset ${id} was not found`);

@@ -1,14 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import {
-  CONTRIBUTION_METRIC,
-  DATASET_SCHEMA_VERSION,
-  HEAD_DIMENSION,
-  KV_HEAD_COUNT,
-  LAYER_COUNT,
-  QUERY_HEAD_COUNT,
-} from './config.ts';
+import { CONTRIBUTION_METRIC, DATASET_SCHEMA_VERSION } from './config.ts';
 import type {
   ContributionDataset,
   ContributionLayer,
@@ -29,6 +22,13 @@ export function validateContributionManifest(manifest: ContributionManifest) {
   if (manifest.metric !== CONTRIBUTION_METRIC) {
     throw new Error(`Unexpected manifest metric ${manifest.metric}`);
   }
+  if (
+    manifest.model.id.trim().length === 0 ||
+    manifest.model.dtype.trim().length === 0 ||
+    manifest.model.instrumentation.trim().length === 0
+  ) {
+    throw new Error('Manifest model metadata is incomplete');
+  }
   if (!Number.isInteger(manifest.promptTokenCount)) {
     throw new Error('Manifest promptTokenCount must be an integer');
   }
@@ -39,12 +39,17 @@ export function validateContributionManifest(manifest: ContributionManifest) {
     throw new Error('Manifest promptTokenCount is outside the token range');
   }
   if (
-    manifest.geometry.layers !== LAYER_COUNT ||
-    manifest.geometry.queryHeads !== QUERY_HEAD_COUNT ||
-    manifest.geometry.kvHeads !== KV_HEAD_COUNT ||
-    manifest.geometry.headDimension !== HEAD_DIMENSION
+    !Number.isSafeInteger(manifest.geometry.layers) ||
+    manifest.geometry.layers < 1 ||
+    !Number.isSafeInteger(manifest.geometry.queryHeads) ||
+    manifest.geometry.queryHeads < 1 ||
+    !Number.isSafeInteger(manifest.geometry.kvHeads) ||
+    manifest.geometry.kvHeads < 1 ||
+    manifest.geometry.queryHeads % manifest.geometry.kvHeads !== 0 ||
+    !Number.isSafeInteger(manifest.geometry.headDimension) ||
+    manifest.geometry.headDimension < 1
   ) {
-    throw new Error('Manifest model geometry is inconsistent');
+    throw new Error('Manifest model geometry is invalid');
   }
   const generatedTokenCount =
     manifest.tokens.length - manifest.promptTokenCount;
@@ -97,9 +102,9 @@ export function validateContributionDataset(dataset: ContributionDataset) {
   const { manifest, layers } = dataset;
   validateContributionManifest(manifest);
 
-  if (layers.length !== LAYER_COUNT) {
+  if (layers.length !== manifest.geometry.layers) {
     throw new Error(
-      `Dataset has ${layers.length} layers, expected ${LAYER_COUNT}`,
+      `Dataset has ${layers.length} layers, expected ${manifest.geometry.layers}`,
     );
   }
   for (let layerIndex = 0; layerIndex < layers.length; ++layerIndex) {
@@ -146,7 +151,7 @@ async function validateStagedDataset(directory: string) {
     await readFile(path.join(directory, 'manifest.json'), 'utf8'),
   ) as ContributionManifest;
   const layers: ContributionLayer[] = [];
-  for (let layer = 0; layer < LAYER_COUNT; ++layer) {
+  for (let layer = 0; layer < manifest.geometry.layers; ++layer) {
     layers.push(
       JSON.parse(
         await readFile(path.join(directory, layerFileName(layer)), 'utf8'),

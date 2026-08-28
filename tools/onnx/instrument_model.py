@@ -9,10 +9,23 @@ import os
 import tempfile
 import warnings
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Sequence
 
 import onnx
 from onnx import ModelProto, NodeProto, ValueInfoProto
+
+
+MODEL_IDS = {
+    "qwen3-0.6b": "Qwen3-0.6B-ONNX",
+    "qwen3-1.7b": "Qwen3-1.7B-ONNX",
+}
+MODEL_ALIASES = {
+    "0.6b": "qwen3-0.6b",
+    "1.7b": "qwen3-1.7b",
+    **{key: key for key in MODEL_IDS},
+}
+DEFAULT_DTYPE = "int8"
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _node_matches(node: NodeProto, op_type: str, name_fragment: str) -> bool:
@@ -159,9 +172,32 @@ def instrument(
     return destination
 
 
-def parse_args() -> argparse.Namespace:
+def model_source(model: str) -> Path:
+    key = MODEL_ALIASES.get(model.lower())
+    if key is None:
+        available = ", ".join(MODEL_IDS)
+        raise ValueError(f"unknown model {model!r}; available models: {available}")
+    return (
+        REPOSITORY_ROOT
+        / "models"
+        / MODEL_IDS[key]
+        / "onnx"
+        / f"model_{DEFAULT_DTYPE}.onnx"
+    )
+
+
+def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("model", type=Path, help="path to the source .onnx model")
+    parser.add_argument(
+        "source",
+        nargs="?",
+        type=Path,
+        help="explicit path to a source .onnx model",
+    )
+    parser.add_argument(
+        "--model",
+        help="configured model key or short alias (for example, qwen3-1.7b or 1.7b)",
+    )
     parser.add_argument(
         "-o",
         "--output",
@@ -180,13 +216,21 @@ def parse_args() -> argparse.Namespace:
             "(default: disabled)"
         ),
     )
-    return parser.parse_args()
+    args = parser.parse_args(arguments)
+    if (args.source is None) == (args.model is None):
+        parser.error("provide exactly one of an explicit source path or --model")
+    return args
 
 
 def main() -> None:
     args = parse_args()
+    source = (
+        args.source.expanduser().resolve()
+        if args.source is not None
+        else model_source(args.model)
+    )
     destination = instrument(
-        args.model.expanduser().resolve(),
+        source,
         include_validation_outputs=args.validation_outputs,
         destination=args.output.expanduser().resolve() if args.output else None,
     )

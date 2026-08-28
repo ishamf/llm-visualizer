@@ -26,6 +26,13 @@ describe('contribution datasets', () => {
     );
   });
 
+  it('validates the layer count declared by the model manifest', () => {
+    const dataset = exampleDataset();
+    dataset.manifest.geometry.layers = 2;
+    dataset.layers = dataset.layers.slice(0, 2);
+    expect(() => validateContributionDataset(dataset)).not.toThrow();
+  });
+
   it('writes a manifest and one validated shard per layer', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'contributions-test-'));
     try {

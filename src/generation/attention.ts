@@ -3,6 +3,7 @@ import {
   KV_HEAD_COUNT,
   LAYER_COUNT,
   QUERY_HEAD_COUNT,
+  type ModelGeometry,
 } from './config.ts';
 import {
   presentKeyOutputName,
@@ -31,14 +32,26 @@ export type ContributionNormCache = {
   layers: Array<ContributionNormCacheEntry | undefined>;
 };
 
-export function createContributionNormCache(): ContributionNormCache {
+const DEFAULT_GEOMETRY: ModelGeometry = {
+  layers: LAYER_COUNT,
+  queryHeads: QUERY_HEAD_COUNT,
+  kvHeads: KV_HEAD_COUNT,
+  headDimension: HEAD_DIMENSION,
+};
+
+export function createContributionNormCache(
+  geometry: ModelGeometry = DEFAULT_GEOMETRY,
+): ContributionNormCache {
   return {
-    layers: Array.from({ length: LAYER_COUNT }, () => undefined),
+    layers: Array.from({ length: geometry.layers }, () => undefined),
   };
 }
 
-export function queryHeadToKvHead(queryHead: number) {
-  return Math.floor(queryHead / (QUERY_HEAD_COUNT / KV_HEAD_COUNT));
+export function queryHeadToKvHead(
+  queryHead: number,
+  geometry: ModelGeometry = DEFAULT_GEOMETRY,
+) {
+  return Math.floor(queryHead / (geometry.queryHeads / geometry.kvHeads));
 }
 
 export function attentionWeights(
@@ -47,6 +60,7 @@ export function attentionWeights(
   queryOffset: number,
   kvHeadOffset: number,
   sourceCount: number,
+  headDimension = HEAD_DIMENSION,
 ) {
   if (sourceCount < 1) {
     throw new Error('Attention requires at least one visible source token');
@@ -56,13 +70,13 @@ export function attentionWeights(
   let maximum = -Infinity;
 
   for (let source = 0; source < sourceCount; ++source) {
-    const keyOffset = kvHeadOffset + source * HEAD_DIMENSION;
+    const keyOffset = kvHeadOffset + source * headDimension;
     let score = 0;
-    for (let channel = 0; channel < HEAD_DIMENSION; ++channel) {
+    for (let channel = 0; channel < headDimension; ++channel) {
       score +=
         Number(query[queryOffset + channel]) * Number(key[keyOffset + channel]);
     }
-    score /= Math.sqrt(HEAD_DIMENSION);
+    score /= Math.sqrt(headDimension);
     weights[source] = score;
     maximum = Math.max(maximum, score);
   }
@@ -85,13 +99,14 @@ function fillValueVectorNorms(
   sourceStart: number,
   sourceCount: number,
   norms: Float64Array[],
+  geometry: ModelGeometry,
 ) {
-  for (let kvHead = 0; kvHead < KV_HEAD_COUNT; ++kvHead) {
-    const kvHeadOffset = kvHead * sourceCount * HEAD_DIMENSION;
+  for (let kvHead = 0; kvHead < geometry.kvHeads; ++kvHead) {
+    const kvHeadOffset = kvHead * sourceCount * geometry.headDimension;
     for (let source = sourceStart; source < sourceCount; ++source) {
-      const valueOffset = kvHeadOffset + source * HEAD_DIMENSION;
+      const valueOffset = kvHeadOffset + source * geometry.headDimension;
       let squaredNorm = 0;
-      for (let channel = 0; channel < HEAD_DIMENSION; ++channel) {
+      for (let channel = 0; channel < geometry.headDimension; ++channel) {
         const component = Number(value[valueOffset + channel]);
         squaredNorm += component * component;
       }
@@ -100,18 +115,22 @@ function fillValueVectorNorms(
   }
 }
 
-export function valueVectorNorms(value: NumericArray, sourceCount: number) {
+export function valueVectorNorms(
+  value: NumericArray,
+  sourceCount: number,
+  geometry: ModelGeometry = DEFAULT_GEOMETRY,
+) {
   const norms = Array.from(
-    { length: KV_HEAD_COUNT },
+    { length: geometry.kvHeads },
     () => new Float64Array(sourceCount),
   );
-  fillValueVectorNorms(value, 0, sourceCount, norms);
+  fillValueVectorNorms(value, 0, sourceCount, norms, geometry);
   return norms;
 }
 
-function allocateNorms(capacity: number) {
+function allocateNorms(capacity: number, geometry: ModelGeometry) {
   return Array.from(
-    { length: KV_HEAD_COUNT },
+    { length: geometry.kvHeads },
     () => new Float64Array(capacity),
   );
 }
@@ -133,6 +152,7 @@ function cachedValueVectorNorms(
   layer: number,
   sourceCount: number,
   cache: ContributionNormCache,
+  geometry: ModelGeometry,
 ) {
   const previous = cache.layers[layer];
   if (
@@ -147,8 +167,8 @@ function cachedValueVectorNorms(
   // the old values. The generation path only grows the KV cache, but this
   // reset keeps the optional cache correct for other callers too.
   if (!previous || sourceCount <= previous.sourceCount) {
-    const norms = allocateNorms(sourceCount);
-    fillValueVectorNorms(value.data, 0, sourceCount, norms);
+    const norms = allocateNorms(sourceCount, geometry);
+    fillValueVectorNorms(value.data, 0, sourceCount, norms, geometry);
     cache.layers[layer] = {
       sourceCount,
       capacity: sourceCount,
@@ -169,7 +189,13 @@ function cachedValueVectorNorms(
       : growNorms(previous.norms, previousSourceCount, capacity);
   // The model's KV cache is append-only for this generation. Consequently,
   // old norms remain valid and only the newly appended source suffix is read.
-  fillValueVectorNorms(value.data, previousSourceCount, sourceCount, norms);
+  fillValueVectorNorms(
+    value.data,
+    previousSourceCount,
+    sourceCount,
+    norms,
+    geometry,
+  );
   cache.layers[layer] = {
     sourceCount,
     capacity,
@@ -183,6 +209,7 @@ function contributionInputs(
   outputs: ModelOutputs,
   layer: number,
   normCache?: ContributionNormCache,
+  geometry: ModelGeometry = DEFAULT_GEOMETRY,
 ) {
   const query = outputs[queryOutputName(layer)];
   const key = outputs[presentKeyOutputName(layer)];
@@ -204,8 +231,8 @@ function contributionInputs(
     query,
     key,
     norms: normCache
-      ? cachedValueVectorNorms(value, layer, sourceCount, normCache)
-      : valueVectorNorms(value.data, sourceCount),
+      ? cachedValueVectorNorms(value, layer, sourceCount, normCache, geometry)
+      : valueVectorNorms(value.data, sourceCount, geometry),
     queryCount,
     sourceCount,
     firstQueryPosition,
@@ -215,6 +242,7 @@ function contributionInputs(
 function calculateContributionRow(
   inputs: ReturnType<typeof contributionInputs>,
   queryIndex: number,
+  geometry: ModelGeometry,
 ) {
   const { query, key, norms, queryCount, sourceCount, firstQueryPosition } =
     inputs;
@@ -228,17 +256,18 @@ function calculateContributionRow(
   const visibleSourceCount = firstQueryPosition + queryIndex + 1;
   const squaredMagnitudes = new Float64Array(visibleSourceCount);
 
-  for (let queryHead = 0; queryHead < QUERY_HEAD_COUNT; ++queryHead) {
-    const kvHead = queryHeadToKvHead(queryHead);
+  for (let queryHead = 0; queryHead < geometry.queryHeads; ++queryHead) {
+    const kvHead = queryHeadToKvHead(queryHead, geometry);
     const queryOffset =
-      (queryIndex * QUERY_HEAD_COUNT + queryHead) * HEAD_DIMENSION;
-    const kvHeadOffset = kvHead * sourceCount * HEAD_DIMENSION;
+      (queryIndex * geometry.queryHeads + queryHead) * geometry.headDimension;
+    const kvHeadOffset = kvHead * sourceCount * geometry.headDimension;
     const weights = attentionWeights(
       query.data,
       key.data,
       queryOffset,
       kvHeadOffset,
       visibleSourceCount,
+      geometry.headDimension,
     );
 
     for (let source = 0; source < visibleSourceCount; ++source) {
@@ -258,10 +287,12 @@ export function contributionRow(
   layer: number,
   queryIndex: number,
   normCache?: ContributionNormCache,
+  geometry: ModelGeometry = DEFAULT_GEOMETRY,
 ) {
   return calculateContributionRow(
-    contributionInputs(outputs, layer, normCache),
+    contributionInputs(outputs, layer, normCache, geometry),
     queryIndex,
+    geometry,
   );
 }
 
@@ -270,12 +301,13 @@ export function contributionRows(
   outputs: ModelOutputs,
   layer: number,
   normCache?: ContributionNormCache,
+  geometry: ModelGeometry = DEFAULT_GEOMETRY,
 ) {
-  const inputs = contributionInputs(outputs, layer, normCache);
+  const inputs = contributionInputs(outputs, layer, normCache, geometry);
   const rows: number[][] = [];
 
   for (let queryIndex = 0; queryIndex < inputs.queryCount; ++queryIndex) {
-    rows.push(calculateContributionRow(inputs, queryIndex));
+    rows.push(calculateContributionRow(inputs, queryIndex, geometry));
   }
 
   return rows;

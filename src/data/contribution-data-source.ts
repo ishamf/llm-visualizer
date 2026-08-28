@@ -21,6 +21,10 @@ export function parseContributionManifest(
     !isRecord(value) ||
     value.schemaVersion !== 1 ||
     typeof value.metric !== 'string' ||
+    !isRecord(value.model) ||
+    typeof value.model.id !== 'string' ||
+    typeof value.model.dtype !== 'string' ||
+    typeof value.model.instrumentation !== 'string' ||
     typeof value.prompt !== 'string' ||
     !Array.isArray(value.tokens) ||
     !isRecord(value.geometry) ||

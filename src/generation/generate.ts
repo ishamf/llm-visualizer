@@ -4,13 +4,8 @@ import {
   CONTRIBUTION_METRIC,
   DATASET_SCHEMA_VERSION,
   GENERATION_EOS_TOKEN_IDS,
-  HEAD_DIMENSION,
-  INSTRUMENTED_MODEL_NAME,
-  KV_HEAD_COUNT,
   LAYER_COUNT,
-  MODEL_DTYPE,
-  MODEL_ID,
-  QUERY_HEAD_COUNT,
+  type ModelProfile,
 } from './config.ts';
 import {
   contributionRow,
@@ -45,6 +40,7 @@ type TokenizedPrompt = {
 };
 
 export type GenerateContributionDatasetOptions = {
+  modelProfile: ModelProfile;
   model: CausalLanguageModel;
   tokenizer: Tokenizer;
   prompt: ValidatedPromptConfiguration;
@@ -126,9 +122,9 @@ export function disposeTokenizedPrompt(inputs: TokenizedPrompt) {
   inputs.attentionMask.dispose();
 }
 
-export function pastKeyValues(outputs: ModelOutputs) {
+export function pastKeyValues(outputs: ModelOutputs, layerCount = LAYER_COUNT) {
   const cache: Record<string, ModelTensor> = {};
-  for (let layer = 0; layer < LAYER_COUNT; ++layer) {
+  for (let layer = 0; layer < layerCount; ++layer) {
     const key = outputs[presentKeyOutputName(layer)];
     const value = outputs[presentValueOutputName(layer)];
     if (!key || !value) {
@@ -209,6 +205,7 @@ function numericTokenId(token: bigint) {
 }
 
 function createContributionManifest(
+  modelProfile: ModelProfile,
   tokenizer: Tokenizer,
   prompt: ValidatedPromptConfiguration,
   tokenIds: bigint[],
@@ -220,9 +217,9 @@ function createContributionManifest(
     schemaVersion: DATASET_SCHEMA_VERSION,
     metric: CONTRIBUTION_METRIC,
     model: {
-      id: MODEL_ID,
-      dtype: MODEL_DTYPE,
-      instrumentation: INSTRUMENTED_MODEL_NAME,
+      id: modelProfile.id,
+      dtype: modelProfile.dtype,
+      instrumentation: modelProfile.instrumentation,
     },
     prompt: prompt.prompt,
     ...(prompt.systemPrompt === undefined
@@ -247,10 +244,7 @@ function createContributionManifest(
       }),
     })),
     geometry: {
-      layers: LAYER_COUNT,
-      queryHeads: QUERY_HEAD_COUNT,
-      kvHeads: KV_HEAD_COUNT,
-      headDimension: HEAD_DIMENSION,
+      ...modelProfile.geometry,
     },
     generation: {
       method: 'sampling',
@@ -274,6 +268,7 @@ export function throwIfGenerationAborted(signal?: AbortSignal) {
 }
 
 async function generateContributionRun({
+  modelProfile,
   model,
   tokenizer,
   prompt,
@@ -295,13 +290,16 @@ async function generateContributionRun({
   let contextsMaximumError: number | undefined;
   let stopReason: 'eos' | 'max_new_tokens' = 'max_new_tokens';
   let outputs: ModelOutputs | undefined;
-  const contributionNormCache = createContributionNormCache();
+  const contributionNormCache = createContributionNormCache(
+    modelProfile.geometry,
+  );
   const generator = new random.Random(prompt.seed);
 
   try {
     throwIfGenerationAborted(signal);
     onPromptReady?.(
       createContributionManifest(
+        modelProfile,
         tokenizer,
         prompt,
         tokenIds,
@@ -321,17 +319,26 @@ async function generateContributionRun({
       const logitStats = validateLogits(
         lastLogits(outputs.logits),
         originalLogits,
+        modelProfile.logitsAbsoluteTolerance,
       );
       logitsMaximumError = logitStats.maxAbsoluteError;
-      contextsMaximumError = validateModelStep(outputs).maxAbsoluteError;
+      contextsMaximumError = validateModelStep(
+        outputs,
+        modelProfile,
+      ).maxAbsoluteError;
     }
-    for (let layer = 0; layer < LAYER_COUNT; ++layer) {
+    for (let layer = 0; layer < modelProfile.geometry.layers; ++layer) {
       throwIfGenerationAborted(signal);
       if (contributionScope === 'all') {
         consumeRows(
           layer,
           0,
-          contributionRows(outputs, layer, contributionNormCache),
+          contributionRows(
+            outputs,
+            layer,
+            contributionNormCache,
+            modelProfile.geometry,
+          ),
         );
       } else {
         consumeRows(layer, promptTokenCount - 1, [
@@ -340,6 +347,7 @@ async function generateContributionRun({
             layer,
             promptTokenCount - 1,
             contributionNormCache,
+            modelProfile.geometry,
           ),
         ]);
       }
@@ -368,7 +376,10 @@ async function generateContributionRun({
         const modelInputs: ModelInputs = {
           input_ids: inputIds,
           attention_mask: mask,
-          past_key_values: pastKeyValues(previousOutputs),
+          past_key_values: pastKeyValues(
+            previousOutputs,
+            modelProfile.geometry.layers,
+          ),
         };
         outputs = await model.forward(modelInputs);
       } finally {
@@ -379,19 +390,24 @@ async function generateContributionRun({
       throwIfGenerationAborted(signal);
 
       if (validate) {
-        const decodeStats = validateModelStep(outputs);
+        const decodeStats = validateModelStep(outputs, modelProfile);
         contextsMaximumError = Math.max(
           contextsMaximumError ?? 0,
           decodeStats.maxAbsoluteError,
         );
       }
-      for (let layer = 0; layer < LAYER_COUNT; ++layer) {
+      for (let layer = 0; layer < modelProfile.geometry.layers; ++layer) {
         throwIfGenerationAborted(signal);
         const destination = tokenIds.length - 1;
         consumeRows(
           layer,
           destination,
-          contributionRows(outputs, layer, contributionNormCache),
+          contributionRows(
+            outputs,
+            layer,
+            contributionNormCache,
+            modelProfile.geometry,
+          ),
         );
       }
       await yieldControl?.();
@@ -406,6 +422,7 @@ async function generateContributionRun({
     }
 
     return createContributionManifest(
+      modelProfile,
       tokenizer,
       prompt,
       tokenIds,
@@ -427,7 +444,10 @@ async function generateContributionRun({
 export async function generateContributionDataset(
   options: GenerateContributionDatasetOptions,
 ): Promise<ContributionDataset> {
-  const layerRows = Array.from({ length: LAYER_COUNT }, () => [] as number[][]);
+  const layerRows = Array.from(
+    { length: options.modelProfile.geometry.layers },
+    () => [] as number[][],
+  );
   const manifest = await generateContributionRun({
     ...options,
     consumeRows(layer, firstDestination, rows) {
@@ -488,9 +508,9 @@ export async function generateSummedContributionDataset(
         incomingRows,
       );
       // A destination is delivered one layer at a time. Waiting until the
-      // final layer avoids posting the same large partial matrix 28 times and
+      // final layer avoids posting the same large partial matrix once per layer and
       // gives consumers a complete row for each streamed token.
-      if (_layer === LAYER_COUNT - 1) {
+      if (_layer === options.modelProfile.geometry.layers - 1) {
         while (emittedRowCount < rows.length) {
           options.onSummedContributionRowUpdate?.(emittedRowCount, [
             ...rows[emittedRowCount],
@@ -507,7 +527,7 @@ export async function generateSummedContributionDataset(
       schemaVersion: DATASET_SCHEMA_VERSION,
       metric: CONTRIBUTION_METRIC,
       aggregation: 'sum',
-      layerCount: LAYER_COUNT,
+      layerCount: options.modelProfile.geometry.layers,
       targetTokenStart: manifest.promptTokenCount,
       rows,
     },

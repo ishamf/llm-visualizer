@@ -1,11 +1,12 @@
 import {
   CONTEXT_ABSOLUTE_TOLERANCE,
   HEAD_DIMENSION,
-  HIDDEN_SIZE,
   KV_HEAD_COUNT,
   LAYER_COUNT,
   LOGITS_ABSOLUTE_TOLERANCE,
   QUERY_HEAD_COUNT,
+  type ModelGeometry,
+  type ModelProfile,
 } from './config.ts';
 import { attentionWeights, queryHeadToKvHead } from './attention.ts';
 import {
@@ -69,6 +70,12 @@ export function compareArrays(
 export function validateAttentionContext(
   outputs: ModelOutputs,
   layer: number,
+  geometry: ModelGeometry = {
+    layers: LAYER_COUNT,
+    queryHeads: QUERY_HEAD_COUNT,
+    kvHeads: KV_HEAD_COUNT,
+    headDimension: HEAD_DIMENSION,
+  },
 ): ValidationStats {
   const queryName = queryOutputName(layer);
   const keyName = presentKeyOutputName(layer);
@@ -86,41 +93,50 @@ export function validateAttentionContext(
   const queryCount = query.dims[1];
   const sourceCount = key.dims[2];
   const firstQueryPosition = sourceCount - queryCount;
-  assertShape(queryName, query, [1, queryCount, HIDDEN_SIZE]);
-  assertShape(keyName, key, [1, KV_HEAD_COUNT, sourceCount, HEAD_DIMENSION]);
+  const hiddenSize = geometry.queryHeads * geometry.headDimension;
+  assertShape(queryName, query, [1, queryCount, hiddenSize]);
+  assertShape(keyName, key, [
+    1,
+    geometry.kvHeads,
+    sourceCount,
+    geometry.headDimension,
+  ]);
   assertShape(valueName, value, [
     1,
-    KV_HEAD_COUNT,
+    geometry.kvHeads,
     sourceCount,
-    HEAD_DIMENSION,
+    geometry.headDimension,
   ]);
-  assertShape(contextName, expectedContext, [1, queryCount, HIDDEN_SIZE]);
+  assertShape(contextName, expectedContext, [1, queryCount, hiddenSize]);
 
   let maximum = 0;
   let sum = 0;
   let count = 0;
   for (let queryIndex = 0; queryIndex < queryCount; ++queryIndex) {
     const visibleSourceCount = firstQueryPosition + queryIndex + 1;
-    for (let queryHead = 0; queryHead < QUERY_HEAD_COUNT; ++queryHead) {
-      const kvHead = queryHeadToKvHead(queryHead);
+    for (let queryHead = 0; queryHead < geometry.queryHeads; ++queryHead) {
+      const kvHead = queryHeadToKvHead(queryHead, geometry);
       const queryOffset =
-        (queryIndex * QUERY_HEAD_COUNT + queryHead) * HEAD_DIMENSION;
-      const kvHeadOffset = kvHead * sourceCount * HEAD_DIMENSION;
+        (queryIndex * geometry.queryHeads + queryHead) * geometry.headDimension;
+      const kvHeadOffset = kvHead * sourceCount * geometry.headDimension;
       const weights = attentionWeights(
         query.data,
         key.data,
         queryOffset,
         kvHeadOffset,
         visibleSourceCount,
+        geometry.headDimension,
       );
 
-      for (let channel = 0; channel < HEAD_DIMENSION; ++channel) {
+      for (let channel = 0; channel < geometry.headDimension; ++channel) {
         let reconstructed = 0;
         for (let source = 0; source < visibleSourceCount; ++source) {
           reconstructed +=
             weights[source] *
             Number(
-              value.data[kvHeadOffset + source * HEAD_DIMENSION + channel],
+              value.data[
+                kvHeadOffset + source * geometry.headDimension + channel
+              ],
             );
         }
         const difference = Math.abs(
@@ -140,12 +156,23 @@ export function validateAttentionContext(
   };
 }
 
-export function validateModelStep(outputs: ModelOutputs) {
+export function validateModelStep(
+  outputs: ModelOutputs,
+  profile?: Pick<ModelProfile, 'geometry' | 'contextAbsoluteTolerance'>,
+) {
+  const geometry = profile?.geometry ?? {
+    layers: LAYER_COUNT,
+    queryHeads: QUERY_HEAD_COUNT,
+    kvHeads: KV_HEAD_COUNT,
+    headDimension: HEAD_DIMENSION,
+  };
+  const tolerance =
+    profile?.contextAbsoluteTolerance ?? CONTEXT_ABSOLUTE_TOLERANCE;
   let maximum = 0;
   let sum = 0;
   let count = 0;
-  for (let layer = 0; layer < LAYER_COUNT; ++layer) {
-    const stats = validateAttentionContext(outputs, layer);
+  for (let layer = 0; layer < geometry.layers; ++layer) {
+    const stats = validateAttentionContext(outputs, layer, geometry);
     maximum = Math.max(maximum, stats.maxAbsoluteError);
     sum += stats.meanAbsoluteError * stats.count;
     count += stats.count;
@@ -156,10 +183,8 @@ export function validateModelStep(outputs: ModelOutputs) {
     maxAbsoluteError: maximum,
     meanAbsoluteError: count === 0 ? 0 : sum / count,
   } satisfies ValidationStats;
-  if (maximum > CONTEXT_ABSOLUTE_TOLERANCE) {
-    throw new Error(
-      `Attention context error ${maximum} is above ${CONTEXT_ABSOLUTE_TOLERANCE}`,
-    );
+  if (maximum > tolerance) {
+    throw new Error(`Attention context error ${maximum} is above ${tolerance}`);
   }
   return stats;
 }
@@ -167,11 +192,12 @@ export function validateModelStep(outputs: ModelOutputs) {
 export function validateLogits(
   instrumentedLogits: NumericArray,
   originalLogits: NumericArray,
+  tolerance = LOGITS_ABSOLUTE_TOLERANCE,
 ) {
   const stats = compareArrays(instrumentedLogits, originalLogits);
-  if (stats.maxAbsoluteError > LOGITS_ABSOLUTE_TOLERANCE) {
+  if (stats.maxAbsoluteError > tolerance) {
     throw new Error(
-      `Instrumented logits differ by ${stats.maxAbsoluteError}, above ${LOGITS_ABSOLUTE_TOLERANCE}`,
+      `Instrumented logits differ by ${stats.maxAbsoluteError}, above ${tolerance}`,
     );
   }
   return stats;

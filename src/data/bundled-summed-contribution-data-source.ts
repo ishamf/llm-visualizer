@@ -2,6 +2,7 @@ import type {
   ContributionManifest,
   SummedContributions,
 } from '../generation/types.ts';
+import { UI_MODEL_KEY } from '../generation/config.ts';
 import { parseContributionManifest } from './contribution-data-source.ts';
 import {
   parseSummedContributions,
@@ -12,11 +13,11 @@ type JsonModule = { default: unknown };
 type JsonLoader = () => Promise<JsonModule>;
 
 const manifestModules = import.meta.glob<JsonModule>(
-  '../../generated/summed-contributions/*/manifest.json',
+  '../../generated/summed-contributions/*/*/manifest.json',
   { eager: true },
 );
 const contributionModules = import.meta.glob<JsonModule>(
-  '../../generated/summed-contributions/*/contributions.json',
+  '../../generated/summed-contributions/*/*/contributions.json',
 );
 
 export type BundledSummedContributionDataset = {
@@ -25,9 +26,10 @@ export type BundledSummedContributionDataset = {
 };
 
 const bundledDatasets = Object.entries(manifestModules)
+  .filter(([path]) => path.includes(`/summed-contributions/${UI_MODEL_KEY}/`))
   .map(([path, module]): BundledSummedContributionDataset => {
     const id = path.match(
-      /\/summed-contributions\/([^/]+)\/manifest\.json$/,
+      /\/summed-contributions\/[^/]+\/([^/]+)\/manifest\.json$/,
     )?.[1];
     if (!id) throw new Error(`Could not determine dataset ID from ${path}`);
     return { id, manifest: parseContributionManifest(module.default) };
@@ -45,7 +47,7 @@ export class BundledSummedContributionDataSource implements SummedContributionDa
 
   constructor(id: string) {
     this.id = id;
-    const root = `../../generated/summed-contributions/${id}`;
+    const root = `../../generated/summed-contributions/${UI_MODEL_KEY}/${id}`;
     const manifestModule = manifestModules[`${root}/manifest.json`];
     const loader = contributionModules[`${root}/contributions.json`];
     if (!manifestModule || !loader) {

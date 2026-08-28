@@ -6,8 +6,10 @@ from onnx import TensorProto, helper
 from tools.onnx.instrument_model import (
     _value_info_by_name,
     discover_outputs,
+    model_source,
     output_path_for,
     output_value_info,
+    parse_args,
 )
 
 
@@ -79,6 +81,20 @@ class InstrumentModelTests(unittest.TestCase):
         self.assertEqual(
             output_path_for(Path("models/example/onnx/model_int8.onnx")),
             Path("models/example/onnx/instrumented_int8.onnx"),
+        )
+
+    def test_resolves_configured_int8_model(self):
+        self.assertTrue(
+            model_source("1.7b").as_posix().endswith(
+                "models/Qwen3-1.7B-ONNX/onnx/model_int8.onnx"
+            )
+        )
+
+    def test_accepts_model_profile_or_explicit_source(self):
+        self.assertEqual(parse_args(["--model", "qwen3-1.7b"]).model, "qwen3-1.7b")
+        self.assertEqual(
+            parse_args(["models/example/onnx/model_int8.onnx"]).source,
+            Path("models/example/onnx/model_int8.onnx"),
         )
 
 

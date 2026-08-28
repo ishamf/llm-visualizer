@@ -4,6 +4,7 @@ import {
   GENERATION_TOP_K,
   GENERATION_TOP_P,
   MAX_GENERATED_TOKENS,
+  type GenerationDefaults,
 } from './config.ts';
 import type {
   ContributionFormat,
@@ -56,6 +57,13 @@ const DEFAULT_CONTRIBUTION_FORMATS: ContributionFormat[] = [
 
 export function validatePrompts(
   configurations: PromptConfiguration[],
+  defaults: GenerationDefaults = {
+    maxGeneratedTokens: MAX_GENERATED_TOKENS,
+    seed: DEFAULT_GENERATION_SEED,
+    temperature: GENERATION_TEMPERATURE,
+    topK: GENERATION_TOP_K,
+    topP: GENERATION_TOP_P,
+  },
 ): ValidatedPromptConfiguration[] {
   if (configurations.length === 0) {
     throw new Error('At least one prompt must be configured');
@@ -95,10 +103,10 @@ export function validatePrompts(
     if (
       !Number.isSafeInteger(maxNewTokens) ||
       maxNewTokens < 1 ||
-      maxNewTokens > MAX_GENERATED_TOKENS
+      maxNewTokens > defaults.maxGeneratedTokens
     ) {
       throw new Error(
-        `Prompt ${configuration.id} maxNewTokens must be an integer from 1 to ${MAX_GENERATED_TOKENS}`,
+        `Prompt ${configuration.id} maxNewTokens must be an integer from 1 to ${defaults.maxGeneratedTokens}`,
       );
     }
 
@@ -123,25 +131,25 @@ export function validatePrompts(
         `Prompt ${configuration.id} enableThinking must be boolean`,
       );
     }
-    const seed = configuration.seed ?? DEFAULT_GENERATION_SEED;
+    const seed = configuration.seed ?? defaults.seed;
     if (!Number.isSafeInteger(seed) || seed < 0) {
       throw new Error(
         `Prompt ${configuration.id} seed must be a non-negative safe integer`,
       );
     }
-    const temperature = configuration.temperature ?? GENERATION_TEMPERATURE;
+    const temperature = configuration.temperature ?? defaults.temperature;
     if (!Number.isFinite(temperature) || temperature <= 0) {
       throw new Error(
         `Prompt ${configuration.id} temperature must be a positive finite number`,
       );
     }
-    const topK = configuration.topK ?? GENERATION_TOP_K;
+    const topK = configuration.topK ?? defaults.topK;
     if (!Number.isSafeInteger(topK) || topK < 1) {
       throw new Error(
         `Prompt ${configuration.id} topK must be a positive safe integer`,
       );
     }
-    const topP = configuration.topP ?? GENERATION_TOP_P;
+    const topP = configuration.topP ?? defaults.topP;
     if (!Number.isFinite(topP) || topP <= 0 || topP > 1) {
       throw new Error(
         `Prompt ${configuration.id} topP must be a finite number in (0, 1]`,

@@ -183,7 +183,7 @@ native or ONNX calculation branch.
 Write each prompt to its own directory and shard contribution data by layer:
 
 ```text
-generated/contributions/hello/
+generated/contributions/qwen3-1.7b/hello/
 ├── manifest.json
 ├── layer-00.json
 ├── layer-01.json
@@ -204,8 +204,8 @@ datasets under application assets.
   "schemaVersion": 1,
   "metric": "unprojected-attention-contribution-rss",
   "model": {
-    "id": "Qwen3-0.6B-ONNX",
-    "dtype": "q4f16",
+    "id": "Qwen3-1.7B-ONNX",
+    "dtype": "int8",
     "instrumentation": "instrumented"
   },
   "prompt": "Say hello.",
@@ -397,25 +397,43 @@ Reusable code now lives in `src/generation/`:
 The exporter is `src/scripts/generate-contributions.ts` and is exposed as:
 
 ```text
-pnpm generate:contributions
-pnpm generate:contributions --id <dataset-id>
-pnpm generate:contributions --output <directory> --overwrite
-pnpm generate:contributions --id <dataset-id> --validate
-pnpm generate:contributions --id <dataset-id> --no-stream
+pnpm generate:contributions --model 1.7b
+pnpm generate:contributions --model 1.7b --id <dataset-id>
+pnpm generate:contributions --model 1.7b --output <directory> --overwrite
+pnpm generate:contributions --model 1.7b --id <dataset-id> --validate
+pnpm generate:contributions --model 1.7b --id <dataset-id> --no-stream
 ```
 
 A second exporter stores the exact layer sum consumed by the contribution-text
 visualization instead of retaining and serializing every layer:
 
 ```text
-pnpm generate:summed-contributions
-pnpm generate:summed-contributions --id <dataset-id>
-pnpm generate:summed-contributions --output <directory> --overwrite
-pnpm generate:summed-contributions --id <dataset-id> --validate
-pnpm generate:summed-contributions --id <dataset-id> --no-stream
+pnpm generate:summed-contributions --model 1.7b
+pnpm generate:summed-contributions --model 1.7b --id <dataset-id>
+pnpm generate:summed-contributions --model 1.7b --output <directory> --overwrite
+pnpm generate:summed-contributions --model 1.7b --id <dataset-id> --validate
+pnpm generate:summed-contributions --model 1.7b --id <dataset-id> --no-stream
 ```
 
-Its output defaults to `generated/summed-contributions/<dataset-id>/` and
+The supported model keys are `qwen3-0.6b` and `qwen3-1.7b`; the short aliases
+`0.6b` and `1.7b` are accepted. Both profiles use the local int8 ONNX artifact.
+The selected profile controls model loading, attention geometry, validation
+tolerances, sampling defaults, and manifest metadata. Omitting `--model`
+retains `qwen3-0.6b` as the exporter default.
+
+Before exporting, instrument a downloaded model with:
+
+```text
+pnpm instrument:model --model 1.7b
+pnpm instrument:model --model 1.7b --validation-outputs
+```
+
+This reads `models/Qwen3-1.7B-ONNX/onnx/model_int8.onnx` and writes
+`instrumented_int8.onnx` beside it. An explicit ONNX source path remains
+supported for models outside the configured profiles.
+
+Summed output defaults to
+`generated/summed-contributions/<model-key>/<dataset-id>/` and
 contains an eagerly discovered `manifest.json` plus one lazily loaded
 `contributions.json`. The latter contains one source-contribution row per
 generated target token, produced by adding layers as model steps complete.
@@ -456,7 +474,9 @@ only the instrumented model is loaded. Passing `--validate` first loads the
 original model to capture final-position reference logits and also reconstructs
 instrumented attention contexts at every generation step. Validation statistics
 are included in the manifest only when this flag is enabled. Layered output
-defaults to `generated/contributions/`; both generated roots are ignored by Git.
+defaults to `generated/contributions/<model-key>/<dataset-id>/`; both generated
+roots are ignored by Git. The browser intentionally has no model selector and
+loads the bundled `qwen3-1.7b` datasets.
 The summed exporter reports generated-token count and elapsed time about once
 per second. Unlike layered exports, it stops before the unused forward pass
 after EOS or the token at the configured limit.
@@ -472,7 +492,7 @@ Automated verification currently passes:
   rejection, and the existing application test.
 - TypeScript and Vite production build.
 - ESLint and Prettier checks.
-- A real-model export using the local original and instrumented q4f16 models.
+- A real-model export using the local original and instrumented int8 models.
 
 The real-model smoke export generated 36 tokens and all 28 layer files. Every
 sampled layer contained 36 rows with a 36-value final row, prompt logits matched

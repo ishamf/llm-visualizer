@@ -14,6 +14,7 @@ import {
   LAYER_COUNT,
   MODEL_DTYPE,
   MODEL_ID,
+  UI_MODEL_PROFILE,
 } from './config.ts';
 import {
   generateSummedContributionDataset,
@@ -88,7 +89,7 @@ async function loadModel(): Promise<LoadedModel> {
 
   // The model is served from the repository's ignored models/ directory via
   // public/models. Transformers.js will cache these responses in the browser,
-  // so subsequent runs do not download the ~570 MB weights again.
+  // so subsequent runs do not download the large weights again.
   env.allowLocalModels = true;
   env.allowRemoteModels = false;
   env.localModelPath = new URL(
@@ -151,21 +152,24 @@ function emptyContributions(promptTokenCount: number) {
 }
 
 function validatedPrompt(values: BrowserGenerationPrompt) {
-  return validatePrompts([
-    {
-      id: 'browser-generation',
-      prompt: values.prompt,
-      systemPrompt: values.systemPrompt,
-      assistantPrefix: values.assistantPrefix,
-      maxNewTokens: values.maxNewTokens,
-      contributionFormats: ['summed'],
-      enableThinking: values.enableThinking,
-      seed: values.seed,
-      temperature: values.temperature,
-      topK: values.topK,
-      topP: values.topP,
-    },
-  ])[0];
+  return validatePrompts(
+    [
+      {
+        id: 'browser-generation',
+        prompt: values.prompt,
+        systemPrompt: values.systemPrompt,
+        assistantPrefix: values.assistantPrefix,
+        maxNewTokens: values.maxNewTokens,
+        contributionFormats: ['summed'],
+        enableThinking: values.enableThinking,
+        seed: values.seed,
+        temperature: values.temperature,
+        topK: values.topK,
+        topP: values.topP,
+      },
+    ],
+    UI_MODEL_PROFILE.generation,
+  )[0];
 }
 
 async function run(promptValues: BrowserGenerationPrompt) {
@@ -188,6 +192,7 @@ async function run(promptValues: BrowserGenerationPrompt) {
     const generatedTokenIds: bigint[] = [];
     const contributionRows = new Map<number, number[]>();
     const options: GenerateContributionDatasetOptions = {
+      modelProfile: UI_MODEL_PROFILE,
       model,
       tokenizer,
       prompt,

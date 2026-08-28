@@ -17,6 +17,7 @@ import {
   KV_HEAD_COUNT,
   LAYER_COUNT,
   QUERY_HEAD_COUNT,
+  UI_MODEL_PROFILE,
 } from './config.ts';
 import type { Tokenizer, ValidatedPromptConfiguration } from './types.ts';
 
@@ -140,6 +141,7 @@ describe('summed contribution collection', () => {
     const yieldControl = vi.fn(async () => undefined);
 
     const dataset = await generateSummedContributionDataset({
+      modelProfile: UI_MODEL_PROFILE,
       model,
       tokenizer,
       prompt,
@@ -164,6 +166,11 @@ describe('summed contribution collection', () => {
     expect(streamEvents).toEqual(['prompt', 'row:0', 'token']);
     expect(yieldControl).toHaveBeenCalledOnce();
     expect(dataset.manifest.generatedText).toBe(' answer');
+    expect(dataset.manifest.model).toEqual({
+      id: 'Qwen3-1.7B-ONNX',
+      dtype: 'int8',
+      instrumentation: 'instrumented',
+    });
   });
 
   it('throws a cooperative abort error before running the model', () => {

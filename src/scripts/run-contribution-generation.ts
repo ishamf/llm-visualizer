@@ -9,9 +9,11 @@ import {
 } from '@huggingface/transformers';
 
 import {
-  INSTRUMENTED_MODEL_NAME,
-  MODEL_DTYPE,
-  MODEL_ID,
+  DEFAULT_EXPORT_MODEL_KEY,
+  MODEL_PROFILES,
+  parseModelKey,
+  type ModelKey,
+  type ModelProfile,
 } from '../generation/config.ts';
 import { assertDatasetDestinationAvailable } from '../generation/atomic-dataset.ts';
 import {
@@ -38,6 +40,7 @@ const MODEL_ROOT = fileURLToPath(new URL('../../models/', import.meta.url));
 
 type CommandLineOptions = {
   datasetId?: string;
+  modelKey: ModelKey;
   outputRoot: string;
   overwrite: boolean;
   stream: boolean;
@@ -66,6 +69,7 @@ export function parseArguments(
   defaultOutputRoot: string,
 ): CommandLineOptions {
   let datasetId: string | undefined;
+  let modelKey = DEFAULT_EXPORT_MODEL_KEY;
   let outputRoot = path.resolve(defaultOutputRoot);
   let overwrite = false;
   let stream = true;
@@ -85,6 +89,12 @@ export function parseArguments(
       datasetId = value;
     } else if (argument === '--overwrite') {
       overwrite = true;
+    } else if (argument === '--model') {
+      const value = arguments_[++index];
+      if (!value || value.startsWith('--')) {
+        throw new Error('--model requires a model name');
+      }
+      modelKey = parseModelKey(value);
     } else if (argument === '--no-stream') {
       stream = false;
     } else if (argument === '--validate') {
@@ -97,18 +107,26 @@ export function parseArguments(
       throw new Error(`Unknown argument: ${argument}`);
     }
   }
-  return { datasetId, outputRoot, overwrite, stream, validate };
+  return { datasetId, modelKey, outputRoot, overwrite, stream, validate };
+}
+
+export function modelOutputRoot(outputRoot: string, profile: ModelProfile) {
+  return path.join(outputRoot, profile.key);
 }
 
 async function originalPromptLogits(
+  modelProfile: ModelProfile,
   tokenizer: Tokenizer,
   configurations: ReturnType<typeof validatePrompts>,
 ) {
-  console.error(`Loading original ${MODEL_ID} for logits validation...`);
-  const original = (await AutoModelForCausalLM.from_pretrained(MODEL_ID, {
-    dtype: MODEL_DTYPE,
-    local_files_only: true,
-  })) as unknown as CausalLanguageModel;
+  console.error(`Loading original ${modelProfile.id} for logits validation...`);
+  const original = (await AutoModelForCausalLM.from_pretrained(
+    modelProfile.id,
+    {
+      dtype: modelProfile.dtype,
+      local_files_only: true,
+    },
+  )) as unknown as CausalLanguageModel;
   const logits = new Map<string, Float32Array>();
   try {
     for (const prompt of configurations) {
@@ -135,9 +153,11 @@ export async function runContributionGeneration<
   Dataset extends { manifest: ContributionManifest },
 >(arguments_: string[], target: ContributionGenerationTarget<Dataset>) {
   const options = parseArguments(arguments_, target.defaultOutputRoot);
+  const modelProfile = MODEL_PROFILES[options.modelKey];
+  const scopedOutputRoot = modelOutputRoot(options.outputRoot, modelProfile);
   // Validation and format filtering deliberately happen before model loading.
   const configurations = selectPromptConfigurations(
-    validatePrompts(prompts),
+    validatePrompts(prompts, modelProfile.generation),
     options.datasetId,
     target.format,
   );
@@ -151,7 +171,9 @@ export async function runContributionGeneration<
     configurations.map((prompt) =>
       assertDatasetDestinationAvailable(
         options.outputRoot,
-        prompt.id,
+        // Model keys keep datasets generated from different weights separate.
+        // The prompt ID remains the dataset ID within that model.
+        path.join(modelProfile.key, prompt.id),
         options.overwrite,
       ),
     ),
@@ -159,18 +181,18 @@ export async function runContributionGeneration<
 
   env.localModelPath = MODEL_ROOT;
   env.allowRemoteModels = false;
-  const tokenizer = (await AutoTokenizer.from_pretrained(MODEL_ID, {
+  const tokenizer = (await AutoTokenizer.from_pretrained(modelProfile.id, {
     local_files_only: true,
   })) as unknown as Tokenizer;
   const expectedLogits = options.validate
-    ? await originalPromptLogits(tokenizer, configurations)
+    ? await originalPromptLogits(modelProfile, tokenizer, configurations)
     : undefined;
 
-  console.error(`Loading instrumented ${MODEL_ID}...`);
-  const model = (await AutoModelForCausalLM.from_pretrained(MODEL_ID, {
-    dtype: MODEL_DTYPE,
+  console.error(`Loading instrumented ${modelProfile.id}...`);
+  const model = (await AutoModelForCausalLM.from_pretrained(modelProfile.id, {
+    dtype: modelProfile.dtype,
     local_files_only: true,
-    model_file_name: INSTRUMENTED_MODEL_NAME,
+    model_file_name: modelProfile.instrumentation,
   })) as unknown as CausalLanguageModel;
 
   try {
@@ -209,6 +231,7 @@ export async function runContributionGeneration<
       let dataset: Dataset;
       try {
         dataset = await target.generate({
+          modelProfile,
           model,
           tokenizer,
           prompt,
@@ -235,7 +258,7 @@ export async function runContributionGeneration<
         }
       }
       const destination = await target.write(
-        options.outputRoot,
+        scopedOutputRoot,
         prompt.id,
         dataset,
         options.overwrite,
