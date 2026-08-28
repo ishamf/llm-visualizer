@@ -38,13 +38,13 @@ describe('browser model selection', () => {
     ).toThrow('CPU does not support the q4f16 model variant');
   });
 
-  it('uses q4f16 for WebGPU generation', () => {
-    expect(
+  it('keeps WebGPU unavailable until its execution path is implemented', () => {
+    expect(() =>
       browserModelProfile({
         modelKey: 'qwen3-0.6b',
         device: 'webgpu',
         dtype: 'q4f16',
-      }).dtype,
-    ).toBe('q4f16');
+      }),
+    ).toThrow('WebGPU generation is not available yet');
   });
 });

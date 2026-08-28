@@ -66,16 +66,6 @@ type GenerationResult = {
   contributions: SummedContributions;
 };
 
-type WebGpuStatus = 'checking' | 'supported' | 'unsupported';
-
-type WebGpuNavigator = Navigator & {
-  gpu?: {
-    requestAdapter: () => Promise<{
-      features?: { has: (feature: string) => boolean };
-    } | null>;
-  };
-};
-
 const DEFAULT_MAX_NEW_TOKENS = 128;
 const DEFAULT_SYSTEM_PROMPT = 'You are a helpful assistant.';
 
@@ -115,7 +105,6 @@ export function GenerationPage() {
   const [modelProgress, setModelProgress] = useState<ModelProgress>({});
   const [result, setResult] = useState<GenerationResult>();
   const [modelCached, setModelCached] = useState<boolean>();
-  const [webGpuStatus, setWebGpuStatus] = useState<WebGpuStatus>('checking');
   const selectedProfile = MODEL_PROFILES[modelSelection.modelKey];
   const selectedDevice = BROWSER_DEVICE_OPTIONS[modelSelection.device];
   const selectedWeightsPath = browserModelWeightsPath(modelSelection);
@@ -129,30 +118,6 @@ export function GenerationPage() {
   const generatedTokenCount = result
     ? result.manifest.tokens.length - result.manifest.promptTokenCount
     : 0;
-
-  useEffect(() => {
-    let active = true;
-    const inspectWebGpu = async () => {
-      const gpu = (globalThis.navigator as WebGpuNavigator).gpu;
-      if (!gpu) {
-        if (active) setWebGpuStatus('unsupported');
-        return;
-      }
-      try {
-        const adapter = await gpu.requestAdapter();
-        const supportsFloat16 = adapter?.features?.has('shader-f16') ?? false;
-        if (active) {
-          setWebGpuStatus(supportsFloat16 ? 'supported' : 'unsupported');
-        }
-      } catch {
-        if (active) setWebGpuStatus('unsupported');
-      }
-    };
-    void inspectWebGpu();
-    return () => {
-      active = false;
-    };
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -374,23 +339,14 @@ export function GenerationPage() {
                 />
                 <Select
                   label="Runtime"
-                  description={
-                    webGpuStatus === 'supported'
-                      ? 'WebGPU runs the Q4F16 variant on your graphics adapter.'
-                      : webGpuStatus === 'checking'
-                        ? 'Checking this browser for Q4F16 WebGPU support…'
-                        : 'This browser or graphics adapter lacks Q4F16 WebGPU support.'
-                  }
+                  description="WebGPU support will be enabled in a later update."
                   data={Object.entries(BROWSER_DEVICE_OPTIONS).map(
                     ([value, option]) => ({
                       value,
-                      label:
-                        value === 'webgpu' && webGpuStatus !== 'supported'
-                          ? `${option.label} (unavailable)`
-                          : option.label,
-                      disabled:
-                        !option.available ||
-                        (value === 'webgpu' && webGpuStatus !== 'supported'),
+                      label: option.available
+                        ? option.label
+                        : `${option.label} (coming soon)`,
+                      disabled: !option.available,
                     }),
                   )}
                   value={modelSelection.device}
@@ -406,11 +362,7 @@ export function GenerationPage() {
                 />
                 <Select
                   label="Variant"
-                  description={
-                    modelSelection.device === 'cpu'
-                      ? 'CPU is limited to the INT8 model variant.'
-                      : 'WebGPU uses Q4F16 weights and float16 computation.'
-                  }
+                  description="CPU is limited to the INT8 model variant."
                   data={selectedDevice.dtypes.map((dtype) => ({
                     value: dtype,
                     label: dtype.toUpperCase(),
