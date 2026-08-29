@@ -31,6 +31,7 @@ import type {
   BrowserGenerationRequest,
   BrowserGenerationResponse,
 } from '../generation/browser-generation-protocol.ts';
+import { DEFAULT_SYSTEM_PROMPT } from '../generation/prompts.ts';
 import { ContributionText } from '../visualization/ContributionText.tsx';
 import type {
   ContributionManifest,
@@ -59,7 +60,6 @@ type GenerationResult = {
 };
 
 const DEFAULT_MAX_NEW_TOKENS = 128;
-const DEFAULT_SYSTEM_PROMPT = 'You are a helpful assistant.';
 
 function numberValue(value: string | number, fallback: number) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;

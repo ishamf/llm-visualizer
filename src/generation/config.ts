@@ -27,9 +27,9 @@ export type GenerationDefaults = {
 const QWEN3_GENERATION_DEFAULTS = {
   maxGeneratedTokens: 1_000,
   seed: 42,
-  temperature: 0.6,
+  temperature: 0.7,
   topK: 20,
-  topP: 0.95,
+  topP: 0.8,
 } as const satisfies GenerationDefaults;
 
 const QWEN3_GEOMETRY = {

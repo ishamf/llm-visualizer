@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DEFAULT_SYSTEM_PROMPT,
   getConfiguredPromptTitle,
   selectPromptConfigurations,
   validatePrompts,
@@ -13,13 +14,14 @@ describe('prompt validation', () => {
       {
         id: 'safe-id',
         prompt: 'Hello',
+        systemPrompt: DEFAULT_SYSTEM_PROMPT,
         maxNewTokens: 64,
         contributionFormats: ['layered', 'summed'],
         enableThinking: false,
         seed: 42,
-        temperature: 0.6,
+        temperature: 0.7,
         topK: 20,
-        topP: 0.95,
+        topP: 0.8,
       },
     ]);
   });
@@ -80,6 +82,18 @@ describe('prompt validation', () => {
         },
       ])[0],
     ).toMatchObject({ temperature: 0.8, topK: 50, topP: 0.9 });
+  });
+
+  it('preserves a custom system prompt', () => {
+    expect(
+      validatePrompts([
+        {
+          id: 'custom-system-prompt',
+          prompt: 'Hello',
+          systemPrompt: 'Respond like a pirate.',
+        },
+      ])[0].systemPrompt,
+    ).toBe('Respond like a pirate.');
   });
 
   it('uses model-specific sampling defaults', () => {

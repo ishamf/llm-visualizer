@@ -12,26 +12,30 @@ import type {
   ValidatedPromptConfiguration,
 } from './types.ts';
 
+export const DEFAULT_SYSTEM_PROMPT =
+  'You are a helpful assistant. Keep your answers concise.';
+
 export const prompts: PromptConfiguration[] = [
   {
     id: 'hello',
     title: 'A Friendly Hello',
     prompt: 'Say hello.',
-    systemPrompt: 'You are a helpful assistant.',
     maxNewTokens: 16,
   },
   {
     id: 'multiplication-place-values',
     title: 'Multiplication by Place Value',
-    prompt: 'Calculate 5726*37',
-    assistantPrefix: '5000 * 7 = 35000\n700 * 7 = 4900\n',
-    maxNewTokens: 256,
+    prompt:
+      'Calculate 5726 × 37 using place values. Give a brief calculation and the final answer.',
+    assistantPrefix: `5726 × 37 = 5726 × 30 + 5726 × 7
+5726 × 30 = 171780
+5726 × 7 = 40082
+Therefore, 5726 × 37 =`,
+    maxNewTokens: 48,
   },
   {
     id: 'fix-average-off-by-one',
     title: 'Fixing an Average Function',
-    systemPrompt:
-      'You are a helpful assistant. You should strive to provide a concise answer.',
     prompt: `This JavaScript function should calculate the average of its input, but it crashes with ReferenceError: array is not defined instead. Why did it happen? Can you fix it?
 
 
@@ -52,7 +56,11 @@ console.log(arrayAverage([2, 4, 6]));
   {
     id: 'extract-contact',
     title: 'Finding Contact Details',
-    prompt: `Can you pull out Maya's job title, company, and email address from this message?
+    prompt: `Extract Maya's job title, company, and email address from this message. A job title means her role, such as "product designer," not her name. Respond using exactly this three-line format and do not mention anything else:
+
+Job title: ...
+Company: ...
+Email: ...
 
 We had a productive planning session yesterday. The team discussed the new dashboard, reviewed some early sketches, and agreed to meet again next week. Maya Chen led the design portion of the meeting. She recently joined Northstar Labs as a product designer and will prepare the next set of mockups. The engineering team will send her their feedback before Friday. If you need to share additional comments with Maya, her email address is maya.chen@example.com. The next meeting will take place in the upstairs conference room.`,
     maxNewTokens: 64,
@@ -61,7 +69,7 @@ We had a productive planning session yesterday. The team discussed the new dashb
   {
     id: 'extract-event',
     title: 'Finding Event Details',
-    prompt: `What are the date, time, and location of the engineering meetup?
+    prompt: `What are the date, time, and location of the engineering meetup? Please give only those three details.
 
 Several activities are planned at the community center next month. The photography club meets on Mondays, and a book exchange will run throughout the first week. The monthly engineering meetup is scheduled for September 12. It will begin at 6:30 PM in Room 204. Attendees are welcome to bring a laptop, although one is not required. Drinks will be available near the entrance, and the organizers recommend arriving a few minutes early.`,
     maxNewTokens: 64,
@@ -70,10 +78,10 @@ Several activities are planned at the community center next month. The photograp
   {
     id: 'extract-order',
     title: 'Finding Order Details',
-    prompt: `Can you find the order number, ordered product, quantity, and delivery date in this update?
+    prompt: `Can you find the order number, ordered product, quantity, and delivery date in this update? Please answer with only those four labeled details, and do not infer any missing date information.
 
 Thanks for visiting our store last weekend. We have finished processing your purchase, and no further payment is required. Order A-1842 contains three blue desk lamps from the Harbor collection. The matching bulbs were purchased separately and are already available for pickup. The lamps are scheduled for delivery on October 5. Our driver will send a message before arriving. Packaging can be returned to the store for recycling.`,
-    maxNewTokens: 64,
+    maxNewTokens: 80,
     contributionFormats: ['summed'],
   },
   {
@@ -88,19 +96,19 @@ The city library is preparing for its annual autumn reading program, and registr
   {
     id: 'summarize-office-move',
     title: 'Office Move Summary',
-    prompt: `Can you briefly summarize the main points of this announcement?
+    prompt: `Can you summarize the main points of this announcement in no more than two short sentences?
 
 The Riverside team has worked from its current building for nearly six years, and many employees helped choose the furniture for the new space. Next month, the office is moving to 18 King Street. Employees should work from home on November 2 and 3 while computers and other equipment are transferred. The new office will open on November 4. Existing employee access cards will work at the new entrance, and all company phone numbers will stay the same. The kitchen will not have a coffee machine during the first week, but several cafes are located nearby.`,
-    maxNewTokens: 96,
+    maxNewTokens: 128,
     contributionFormats: ['summed'],
   },
   {
     id: 'summarize-customer-message',
     title: 'Customer Support Summary',
-    prompt: `Briefly summarize the customer's problem and what they want:
+    prompt: `Briefly summarize the duplicate-charge problem and what the customer wants done about it. Ignore the background about their usual receipts. Please answer with exactly two short labeled lines: Problem and Requested action.
 
 I have been using the monthly plan since January and normally receive a single receipt on the first day of each month. This morning I noticed that my card was charged twice for invoice 7812. Both payments have completed, rather than appearing as pending transactions. I still use the service every day and do not want my account closed or my current subscription changed. Please refund the duplicate payment but leave the subscription active. I have kept copies of both card notifications in case you need them.`,
-    maxNewTokens: 64,
+    maxNewTokens: 96,
     contributionFormats: ['summed'],
   },
 ];
@@ -221,6 +229,7 @@ export function validatePrompts(
 
     return {
       ...configuration,
+      systemPrompt: configuration.systemPrompt ?? DEFAULT_SYSTEM_PROMPT,
       maxNewTokens,
       contributionFormats,
       enableThinking,
