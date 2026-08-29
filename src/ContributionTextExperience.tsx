@@ -171,6 +171,7 @@ export function ContributionTextExperience({
             <ContributionText
               manifest={generationResult.manifest}
               contributions={generationResult.contributions}
+              showOpacityControls={false}
             />
           ) : (
             <Paper
@@ -200,6 +201,7 @@ export function ContributionTextExperience({
               key={selectedDataset.id}
               source={selectedSource}
               manifest={selectedDataset.manifest}
+              showOpacityControls={false}
             />
           </>
         ) : (

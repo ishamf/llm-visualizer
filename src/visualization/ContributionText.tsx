@@ -27,6 +27,7 @@ type AggregateState =
 
 type ContributionTextProps = {
   manifest: ContributionManifest;
+  showOpacityControls?: boolean;
 } & (
   | { source: SummedContributionDataSource; contributions?: never }
   | { source?: never; contributions: SummedContributions }
@@ -38,6 +39,7 @@ export function ContributionText(props: ContributionTextProps) {
   const source = 'source' in props ? props.source : undefined;
   const contributions =
     'contributions' in props ? props.contributions : undefined;
+  const showOpacityControls = props.showOpacityControls ?? true;
   const [sourceAggregate, setSourceAggregate] = useState<AggregateState>({
     status: 'loading',
   });
@@ -145,38 +147,42 @@ export function ContributionText(props: ContributionTextProps) {
 
   return (
     <Paper className="text-visualization" withBorder radius="lg" p="xl">
-      <div className="text-visualization-controls">
-        <Select
-          comboboxProps={{ portalProps: { target: portalTarget } }}
-          label="Opacity scale"
-          description="How contribution strength maps to visibility"
-          data={[
-            { value: 'linear', label: 'Linear' },
-            { value: 'logarithmic', label: 'Logarithmic' },
-          ]}
-          value={opacityScale}
-          onChange={(value) =>
-            setOpacityScale(
-              (value as ContributionOpacityScale | null) ?? 'linear',
-            )
-          }
-          allowDeselect={false}
-        />
-        <NumberInput
-          label="Minimum opacity"
-          description="Visibility of tokens with no contribution"
-          value={minimumOpacity}
-          onChange={(value) =>
-            setMinimumOpacity(
-              typeof value === 'number' ? Math.min(0.9, Math.max(0, value)) : 0,
-            )
-          }
-          min={0}
-          max={0.9}
-          step={0.05}
-          decimalScale={2}
-        />
-      </div>
+      {showOpacityControls && (
+        <div className="text-visualization-controls">
+          <Select
+            comboboxProps={{ portalProps: { target: portalTarget } }}
+            label="Opacity scale"
+            description="How contribution strength maps to visibility"
+            data={[
+              { value: 'linear', label: 'Linear' },
+              { value: 'logarithmic', label: 'Logarithmic' },
+            ]}
+            value={opacityScale}
+            onChange={(value) =>
+              setOpacityScale(
+                (value as ContributionOpacityScale | null) ?? 'linear',
+              )
+            }
+            allowDeselect={false}
+          />
+          <NumberInput
+            label="Minimum opacity"
+            description="Visibility of tokens with no contribution"
+            value={minimumOpacity}
+            onChange={(value) =>
+              setMinimumOpacity(
+                typeof value === 'number'
+                  ? Math.min(0.9, Math.max(0, value))
+                  : 0,
+              )
+            }
+            min={0}
+            max={0.9}
+            step={0.05}
+            decimalScale={2}
+          />
+        </div>
+      )}
 
       <div
         ref={contributionText}
