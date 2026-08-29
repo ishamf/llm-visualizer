@@ -1,9 +1,15 @@
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { MODEL_PROFILES } from '../generation/config.ts';
+import { validatePrompts } from '../generation/prompts.ts';
 import {
   modelOutputRoot,
   parseArguments,
+  partitionExistingPromptConfigurations,
 } from './run-contribution-generation.ts';
 
 describe('contribution generation arguments', () => {
@@ -40,5 +46,28 @@ describe('contribution generation arguments', () => {
     expect(parseArguments(['--no-stream'], 'generated/test').stream).toBe(
       false,
     );
+  });
+
+  it('partitions existing destinations out of a batch run', async () => {
+    const outputRoot = await mkdtemp(
+      path.join(tmpdir(), 'contribution-generation-test-'),
+    );
+    try {
+      await mkdir(path.join(outputRoot, 'second'));
+      const configurations = validatePrompts([
+        { id: 'first', prompt: 'First' },
+        { id: 'second', prompt: 'Second' },
+      ]);
+
+      const partition = await partitionExistingPromptConfigurations(
+        configurations,
+        outputRoot,
+      );
+
+      expect(partition.pending.map(({ id }) => id)).toEqual(['first']);
+      expect(partition.skipped.map(({ id }) => id)).toEqual(['second']);
+    } finally {
+      await rm(outputRoot, { recursive: true, force: true });
+    }
   });
 });

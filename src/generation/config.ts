@@ -65,7 +65,7 @@ export const MODEL_PROFILES = {
 export type ModelKey = keyof typeof MODEL_PROFILES;
 
 export const DEFAULT_EXPORT_MODEL_KEY: ModelKey = 'qwen3-0.6b';
-export const UI_MODEL_KEY: ModelKey = 'qwen3-1.7b';
+export const UI_MODEL_KEY: ModelKey = 'qwen3-0.6b';
 export const UI_MODEL_PROFILE: ModelProfile = MODEL_PROFILES[UI_MODEL_KEY];
 export const BROWSER_MODEL_PROFILE: ModelProfile = MODEL_PROFILES['qwen3-0.6b'];
 

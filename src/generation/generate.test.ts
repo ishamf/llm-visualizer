@@ -169,7 +169,7 @@ describe('summed contribution collection', () => {
     expect(dataset.manifest.generatedText).toBe(' answer');
     expect(dataset.manifest.title).toBe('Streaming Example');
     expect(dataset.manifest.model).toEqual({
-      id: 'Qwen3-1.7B-ONNX',
+      id: 'Qwen3-0.6B-ONNX',
       dtype: 'int8',
       instrumentation: 'instrumented',
     });

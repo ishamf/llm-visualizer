@@ -11,13 +11,20 @@ async function pathExists(target: string) {
   }
 }
 
+export function datasetDestinationExists(
+  outputRoot: string,
+  datasetId: string,
+) {
+  return pathExists(path.join(outputRoot, datasetId));
+}
+
 export async function assertDatasetDestinationAvailable(
   outputRoot: string,
   datasetId: string,
   overwrite: boolean,
 ) {
   const destination = path.join(outputRoot, datasetId);
-  if (!overwrite && (await pathExists(destination))) {
+  if (!overwrite && (await datasetDestinationExists(outputRoot, datasetId))) {
     throw new Error(
       `Dataset destination already exists: ${destination} (use --overwrite to replace it)`,
     );

@@ -107,7 +107,6 @@ async function loadModel(): Promise<LoadedModel> {
       BROWSER_MODEL_PROFILE.id,
       {
         dtype: BROWSER_MODEL_PROFILE.dtype,
-        device: 'cpu',
         local_files_only: true,
         model_file_name: BROWSER_MODEL_PROFILE.instrumentation,
         progress_callback,

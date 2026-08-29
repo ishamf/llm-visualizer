@@ -15,7 +15,10 @@ import {
   type ModelKey,
   type ModelProfile,
 } from '../generation/config.ts';
-import { assertDatasetDestinationAvailable } from '../generation/atomic-dataset.ts';
+import {
+  assertDatasetDestinationAvailable,
+  datasetDestinationExists,
+} from '../generation/atomic-dataset.ts';
 import {
   disposeOutputs,
   disposeTokenizedPrompt,
@@ -34,6 +37,7 @@ import type {
   ContributionManifest,
   ModelOutputs,
   Tokenizer,
+  ValidatedPromptConfiguration,
 } from '../generation/types.ts';
 
 const MODEL_ROOT = fileURLToPath(new URL('../../models/', import.meta.url));
@@ -114,6 +118,27 @@ export function modelOutputRoot(outputRoot: string, profile: ModelProfile) {
   return path.join(outputRoot, profile.key);
 }
 
+export async function partitionExistingPromptConfigurations(
+  configurations: ValidatedPromptConfiguration[],
+  outputRoot: string,
+) {
+  const existence = await Promise.all(
+    configurations.map((prompt) =>
+      datasetDestinationExists(outputRoot, prompt.id),
+    ),
+  );
+  return configurations.reduce<{
+    pending: ValidatedPromptConfiguration[];
+    skipped: ValidatedPromptConfiguration[];
+  }>(
+    (partition, prompt, index) => {
+      partition[existence[index] ? 'skipped' : 'pending'].push(prompt);
+      return partition;
+    },
+    { pending: [], skipped: [] },
+  );
+}
+
 async function originalPromptLogits(
   modelProfile: ModelProfile,
   tokenizer: Tokenizer,
@@ -156,7 +181,7 @@ export async function runContributionGeneration<
   const modelProfile = MODEL_PROFILES[options.modelKey];
   const scopedOutputRoot = modelOutputRoot(options.outputRoot, modelProfile);
   // Validation and format filtering deliberately happen before model loading.
-  const configurations = selectPromptConfigurations(
+  let configurations = selectPromptConfigurations(
     validatePrompts(prompts, modelProfile.generation),
     options.datasetId,
     target.format,
@@ -167,17 +192,32 @@ export async function runContributionGeneration<
     );
     return;
   }
-  await Promise.all(
-    configurations.map((prompt) =>
-      assertDatasetDestinationAvailable(
-        options.outputRoot,
-        // Model keys keep datasets generated from different weights separate.
-        // The prompt ID remains the dataset ID within that model.
-        path.join(modelProfile.key, prompt.id),
-        options.overwrite,
+  if (options.datasetId === undefined && !options.overwrite) {
+    const { pending, skipped } = await partitionExistingPromptConfigurations(
+      configurations,
+      scopedOutputRoot,
+    );
+    for (const prompt of skipped) {
+      console.error(`Skipping existing dataset ${prompt.id}.`);
+    }
+    configurations = pending;
+    if (configurations.length === 0) {
+      console.error(
+        'All configured datasets already exist; nothing to generate.',
+      );
+      return;
+    }
+  } else {
+    await Promise.all(
+      configurations.map((prompt) =>
+        assertDatasetDestinationAvailable(
+          scopedOutputRoot,
+          prompt.id,
+          options.overwrite,
+        ),
       ),
-    ),
-  );
+    );
+  }
 
   env.localModelPath = MODEL_ROOT;
   env.allowRemoteModels = false;
