@@ -1,64 +1,17 @@
-import {
-  Button,
-  Container,
-  Group,
-  Paper,
-  Text,
-  Title,
-  UnstyledButton,
-} from '@mantine/core';
-import { useCallback, useMemo, useReducer, useState } from 'react';
+import { Button, Container, Text, Title } from '@mantine/core';
 import { Link } from 'react-router-dom';
 
-import {
-  BundledSummedContributionDataSource,
-  getBundledSummedContributionDatasets,
-} from '../data/bundled-summed-contribution-data-source.ts';
-import { getConfiguredPromptTitle } from '../generation/prompts.ts';
-import { ContributionText } from '../visualization/ContributionText.tsx';
-import {
-  BrowserGenerationPanel,
-  type GenerationResult,
-} from './GenerationPage.tsx';
-import {
-  homepageGenerationReducer,
-  INITIAL_HOMEPAGE_GENERATION_STATE,
-  selectDefaultPromptId,
-} from './homepage-state.ts';
+import { ContributionTextExperience } from '../ContributionTextExperience.tsx';
+import { BROWSER_MODEL_ROOT } from '../generation/config.ts';
 
-const datasets = getBundledSummedContributionDatasets();
+function createStandaloneWorker() {
+  return new Worker(
+    new URL('../generation/browser-generation.worker.ts', import.meta.url),
+    { type: 'module' },
+  );
+}
 
 export function HomePage() {
-  const [datasetId, setDatasetId] = useState(() =>
-    selectDefaultPromptId(datasets.map(({ id }) => id)),
-  );
-  const [generationState, dispatchGeneration] = useReducer(
-    homepageGenerationReducer,
-    INITIAL_HOMEPAGE_GENERATION_STATE,
-  );
-  const [generationResult, setGenerationResult] = useState<GenerationResult>();
-  const customGenerationActive = generationState.mode === 'custom';
-  const selectedDataset = datasets.find(({ id }) => id === datasetId);
-  const selectedSource = useMemo(
-    () =>
-      selectedDataset
-        ? new BundledSummedContributionDataSource(selectedDataset.id)
-        : undefined,
-    [selectedDataset],
-  );
-
-  const handleGenerationStarted = useCallback(() => {
-    dispatchGeneration({ type: 'start' });
-  }, []);
-  const handleResultChange = useCallback(
-    (result: GenerationResult | undefined) => setGenerationResult(result),
-    [],
-  );
-  const clearGeneration = () => {
-    setGenerationResult(undefined);
-    dispatchGeneration({ type: 'clear' });
-  };
-
   return (
     <main className="app-shell homepage-shell">
       <Container size="xl" className="homepage-container">
@@ -83,152 +36,10 @@ export function HomePage() {
           )}
         </header>
 
-        <div
-          className={`homepage-controls ${customGenerationActive ? 'custom-generation-active' : ''}`}
-        >
-          {!customGenerationActive && (
-            <section
-              className="prompt-picker"
-              aria-labelledby="prompt-picker-title"
-            >
-              <div>
-                <Text className="eyebrow">Pre-generated examples</Text>
-                <Title order={2} id="prompt-picker-title">
-                  Pick a prompt
-                </Title>
-                <Text c="dimmed" size="sm">
-                  These examples are ready immediately.
-                </Text>
-              </div>
-              <div className="prompt-list" role="list">
-                {datasets.map(({ id, manifest }) => {
-                  const selected = id === datasetId;
-                  const generatedTokens =
-                    manifest.tokens.length - manifest.promptTokenCount;
-                  return (
-                    <UnstyledButton
-                      key={id}
-                      className={`prompt-option ${selected ? 'selected-prompt-option' : ''}`}
-                      role="listitem"
-                      aria-pressed={selected}
-                      onClick={() => setDatasetId(id)}
-                    >
-                      <Text fw={650} size="sm">
-                        {manifest.title ??
-                          getConfiguredPromptTitle(id) ??
-                          manifest.prompt}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        {generatedTokens} generated token
-                        {generatedTokens === 1 ? '' : 's'}
-                      </Text>
-                    </UnstyledButton>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          <div className="generation-column">
-            {customGenerationActive && (
-              <Paper
-                className="clear-generation-note"
-                withBorder
-                radius="md"
-                p="md"
-              >
-                <Group
-                  className="clear-generation-content"
-                  justify="space-between"
-                  align="center"
-                  gap="md"
-                >
-                  <Text size="sm">
-                    Your generated contribution data is active. Clearing it will
-                    discard this run.
-                  </Text>
-                  <Button color="red" variant="light" onClick={clearGeneration}>
-                    Clear and use a pre-generated prompt
-                  </Button>
-                </Group>
-              </Paper>
-            )}
-            <BrowserGenerationPanel
-              key={generationState.session}
-              onGenerationStarted={handleGenerationStarted}
-              onResultChange={handleResultChange}
-            />
-          </div>
-        </div>
-
-        <section className="homepage-visualization" aria-live="polite">
-          <header className="generation-result-header">
-            <div>
-              <Text className="eyebrow">
-                {customGenerationActive
-                  ? 'Live contribution text'
-                  : 'Pre-generated contribution text'}
-              </Text>
-              <Title order={2}>What the model used</Title>
-            </div>
-            <Text size="sm" c="dimmed">
-              {generationResult && customGenerationActive
-                ? `${generationResult.manifest.tokens.length - generationResult.manifest.promptTokenCount} generated tokens · summed across ${generationResult.manifest.geometry.layers} layers`
-                : selectedDataset
-                  ? `${selectedDataset.manifest.model.id} · ${selectedDataset.manifest.geometry.layers} layers`
-                  : ''}
-            </Text>
-          </header>
-
-          {customGenerationActive ? (
-            generationResult ? (
-              <ContributionText
-                manifest={generationResult.manifest}
-                contributions={generationResult.contributions}
-              />
-            ) : (
-              <Paper
-                className="text-visualization-state"
-                withBorder
-                radius="lg"
-                p="xl"
-              >
-                <Text size="sm" c="dimmed">
-                  The live visualization will appear when the prompt is ready.
-                </Text>
-              </Paper>
-            )
-          ) : selectedDataset && selectedSource ? (
-            <>
-              <Paper className="dataset-note" radius="md" p="sm">
-                <Text size="xs" c="dimmed">
-                  Selected prompt
-                </Text>
-                <Text size="sm" fw={600}>
-                  {selectedDataset.manifest.title ??
-                    getConfiguredPromptTitle(selectedDataset.id) ??
-                    selectedDataset.manifest.prompt}
-                </Text>
-              </Paper>
-              <ContributionText
-                key={selectedDataset.id}
-                source={selectedSource}
-                manifest={selectedDataset.manifest}
-              />
-            </>
-          ) : (
-            <Paper
-              className="text-visualization-state"
-              withBorder
-              radius="lg"
-              p="xl"
-            >
-              <Text size="sm" c="dimmed">
-                No pre-generated prompts are available in this build.
-              </Text>
-            </Paper>
-          )}
-        </section>
+        <ContributionTextExperience
+          createWorker={createStandaloneWorker}
+          modelBaseUrl={BROWSER_MODEL_ROOT}
+        />
       </Container>
     </main>
   );

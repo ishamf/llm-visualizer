@@ -268,9 +268,9 @@ dist-web-component/
 
 ## Plain HTML example
 
-Add `examples/contribution-text.html` as a non-React consumer. It should contain
-the explanatory title, prose, usage/privacy notes, and surrounding page layout,
-then load only the built module for the interactive section:
+Add `dev/contribution-text.html` as a non-React development consumer. It should
+contain the explanatory title, prose, usage/privacy notes, and surrounding page
+layout, then load the source Web Component entry:
 
 ```html
 <article>
@@ -283,16 +283,17 @@ then load only the built module for the interactive section:
   ></xif-contribution-text>
 </article>
 
-<script type="module" src="../dist-web-component/contribution-text.js"></script>
+<script type="module" src="/src/web-component/entry.ts"></script>
 ```
 
 Give this page its own small host stylesheet. It is also the isolation fixture:
 use deliberately different body typography, colors, and form styles to catch
 CSS leakage in either direction.
 
-Serve the example through Vite or another HTTP server; workers and module
-imports will not work reliably when the file is opened with `file://`. The
-example server must use the same COOP/COEP headers as the current Vite server.
+Vite transforms and serves the page at `/dev/contribution-text.html` with the
+same React preamble and COOP/COEP headers as the application. The default
+production build only uses the root `index.html`, so it does not include this
+development fixture.
 
 ## Implementation sequence
 

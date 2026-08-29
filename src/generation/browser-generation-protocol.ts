@@ -18,7 +18,8 @@ export type BrowserGenerationPrompt = {
 };
 
 export type BrowserGenerationRequest =
-  { type: 'start'; prompt: BrowserGenerationPrompt } | { type: 'cancel' };
+  | { type: 'start'; prompt: BrowserGenerationPrompt; modelBaseUrl: string }
+  | { type: 'cancel' };
 
 export type BrowserGenerationResponse =
   | {

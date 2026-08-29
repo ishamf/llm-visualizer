@@ -98,6 +98,31 @@ export const BROWSER_MODEL_WEIGHTS_PATH = `${BROWSER_MODEL_PATH}/onnx/${BROWSER_
 /** Approximate size of the instrumented int8 ONNX weights. */
 export const BROWSER_MODEL_SIZE_BYTES = 617_690_408;
 
+export type BrowserModelUrls = {
+  root: string;
+  model: string;
+  weights: string;
+};
+
+export function getBrowserModelUrls(
+  modelBaseUrl: string,
+  documentBaseUrl: string,
+): BrowserModelUrls {
+  const root = new URL(
+    modelBaseUrl.endsWith('/') ? modelBaseUrl : `${modelBaseUrl}/`,
+    documentBaseUrl,
+  ).href;
+  const modelDirectory = new URL(`${BROWSER_MODEL_PROFILE.id}/`, root);
+  return {
+    root,
+    model: modelDirectory.href.slice(0, -1),
+    weights: new URL(
+      `onnx/${BROWSER_MODEL_PROFILE.instrumentation}_${BROWSER_MODEL_PROFILE.dtype}.onnx`,
+      modelDirectory,
+    ).href,
+  };
+}
+
 export const LAYER_COUNT = UI_MODEL_PROFILE.geometry.layers;
 export const QUERY_HEAD_COUNT = UI_MODEL_PROFILE.geometry.queryHeads;
 export const KV_HEAD_COUNT = UI_MODEL_PROFILE.geometry.kvHeads;

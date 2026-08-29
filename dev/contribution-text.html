@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Contribution text Web Component example</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: Georgia, 'Times New Roman', serif;
+      }
+
+      body {
+        max-width: 86rem;
+        margin: 0 auto;
+        padding: 3rem 1.5rem 5rem;
+        color: light-dark(#25211d, #eee9e2);
+        background: light-dark(#f3eee6, #191714);
+      }
+
+      article > header {
+        max-width: 48rem;
+        margin-bottom: 2.5rem;
+      }
+
+      h1 {
+        margin-bottom: 0.75rem;
+        font-size: clamp(2.5rem, 7vw, 5.5rem);
+        line-height: 0.95;
+        letter-spacing: -0.055em;
+      }
+
+      p {
+        font-size: 1.1rem;
+        line-height: 1.65;
+      }
+
+      /* Deliberately hostile host rules: these must not reach the component. */
+      button,
+      input,
+      select,
+      textarea {
+        padding: 2rem;
+        color: lime;
+        font: inherit;
+        background: magenta;
+      }
+    </style>
+  </head>
+  <body>
+    <article>
+      <header>
+        <p>LLM Visualizer</p>
+        <h1>See what shaped each token</h1>
+        <p>
+          Explore how earlier words contributed to a model response, or generate
+          a new response privately in your browser. Hover or focus a generated
+          token to see which earlier tokens influenced it most.
+        </p>
+        <p>
+          Generation runs locally. The first run downloads the model into your
+          browser cache; prompts are not sent to an application server.
+        </p>
+      </header>
+
+      <xif-contribution-text
+        model-base-url="/models/"
+        color-scheme="auto"
+      ></xif-contribution-text>
+    </article>
+
+    <script type="module" src="/src/web-component/entry.ts"></script>
+  </body>
+</html>

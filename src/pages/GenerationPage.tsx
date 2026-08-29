@@ -14,15 +14,14 @@ import {
   Title,
 } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
-import { Navigate } from 'react-router-dom';
 
 import {
-  BROWSER_MODEL_WEIGHTS_PATH,
   BROWSER_MODEL_SIZE_BYTES,
   DEFAULT_GENERATION_SEED,
   GENERATION_TEMPERATURE,
   GENERATION_TOP_K,
   GENERATION_TOP_P,
+  getBrowserModelUrls,
   MAX_GENERATED_TOKENS,
 } from '../generation/config.ts';
 import type {
@@ -58,6 +57,8 @@ export type GenerationResult = {
 };
 
 type BrowserGenerationPanelProps = {
+  createWorker: () => Worker;
+  modelBaseUrl: string;
   onGenerationStarted: () => void;
   onResultChange: (result: GenerationResult | undefined) => void;
 };
@@ -81,6 +82,8 @@ function formatBytes(bytes: number | undefined) {
 }
 
 export function BrowserGenerationPanel({
+  createWorker,
+  modelBaseUrl,
   onGenerationStarted,
   onResultChange,
 }: BrowserGenerationPanelProps) {
@@ -113,15 +116,14 @@ export function BrowserGenerationPanel({
 
   useEffect(() => {
     let active = true;
+    const modelUrls = getBrowserModelUrls(modelBaseUrl, document.baseURI);
     const inspectModelCache = async () => {
       if (!('caches' in globalThis)) {
         if (active) setModelCached(false);
         return;
       }
       try {
-        const cached = await globalThis.caches.match(
-          BROWSER_MODEL_WEIGHTS_PATH,
-        );
+        const cached = await globalThis.caches.match(modelUrls.weights);
         if (active) setModelCached(Boolean(cached));
       } catch {
         if (active) setModelCached(false);
@@ -134,7 +136,7 @@ export function BrowserGenerationPanel({
       workerRef.current?.terminate();
       workerRef.current = null;
     };
-  }, []);
+  }, [modelBaseUrl]);
 
   const progressValue =
     status === 'generating'
@@ -206,10 +208,18 @@ export function BrowserGenerationPanel({
     onGenerationStarted();
     let worker = workerRef.current;
     if (!worker) {
-      const createdWorker = new Worker(
-        new URL('../generation/browser-generation.worker.ts', import.meta.url),
-        { type: 'module' },
-      );
+      let createdWorker: Worker;
+      try {
+        createdWorker = createWorker();
+      } catch (workerError) {
+        setError(
+          workerError instanceof Error
+            ? workerError
+            : new Error(String(workerError)),
+        );
+        setStatus('error');
+        return;
+      }
       worker = createdWorker;
       workerRef.current = createdWorker;
       createdWorker.onmessage = (
@@ -238,7 +248,11 @@ export function BrowserGenerationPanel({
       topK,
       topP,
     };
-    const request: BrowserGenerationRequest = { type: 'start', prompt: values };
+    const request: BrowserGenerationRequest = {
+      type: 'start',
+      prompt: values,
+      modelBaseUrl: getBrowserModelUrls(modelBaseUrl, document.baseURI).root,
+    };
     worker.postMessage(request);
   };
 
@@ -514,8 +528,4 @@ export function BrowserGenerationPanel({
       )}
     </section>
   );
-}
-
-export function GenerationPage() {
-  return <Navigate to="/" replace />;
 }

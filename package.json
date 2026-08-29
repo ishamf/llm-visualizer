@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:web-component": "tsc -b && vite build --config vite.web-component.config.ts",
     "generate": "tsx src/scripts/generate.ts",
     "generate:contributions": "tsx src/scripts/generate-contributions.ts",
     "generate:summed-contributions": "tsx src/scripts/generate-summed-contributions.ts",

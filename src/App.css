@@ -40,6 +40,12 @@
   gap: 34px;
 }
 
+.contribution-text-experience {
+  display: grid;
+  gap: 34px;
+  min-width: 0;
+}
+
 .homepage-header {
   display: flex;
   align-items: flex-start;

@@ -6,11 +6,10 @@ import {
 } from '@huggingface/transformers';
 
 import {
-  BROWSER_MODEL_PATH,
   BROWSER_MODEL_PROFILE,
-  BROWSER_MODEL_ROOT,
   CONTRIBUTION_METRIC,
   DATASET_SCHEMA_VERSION,
+  getBrowserModelUrls,
   LAYER_COUNT,
 } from './config.ts';
 import {
@@ -81,25 +80,23 @@ function postProgress(info: ProgressInfo) {
   }
 }
 
-async function loadModel(): Promise<LoadedModel> {
+async function loadModel(modelBaseUrl: string): Promise<LoadedModel> {
   if (modelPromise) return modelPromise;
 
-  // The model is served from the repository's ignored models/ directory via
-  // public/models. Transformers.js will cache these responses in the browser,
-  // so subsequent runs do not download the large weights again.
+  const modelUrls = getBrowserModelUrls(modelBaseUrl, globalThis.location.href);
+
+  // Transformers.js caches these responses in the browser, so subsequent runs
+  // do not download the large weights again.
   env.allowLocalModels = true;
   env.allowRemoteModels = false;
-  env.localModelPath = new URL(
-    BROWSER_MODEL_ROOT,
-    globalThis.location.origin,
-  ).href;
+  env.localModelPath = modelUrls.root;
 
   const progress_callback = (info: ProgressInfo) => postProgress(info);
   const loading = (async () => {
     // Tokenizer auto-discovery in Transformers.js 4.2 does not recognize an
-    // absolute localModelPath. Keep its small files on the root-relative path,
-    // and finish loading them before starting the much larger model request.
-    const tokenizer = await AutoTokenizer.from_pretrained(BROWSER_MODEL_PATH, {
+    // absolute localModelPath. Give it the absolute model directory and finish
+    // loading its small files before starting the much larger model request.
+    const tokenizer = await AutoTokenizer.from_pretrained(modelUrls.model, {
       local_files_only: true,
       progress_callback,
     });
@@ -172,7 +169,10 @@ function validatedPrompt(values: BrowserGenerationPrompt) {
   )[0];
 }
 
-async function run(promptValues: BrowserGenerationPrompt) {
+async function run(
+  promptValues: BrowserGenerationPrompt,
+  modelBaseUrl: string,
+) {
   const controller = new AbortController();
   activeController = controller;
   post({
@@ -182,7 +182,7 @@ async function run(promptValues: BrowserGenerationPrompt) {
 
   try {
     const prompt = validatedPrompt(promptValues);
-    const { model, tokenizer } = await loadModel();
+    const { model, tokenizer } = await loadModel(modelBaseUrl);
     throwIfGenerationAborted(controller.signal);
     post({
       type: 'status',
@@ -279,7 +279,7 @@ workerScope.onmessage = (event) => {
     return;
   }
   if (activeRun) return;
-  activeRun = run(request.prompt).finally(() => {
+  activeRun = run(request.prompt, request.modelBaseUrl).finally(() => {
     activeRun = undefined;
   });
 };

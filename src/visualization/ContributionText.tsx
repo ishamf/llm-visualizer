@@ -10,6 +10,7 @@ import {
 import type { SummedContributionDataSource } from '../data/summed-contribution-data-source.ts';
 import type { ContributionManifest } from '../generation/types.ts';
 import type { SummedContributions } from '../generation/types.ts';
+import { usePortalTarget } from '../web-component/portal-target-context.ts';
 import {
   contributionOpacity,
   type ContributionOpacityScale,
@@ -32,6 +33,7 @@ type ContributionTextProps = {
 );
 
 export function ContributionText(props: ContributionTextProps) {
+  const portalTarget = usePortalTarget();
   const { manifest } = props;
   const source = 'source' in props ? props.source : undefined;
   const contributions =
@@ -145,6 +147,7 @@ export function ContributionText(props: ContributionTextProps) {
     <Paper className="text-visualization" withBorder radius="lg" p="xl">
       <div className="text-visualization-controls">
         <Select
+          comboboxProps={{ portalProps: { target: portalTarget } }}
           label="Opacity scale"
           description="How contribution strength maps to visibility"
           data={[

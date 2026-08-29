@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 .venv
 dist
+dist-web-component
 dist-ssr
 *.local
 /models/
