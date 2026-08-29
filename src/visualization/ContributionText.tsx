@@ -1,8 +1,10 @@
 import {
+  ActionIcon,
   Alert,
   Loader,
   NumberInput,
   Paper,
+  Progress,
   Select,
   Text,
   useComputedColorScheme,
@@ -38,6 +40,9 @@ type AggregateState =
 type ContributionTextProps = {
   manifest: ContributionManifest;
   showOpacityControls?: boolean;
+  playing?: boolean;
+  onPlayingChange?: (playing: boolean) => void;
+  animationSuppressed?: boolean;
 } & (
   | { source: SummedContributionDataSource; contributions?: never }
   | { source?: never; contributions: SummedContributions }
@@ -51,6 +56,9 @@ export function ContributionText(props: ContributionTextProps) {
   const contributions =
     'contributions' in props ? props.contributions : undefined;
   const showOpacityControls = props.showOpacityControls ?? true;
+  const [uncontrolledPlaying, setUncontrolledPlaying] = useState(true);
+  const playing = props.playing ?? uncontrolledPlaying;
+  const animationSuppressed = props.animationSuppressed ?? false;
   const [sourceAggregate, setSourceAggregate] = useState<AggregateState>({
     status: 'loading',
   });
@@ -58,7 +66,9 @@ export function ContributionText(props: ContributionTextProps) {
     ? { status: 'ready', contributions }
     : sourceAggregate;
   const [pointerToken, setPointerToken] = useState<number | null>(null);
+  const [pointerInside, setPointerInside] = useState(false);
   const [focusedToken, setFocusedToken] = useState<number | null>(null);
+  const [animatedTokenOffset, setAnimatedTokenOffset] = useState(0);
   const [opacityScale, setOpacityScale] =
     useState<ContributionOpacityScale>('linear');
   const [minimumOpacityOverride, setMinimumOpacityOverride] = useState<
@@ -78,6 +88,40 @@ export function ContributionText(props: ContributionTextProps) {
   const tokenRectangles = useRef<
     ReadonlyArray<ReadonlyArray<TokenRectangle>> | undefined
   >(undefined);
+  const generatedTokenCount = Math.max(
+    0,
+    manifest.tokens.length - manifest.promptTokenCount,
+  );
+  const animationReady = aggregate.status === 'ready';
+
+  const setPlaying = (nextPlaying: boolean) => {
+    setAnimatedTokenOffset(0);
+    if (props.playing === undefined) setUncontrolledPlaying(nextPlaying);
+    props.onPlayingChange?.(nextPlaying);
+  };
+
+  useEffect(() => {
+    if (
+      !playing ||
+      animationSuppressed ||
+      !animationReady ||
+      generatedTokenCount === 0
+    ) {
+      return;
+    }
+    if (pointerInside) return;
+
+    const interval = window.setInterval(() => {
+      setAnimatedTokenOffset((current) => (current + 1) % generatedTokenCount);
+    }, 1000 / 3);
+    return () => window.clearInterval(interval);
+  }, [
+    animationReady,
+    animationSuppressed,
+    generatedTokenCount,
+    playing,
+    pointerInside,
+  ]);
 
   useEffect(() => {
     if (!source) return;
@@ -139,7 +183,15 @@ export function ContributionText(props: ContributionTextProps) {
     );
   }
 
-  const activeToken = focusedToken ?? pointerToken;
+  const animatedToken =
+    playing &&
+    !animationSuppressed &&
+    animationReady &&
+    !pointerInside &&
+    generatedTokenCount > 0
+      ? manifest.promptTokenCount + animatedTokenOffset
+      : null;
+  const activeToken = focusedToken ?? pointerToken ?? animatedToken;
   const row =
     activeToken === null
       ? undefined
@@ -212,9 +264,13 @@ export function ContributionText(props: ContributionTextProps) {
         aria-label="Prompt and generated text by token"
         onPointerEnter={() => {
           tokenRectangles.current = undefined;
+          setPointerInside(true);
         }}
         onPointerMove={handlePointerMove}
-        onPointerLeave={() => setPointerToken(null)}
+        onPointerLeave={() => {
+          setPointerInside(false);
+          setPointerToken(null);
+        }}
       >
         {manifest.tokens.map((token, index) => {
           const active = activeToken === index;
@@ -246,6 +302,31 @@ export function ContributionText(props: ContributionTextProps) {
             </span>
           );
         })}
+      </div>
+
+      <div className="text-visualization-playback">
+        <ActionIcon
+          variant="light"
+          size="lg"
+          aria-label={
+            playing ? 'Pause token animation' : 'Play token animation'
+          }
+          onClick={() => setPlaying(!playing)}
+        >
+          <span aria-hidden="true">{playing ? '❚❚' : '▶'}</span>
+        </ActionIcon>
+        <Progress
+          className="text-visualization-progress"
+          value={
+            !playing ||
+            animationSuppressed ||
+            !animationReady ||
+            generatedTokenCount === 0
+              ? 0
+              : ((animatedTokenOffset + 1) / generatedTokenCount) * 100
+          }
+          aria-label="Token animation progress"
+        />
       </div>
 
       <div className="text-visualization-legend">

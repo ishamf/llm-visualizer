@@ -43,6 +43,8 @@ export function ContributionTextExperience({
     INITIAL_HOMEPAGE_GENERATION_STATE,
   );
   const [generationResult, setGenerationResult] = useState<GenerationResult>();
+  const [generationActive, setGenerationActive] = useState(false);
+  const [visualizationPlaying, setVisualizationPlaying] = useState(true);
   const customGenerationActive = generationState.mode === 'custom';
   const selectedDataset = datasets.find(({ id }) => id === datasetId);
   const selectedSource = useMemo(
@@ -143,6 +145,7 @@ export function ContributionTextExperience({
             modelBaseUrl={modelBaseUrl}
             onGenerationStarted={handleGenerationStarted}
             onResultChange={handleResultChange}
+            onGenerationActiveChange={setGenerationActive}
           />
         </div>
       </div>
@@ -172,6 +175,9 @@ export function ContributionTextExperience({
               manifest={generationResult.manifest}
               contributions={generationResult.contributions}
               showOpacityControls={false}
+              playing={visualizationPlaying}
+              onPlayingChange={setVisualizationPlaying}
+              animationSuppressed={generationActive}
             />
           ) : (
             <Paper
@@ -202,6 +208,8 @@ export function ContributionTextExperience({
               source={selectedSource}
               manifest={selectedDataset.manifest}
               showOpacityControls={false}
+              playing={visualizationPlaying}
+              onPlayingChange={setVisualizationPlaying}
             />
           </>
         ) : (

@@ -61,6 +61,7 @@ type BrowserGenerationPanelProps = {
   modelBaseUrl: string;
   onGenerationStarted: () => void;
   onResultChange: (result: GenerationResult | undefined) => void;
+  onGenerationActiveChange: (active: boolean) => void;
 };
 
 const DEFAULT_MAX_NEW_TOKENS = 128;
@@ -86,6 +87,7 @@ export function BrowserGenerationPanel({
   modelBaseUrl,
   onGenerationStarted,
   onResultChange,
+  onGenerationActiveChange,
 }: BrowserGenerationPanelProps) {
   const workerRef = useRef<Worker | null>(null);
   const resultRef = useRef<GenerationResult | undefined>(undefined);
@@ -113,6 +115,10 @@ export function BrowserGenerationPanel({
   const generatedTokenCount = result
     ? result.manifest.tokens.length - result.manifest.promptTokenCount
     : 0;
+
+  useEffect(() => {
+    onGenerationActiveChange(isBusy);
+  }, [isBusy, onGenerationActiveChange]);
 
   useEffect(() => {
     let active = true;

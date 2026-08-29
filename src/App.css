@@ -287,6 +287,22 @@
   padding-left: 0.18em;
 }
 
+.text-visualization-playback {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.text-visualization-playback button {
+  font-size: 0.78rem;
+}
+
+.text-visualization-progress {
+  width: 100%;
+}
+
 .text-visualization-legend {
   display: flex;
   align-items: center;
