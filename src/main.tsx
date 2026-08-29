@@ -1,15 +1,26 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { MantineProvider } from '@mantine/core';
+import { MantineProvider, type MantineColorSchemeManager } from '@mantine/core';
 import { HashRouter } from 'react-router-dom';
 import '@mantine/core/styles.css';
 import './index.css';
 import './App.css';
 import App from './App.tsx';
 
+const browserColorSchemeManager: MantineColorSchemeManager = {
+  get: () => 'auto',
+  set: () => undefined,
+  subscribe: () => undefined,
+  unsubscribe: () => undefined,
+  clear: () => undefined,
+};
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <MantineProvider>
+    <MantineProvider
+      colorSchemeManager={browserColorSchemeManager}
+      defaultColorScheme="auto"
+    >
       <HashRouter>
         <App />
       </HashRouter>

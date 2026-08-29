@@ -6,16 +6,26 @@
     <title>Contribution text Web Component example</title>
     <style>
       :root {
-        color-scheme: light dark;
+        color-scheme: light;
+        --page-color: #25211d;
+        --page-background: #f3eee6;
         font-family: Georgia, 'Times New Roman', serif;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+          --page-color: #eee9e2;
+          --page-background: #191714;
+        }
       }
 
       body {
         max-width: 86rem;
         margin: 0 auto;
         padding: 3rem 1.5rem 5rem;
-        color: light-dark(#25211d, #eee9e2);
-        background: light-dark(#f3eee6, #191714);
+        color: var(--page-color);
+        background: var(--page-background);
       }
 
       article > header {
@@ -60,6 +70,10 @@
         <p>
           Generation runs locally. The first run downloads the model into your
           browser cache; prompts are not sent to an application server.
+        </p>
+        <p>
+          The page and embedded component automatically follow your browser's
+          light or dark color scheme.
         </p>
       </header>
 

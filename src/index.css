@@ -1,5 +1,4 @@
 :root {
-  color-scheme: light dark;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -7,10 +6,7 @@
 }
 
 html {
-  background: light-dark(
-    var(--mantine-color-gray-0),
-    var(--mantine-color-dark-9)
-  );
+  background: var(--mantine-color-body);
 }
 
 body {

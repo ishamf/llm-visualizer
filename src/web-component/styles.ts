@@ -7,7 +7,11 @@ const hostCss = `
   :host {
     display: block;
     min-width: 0;
+    padding: clamp(1rem, 2.5vw, 2rem);
+    overflow: hidden;
+    border-radius: var(--mantine-radius-xl);
     color: var(--mantine-color-text);
+    background: var(--mantine-color-body);
     font-family: var(--mantine-font-family);
     font-synthesis: none;
     text-rendering: optimizeLegibility;

@@ -32,6 +32,7 @@ export function defineContributionTextElement(workerUrl: URL) {
 
     readonly #mountNode: HTMLDivElement;
     readonly #portalNode: HTMLDivElement;
+    readonly #colorSchemeObserver: MutationObserver;
     #root: Root | undefined;
 
     constructor() {
@@ -44,19 +45,40 @@ export function defineContributionTextElement(workerUrl: URL) {
       this.#portalNode = document.createElement('div');
       this.#portalNode.dataset.contributionTextPortals = '';
       shadowRoot.append(this.#mountNode, this.#portalNode);
+
+      this.#colorSchemeObserver = new MutationObserver(() => {
+        this.#syncColorScheme();
+      });
     }
 
     connectedCallback() {
+      this.#colorSchemeObserver.observe(this, {
+        attributeFilter: ['data-mantine-color-scheme'],
+      });
+      this.#syncColorScheme();
       this.#render();
     }
 
     disconnectedCallback() {
+      this.#colorSchemeObserver.disconnect();
       this.#root?.unmount();
       this.#root = undefined;
     }
 
     attributeChangedCallback() {
       if (this.isConnected) this.#render();
+    }
+
+    #syncColorScheme() {
+      const colorScheme = this.getAttribute('data-mantine-color-scheme');
+
+      for (const node of [this.#mountNode, this.#portalNode]) {
+        if (colorScheme === 'light' || colorScheme === 'dark') {
+          node.setAttribute('data-mantine-color-scheme', colorScheme);
+        } else {
+          node.removeAttribute('data-mantine-color-scheme');
+        }
+      }
     }
 
     #render() {
