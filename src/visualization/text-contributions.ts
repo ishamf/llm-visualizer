@@ -97,9 +97,10 @@ export function contributionOpacity(
   minimum = MINIMUM_TOKEN_OPACITY,
   scale: ContributionOpacityScale = 'linear',
   knee?: ContributionOpacityKnee,
+  rowMaximum?: number,
 ): number {
   if (!row || source >= row.length) return minimum;
-  const maximum = Math.max(...row);
+  const maximum = rowMaximum ?? Math.max(...row);
   if (maximum <= 0) return minimum;
   const ratio = row[source] / maximum;
   const strength =

@@ -68,7 +68,7 @@ export function ContributionText(props: ContributionTextProps) {
   const [pointerToken, setPointerToken] = useState<number | null>(null);
   const [pointerInside, setPointerInside] = useState(false);
   const [focusedToken, setFocusedToken] = useState<number | null>(null);
-  const [animatedTokenOffset, setAnimatedTokenOffset] = useState(0);
+  const [animatedTokenPosition, setAnimatedTokenPosition] = useState(0);
   const [opacityScale, setOpacityScale] =
     useState<ContributionOpacityScale>('linear');
   const [minimumOpacityOverride, setMinimumOpacityOverride] = useState<
@@ -95,7 +95,7 @@ export function ContributionText(props: ContributionTextProps) {
   const animationReady = aggregate.status === 'ready';
 
   const setPlaying = (nextPlaying: boolean) => {
-    setAnimatedTokenOffset(0);
+    setAnimatedTokenPosition(0);
     if (props.playing === undefined) setUncontrolledPlaying(nextPlaying);
     props.onPlayingChange?.(nextPlaying);
   };
@@ -105,20 +105,32 @@ export function ContributionText(props: ContributionTextProps) {
       !playing ||
       animationSuppressed ||
       !animationReady ||
-      generatedTokenCount === 0
+      generatedTokenCount === 0 ||
+      focusedToken !== null
     ) {
       return;
     }
     if (pointerInside) return;
 
-    const interval = window.setInterval(() => {
-      setAnimatedTokenOffset((current) => (current + 1) % generatedTokenCount);
-    }, 1000 / 3);
-    return () => window.clearInterval(interval);
+    let frame: number;
+    let previousTime: number | undefined;
+    const animate = (time: number) => {
+      if (previousTime !== undefined) {
+        const elapsedSeconds = Math.min((time - previousTime) / 1000, 0.1);
+        setAnimatedTokenPosition(
+          (current) => (current + elapsedSeconds * 3) % generatedTokenCount,
+        );
+      }
+      previousTime = time;
+      frame = window.requestAnimationFrame(animate);
+    };
+    frame = window.requestAnimationFrame(animate);
+    return () => window.cancelAnimationFrame(frame);
   }, [
     animationReady,
     animationSuppressed,
     generatedTokenCount,
+    focusedToken,
     playing,
     pointerInside,
   ]);
@@ -183,15 +195,29 @@ export function ContributionText(props: ContributionTextProps) {
     );
   }
 
-  const animatedToken =
+  const animationVisible =
     playing &&
     !animationSuppressed &&
     animationReady &&
     !pointerInside &&
+    focusedToken === null &&
+    generatedTokenCount > 0;
+  const animatedTokenOffset = Math.floor(animatedTokenPosition);
+  const nextAnimatedTokenOffset =
     generatedTokenCount > 0
-      ? manifest.promptTokenCount + animatedTokenOffset
-      : null;
-  const activeToken = focusedToken ?? pointerToken ?? animatedToken;
+      ? (animatedTokenOffset + 1) % generatedTokenCount
+      : 0;
+  const animationMix = animatedTokenPosition - animatedTokenOffset;
+  const animatedToken = manifest.promptTokenCount + animatedTokenOffset;
+  const nextAnimatedToken = manifest.promptTokenCount + nextAnimatedTokenOffset;
+  const interactionToken = focusedToken ?? pointerToken;
+  const activeToken =
+    interactionToken ??
+    (animationVisible
+      ? animationMix < 0.5
+        ? animatedToken
+        : nextAnimatedToken
+      : null);
   const row =
     activeToken === null
       ? undefined
@@ -200,6 +226,27 @@ export function ContributionText(props: ContributionTextProps) {
           activeToken,
           aggregate.contributions.targetTokenStart,
         );
+  const currentAnimationRow = animationVisible
+    ? predictionContributionRow(
+        aggregate.contributions.rows,
+        animatedToken,
+        aggregate.contributions.targetTokenStart,
+      )
+    : undefined;
+  const nextAnimationRow = animationVisible
+    ? predictionContributionRow(
+        aggregate.contributions.rows,
+        nextAnimatedToken,
+        aggregate.contributions.targetTokenStart,
+      )
+    : undefined;
+  const rowMaximum = row ? Math.max(...row) : undefined;
+  const currentAnimationMaximum = currentAnimationRow
+    ? Math.max(...currentAnimationRow)
+    : undefined;
+  const nextAnimationMaximum = nextAnimationRow
+    ? Math.max(...nextAnimationRow)
+    : undefined;
 
   const measureTokenRectangles = () => {
     const rectangles = manifest.tokens.map((_, index) =>
@@ -260,30 +307,66 @@ export function ContributionText(props: ContributionTextProps) {
 
       <div
         ref={contributionText}
-        className="contribution-text"
+        className={`contribution-text ${animationVisible ? 'animating-contribution-text' : ''}`}
         aria-label="Prompt and generated text by token"
-        onPointerEnter={() => {
+        onPointerEnter={(event) => {
+          if (event.pointerType !== 'mouse' && event.pointerType !== 'pen') {
+            return;
+          }
           tokenRectangles.current = undefined;
           setPointerInside(true);
         }}
         onPointerMove={handlePointerMove}
-        onPointerLeave={() => {
+        onPointerLeave={(event) => {
+          if (event.pointerType !== 'mouse' && event.pointerType !== 'pen') {
+            return;
+          }
           setPointerInside(false);
           setPointerToken(null);
         }}
       >
         {manifest.tokens.map((token, index) => {
-          const active = activeToken === index;
-          const opacity =
-            activeToken === null || row === undefined || active
-              ? 1
-              : contributionOpacity(
-                  row,
-                  index,
-                  minimumOpacity,
-                  opacityScale,
-                  opacityKnee,
-                );
+          const active = interactionToken === index;
+          const animatedFocus = animationVisible
+            ? (index === animatedToken ? 1 - animationMix : 0) +
+              (index === nextAnimatedToken ? animationMix : 0)
+            : 0;
+          let opacity = 1;
+          if (interactionToken !== null && row !== undefined && !active) {
+            opacity = contributionOpacity(
+              row,
+              index,
+              minimumOpacity,
+              opacityScale,
+              opacityKnee,
+              rowMaximum,
+            );
+          } else if (animationVisible) {
+            const currentOpacity =
+              index === animatedToken || currentAnimationRow === undefined
+                ? 1
+                : contributionOpacity(
+                    currentAnimationRow,
+                    index,
+                    minimumOpacity,
+                    opacityScale,
+                    opacityKnee,
+                    currentAnimationMaximum,
+                  );
+            const nextOpacity =
+              index === nextAnimatedToken || nextAnimationRow === undefined
+                ? 1
+                : contributionOpacity(
+                    nextAnimationRow,
+                    index,
+                    minimumOpacity,
+                    opacityScale,
+                    opacityKnee,
+                    nextAnimationMaximum,
+                  );
+            opacity =
+              currentOpacity + (nextOpacity - currentOpacity) * animationMix;
+          }
           const generated = index >= manifest.promptTokenCount;
           return (
             <span
@@ -291,10 +374,18 @@ export function ContributionText(props: ContributionTextProps) {
                 tokenElements.current[index] = element;
               }}
               key={`${index}-${token.id}`}
-              className={`contribution-text-token ${active ? 'active-contribution-text-token' : ''} ${generated ? 'generated-text-token' : 'prompt-text-token'} ${index === manifest.promptTokenCount ? 'generation-start-token' : ''}`}
-              style={{ '--token-opacity': opacity } as CSSProperties}
+              className={`contribution-text-token ${active ? 'active-contribution-text-token' : ''} ${animatedFocus > 0 ? 'animated-contribution-text-token' : ''} ${generated ? 'generated-text-token' : 'prompt-text-token'} ${index === manifest.promptTokenCount ? 'generation-start-token' : ''}`}
+              style={
+                {
+                  '--token-opacity': opacity,
+                  '--token-focus-percent': `${animatedFocus * 100}%`,
+                } as CSSProperties
+              }
               tabIndex={0}
               aria-label={`Token ${index}, ID ${token.id}, ${JSON.stringify(token.text)}`}
+              onPointerDown={(event) => {
+                if (event.pointerType === 'touch') event.currentTarget.focus();
+              }}
               onFocus={() => setFocusedToken(index)}
               onBlur={() => setFocusedToken(null)}
             >
@@ -323,7 +414,7 @@ export function ContributionText(props: ContributionTextProps) {
             !animationReady ||
             generatedTokenCount === 0
               ? 0
-              : ((animatedTokenOffset + 1) / generatedTokenCount) * 100
+              : (animatedTokenPosition / generatedTokenCount) * 100
           }
           aria-label="Token animation progress"
         />
@@ -341,9 +432,11 @@ export function ContributionText(props: ContributionTextProps) {
         <Text size="xs" c="dimmed" className="hovered-token-detail">
           {activeToken === null
             ? 'Hover or focus a token to reveal its sources.'
-            : activeToken < manifest.promptTokenCount
-              ? 'Prompt-token contribution rows are not stored for this view.'
-              : `Token ${activeToken} uses contributions at position ${activeToken - 1}, summed across all layers.`}
+            : interactionToken === null && animationMix > 0
+              ? `Blending generated tokens ${animatedToken} and ${nextAnimatedToken}, summed across all layers.`
+              : activeToken < manifest.promptTokenCount
+                ? 'Prompt-token contribution rows are not stored for this view.'
+                : `Token ${activeToken} uses contributions at position ${activeToken - 1}, summed across all layers.`}
         </Text>
       </div>
     </Paper>

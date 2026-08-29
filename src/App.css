@@ -266,6 +266,10 @@
     box-shadow 140ms ease;
 }
 
+.animating-contribution-text .contribution-text-token {
+  transition: none;
+}
+
 .active-contribution-text-token,
 .contribution-text-token:focus-visible {
   background: light-dark(
@@ -275,6 +279,22 @@
   box-shadow: 0 0 0 2px
     light-dark(var(--mantine-color-violet-1), var(--mantine-color-violet-9));
   outline: none;
+}
+
+.animated-contribution-text-token {
+  background: color-mix(
+    in srgb,
+    light-dark(var(--mantine-color-violet-1), var(--mantine-color-violet-9))
+      var(--token-focus-percent),
+    transparent
+  );
+  box-shadow: 0 0 0 2px
+    color-mix(
+      in srgb,
+      light-dark(var(--mantine-color-violet-1), var(--mantine-color-violet-9))
+        var(--token-focus-percent),
+      transparent
+    );
 }
 
 .generated-text-token {
