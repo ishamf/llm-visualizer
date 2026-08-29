@@ -12,6 +12,7 @@ import { Link, useNavigate } from 'react-router-dom';
 
 import { getBundledContributionDatasets } from '../data/bundled-contribution-data-source.ts';
 import { getBundledSummedContributionDatasets } from '../data/bundled-summed-contribution-data-source.ts';
+import { getConfiguredPromptTitle } from '../generation/prompts.ts';
 import { VISUALIZATIONS } from '../visualization/registry.ts';
 
 const layeredDatasets = getBundledContributionDatasets();
@@ -96,7 +97,7 @@ export function HomePage() {
               placeholder="Select generated data"
               data={datasets.map(({ id, manifest }) => ({
                 value: id,
-                label: `${manifest.prompt} — ${id}`,
+                label: `${manifest.title ?? getConfiguredPromptTitle(id) ?? manifest.prompt} — ${id}`,
               }))}
               value={datasetId}
               onChange={setDatasetId}

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { selectPromptConfigurations, validatePrompts } from './prompts.ts';
+import {
+  getConfiguredPromptTitle,
+  selectPromptConfigurations,
+  validatePrompts,
+} from './prompts.ts';
 import type { PromptConfiguration } from './types.ts';
 
 describe('prompt validation', () => {
@@ -23,6 +27,7 @@ describe('prompt validation', () => {
   it.each([
     [[{ id: '../unsafe', prompt: 'Hello' }], 'unsafe ID'],
     [[{ id: 'empty', prompt: '  ' }], 'is empty'],
+    [[{ id: 'empty-title', title: '  ', prompt: 'Hello' }], 'empty title'],
     [
       [{ id: 'empty-prefix', prompt: 'Hello', assistantPrefix: '  ' }],
       'empty assistant prefix',
@@ -133,5 +138,12 @@ describe('prompt selection', () => {
     expect(() => selectPromptConfigurations(configurations, 'missing')).toThrow(
       'Unknown dataset ID "missing". Available IDs: first, second',
     );
+  });
+});
+
+describe('prompt titles', () => {
+  it('looks up configured titles without inventing one for unknown prompts', () => {
+    expect(getConfiguredPromptTitle('hello')).toBe('A Friendly Hello');
+    expect(getConfiguredPromptTitle('missing')).toBeUndefined();
   });
 });

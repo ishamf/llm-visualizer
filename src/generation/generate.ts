@@ -221,6 +221,7 @@ function createContributionManifest(
       dtype: modelProfile.dtype,
       instrumentation: modelProfile.instrumentation,
     },
+    ...(prompt.title === undefined ? {} : { title: prompt.title }),
     prompt: prompt.prompt,
     ...(prompt.systemPrompt === undefined
       ? {}

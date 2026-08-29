@@ -25,6 +25,8 @@ export function parseContributionManifest(
     typeof value.model.id !== 'string' ||
     typeof value.model.dtype !== 'string' ||
     typeof value.model.instrumentation !== 'string' ||
+    (value.title !== undefined &&
+      (typeof value.title !== 'string' || value.title.trim().length === 0)) ||
     typeof value.prompt !== 'string' ||
     !Array.isArray(value.tokens) ||
     !isRecord(value.geometry) ||

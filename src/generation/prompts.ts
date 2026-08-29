@@ -15,18 +15,21 @@ import type {
 export const prompts: PromptConfiguration[] = [
   {
     id: 'hello',
+    title: 'A Friendly Hello',
     prompt: 'Say hello.',
     systemPrompt: 'You are a helpful assistant.',
     maxNewTokens: 16,
   },
   {
     id: 'multiplication-place-values',
+    title: 'Multiplication by Place Value',
     prompt: 'Calculate 5726*37',
     assistantPrefix: '5000 * 7 = 35000\n700 * 7 = 4900\n',
     maxNewTokens: 256,
   },
   {
     id: 'fix-average-off-by-one',
+    title: 'Fixing an Average Function',
     systemPrompt:
       'You are a helpful assistant. You should strive to provide a concise answer.',
     prompt: `This JavaScript function should calculate the average of its input, but it crashes with ReferenceError: array is not defined instead. Why did it happen? Can you fix it?
@@ -44,6 +47,60 @@ console.log(arrayAverage([2, 4, 6]));
 `,
     assistantPrefix: `The bug is a simple naming mismatch: the function parameter is called numbers, but the body references array`,
     maxNewTokens: 1000,
+    contributionFormats: ['summed'],
+  },
+  {
+    id: 'extract-contact',
+    title: 'Finding Contact Details',
+    prompt: `Can you pull out Maya's job title, company, and email address from this message?
+
+We had a productive planning session yesterday. The team discussed the new dashboard, reviewed some early sketches, and agreed to meet again next week. Maya Chen led the design portion of the meeting. She recently joined Northstar Labs as a product designer and will prepare the next set of mockups. The engineering team will send her their feedback before Friday. If you need to share additional comments with Maya, her email address is maya.chen@example.com. The next meeting will take place in the upstairs conference room.`,
+    maxNewTokens: 64,
+    contributionFormats: ['summed'],
+  },
+  {
+    id: 'extract-event',
+    title: 'Finding Event Details',
+    prompt: `What are the date, time, and location of the engineering meetup?
+
+Several activities are planned at the community center next month. The photography club meets on Mondays, and a book exchange will run throughout the first week. The monthly engineering meetup is scheduled for September 12. It will begin at 6:30 PM in Room 204. Attendees are welcome to bring a laptop, although one is not required. Drinks will be available near the entrance, and the organizers recommend arriving a few minutes early.`,
+    maxNewTokens: 64,
+    contributionFormats: ['summed'],
+  },
+  {
+    id: 'extract-order',
+    title: 'Finding Order Details',
+    prompt: `Can you find the order number, ordered product, quantity, and delivery date in this update?
+
+Thanks for visiting our store last weekend. We have finished processing your purchase, and no further payment is required. Order A-1842 contains three blue desk lamps from the Harbor collection. The matching bulbs were purchased separately and are already available for pickup. The lamps are scheduled for delivery on October 5. Our driver will send a message before arriving. Packaging can be returned to the store for recycling.`,
+    maxNewTokens: 64,
+    contributionFormats: ['summed'],
+  },
+  {
+    id: 'summarize-library-notice',
+    title: 'Library Closure Summary',
+    prompt: `Please summarize this notice in one sentence:
+
+The city library is preparing for its annual autumn reading program, and registration forms are available beside the main desk. This Friday, the building will close at 5 PM so electricians can perform scheduled maintenance. It will reopen at 9 AM on Saturday. The book-return slot outside the entrance will remain open while the building is closed, and online services such as ebook borrowing and account renewals will continue to work. Saturday's children's story session will take place at its usual time. Visitors with questions can speak to a librarian before Friday afternoon.`,
+    maxNewTokens: 64,
+    contributionFormats: ['summed'],
+  },
+  {
+    id: 'summarize-office-move',
+    title: 'Office Move Summary',
+    prompt: `Can you briefly summarize the main points of this announcement?
+
+The Riverside team has worked from its current building for nearly six years, and many employees helped choose the furniture for the new space. Next month, the office is moving to 18 King Street. Employees should work from home on November 2 and 3 while computers and other equipment are transferred. The new office will open on November 4. Existing employee access cards will work at the new entrance, and all company phone numbers will stay the same. The kitchen will not have a coffee machine during the first week, but several cafes are located nearby.`,
+    maxNewTokens: 96,
+    contributionFormats: ['summed'],
+  },
+  {
+    id: 'summarize-customer-message',
+    title: 'Customer Support Summary',
+    prompt: `Briefly summarize the customer's problem and what they want:
+
+I have been using the monthly plan since January and normally receive a single receipt on the first day of each month. This morning I noticed that my card was charged twice for invoice 7812. Both payments have completed, rather than appearing as pending transactions. I still use the service every day and do not want my account closed or my current subscription changed. Please refund the duplicate payment but leave the subscription active. I have kept copies of both card notifications in case you need them.`,
+    maxNewTokens: 64,
     contributionFormats: ['summed'],
   },
 ];
@@ -83,6 +140,12 @@ export function validatePrompts(
 
     if (configuration.prompt.trim().length === 0) {
       throw new Error(`Prompt ${configuration.id} is empty`);
+    }
+    if (
+      configuration.title !== undefined &&
+      configuration.title.trim().length === 0
+    ) {
+      throw new Error(`Prompt ${configuration.id} has an empty title`);
     }
     if (
       configuration.systemPrompt !== undefined &&
@@ -196,4 +259,8 @@ export function selectPromptConfigurations(
     );
   }
   return [selected];
+}
+
+export function getConfiguredPromptTitle(id: string) {
+  return prompts.find((configuration) => configuration.id === id)?.title;
 }

@@ -125,6 +125,7 @@ describe('summed contribution collection', () => {
     };
     const prompt: ValidatedPromptConfiguration = {
       id: 'stream',
+      title: 'Streaming Example',
       prompt: 'Prompt',
       maxNewTokens: 1,
       contributionFormats: ['summed'],
@@ -166,6 +167,7 @@ describe('summed contribution collection', () => {
     expect(streamEvents).toEqual(['prompt', 'row:0', 'token']);
     expect(yieldControl).toHaveBeenCalledOnce();
     expect(dataset.manifest.generatedText).toBe(' answer');
+    expect(dataset.manifest.title).toBe('Streaming Example');
     expect(dataset.manifest.model).toEqual({
       id: 'Qwen3-1.7B-ONNX',
       dtype: 'int8',

@@ -46,6 +46,7 @@ export type ContributionFormat = 'layered' | 'summed';
 
 export type PromptConfiguration = {
   id: string;
+  title?: string;
   prompt: string;
   systemPrompt?: string;
   assistantPrefix?: string;
@@ -92,6 +93,7 @@ export type ContributionManifest = {
     dtype: string;
     instrumentation: string;
   };
+  title?: string;
   prompt: string;
   systemPrompt?: string;
   assistantPrefix?: string;

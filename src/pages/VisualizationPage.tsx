@@ -20,6 +20,7 @@ import {
   getBundledSummedContributionDatasets,
 } from '../data/bundled-summed-contribution-data-source.ts';
 import { LayerSummingContributionDataSource } from '../data/summed-contribution-data-source.ts';
+import { getConfiguredPromptTitle } from '../generation/prompts.ts';
 import { ContributionGrid } from '../visualization/ContributionGrid.tsx';
 import { ContributionText } from '../visualization/ContributionText.tsx';
 import { getVisualization } from '../visualization/registry.ts';
@@ -117,7 +118,9 @@ export function VisualizationPage() {
             Generated data
           </Text>
           <Text size="sm" fw={600}>
-            {dataset.manifest.prompt}
+            {dataset.manifest.title ??
+              getConfiguredPromptTitle(dataset.id) ??
+              dataset.manifest.prompt}
           </Text>
         </Paper>
 

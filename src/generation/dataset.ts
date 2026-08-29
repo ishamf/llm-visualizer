@@ -29,6 +29,9 @@ export function validateContributionManifest(manifest: ContributionManifest) {
   ) {
     throw new Error('Manifest model metadata is incomplete');
   }
+  if (manifest.title !== undefined && manifest.title.trim().length === 0) {
+    throw new Error('Manifest title must not be empty');
+  }
   if (!Number.isInteger(manifest.promptTokenCount)) {
     throw new Error('Manifest promptTokenCount must be an integer');
   }

@@ -81,6 +81,19 @@ describe('contribution data sources', () => {
     ).toThrow('not causal');
   });
 
+  it('accepts an optional non-empty manifest title', () => {
+    const value = dataset();
+    const titled = {
+      ...value.manifest,
+      title: 'Example dataset',
+    };
+
+    expect(parseContributionManifest(titled).title).toBe('Example dataset');
+    expect(() =>
+      parseContributionManifest({ ...value.manifest, title: '  ' }),
+    ).toThrow('unsupported shape');
+  });
+
   it('adapts layered data to the summed-data contract', async () => {
     const value = dataset();
     const source = new LayerSummingContributionDataSource(
