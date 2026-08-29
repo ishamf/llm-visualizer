@@ -1,4 +1,12 @@
-import { Alert, Loader, NumberInput, Paper, Select, Text } from '@mantine/core';
+import {
+  Alert,
+  Loader,
+  NumberInput,
+  Paper,
+  Select,
+  Text,
+  useComputedColorScheme,
+} from '@mantine/core';
 import {
   useEffect,
   useRef,
@@ -14,6 +22,8 @@ import { usePortalTarget } from '../web-component/portal-target-context.ts';
 import {
   contributionOpacity,
   type ContributionOpacityScale,
+  LIGHT_MINIMUM_TOKEN_OPACITY,
+  LIGHT_OPACITY_KNEE,
   MINIMUM_TOKEN_OPACITY,
   nearestTokenIndex,
   predictionContributionRow,
@@ -35,6 +45,7 @@ type ContributionTextProps = {
 
 export function ContributionText(props: ContributionTextProps) {
   const portalTarget = usePortalTarget();
+  const colorScheme = useComputedColorScheme('light');
   const { manifest } = props;
   const source = 'source' in props ? props.source : undefined;
   const contributions =
@@ -50,7 +61,18 @@ export function ContributionText(props: ContributionTextProps) {
   const [focusedToken, setFocusedToken] = useState<number | null>(null);
   const [opacityScale, setOpacityScale] =
     useState<ContributionOpacityScale>('linear');
-  const [minimumOpacity, setMinimumOpacity] = useState(MINIMUM_TOKEN_OPACITY);
+  const [minimumOpacityOverride, setMinimumOpacityOverride] = useState<
+    number | undefined
+  >();
+  const defaultMinimumOpacity =
+    colorScheme === 'light'
+      ? LIGHT_MINIMUM_TOKEN_OPACITY
+      : MINIMUM_TOKEN_OPACITY;
+  const minimumOpacity = minimumOpacityOverride ?? defaultMinimumOpacity;
+  const opacityKnee =
+    colorScheme === 'light' && minimumOpacityOverride === undefined
+      ? LIGHT_OPACITY_KNEE
+      : undefined;
   const contributionText = useRef<HTMLDivElement>(null);
   const tokenElements = useRef<Array<HTMLSpanElement | null>>([]);
   const tokenRectangles = useRef<
@@ -170,7 +192,7 @@ export function ContributionText(props: ContributionTextProps) {
             description="Visibility of tokens with no contribution"
             value={minimumOpacity}
             onChange={(value) =>
-              setMinimumOpacity(
+              setMinimumOpacityOverride(
                 typeof value === 'number'
                   ? Math.min(0.9, Math.max(0, value))
                   : 0,
@@ -199,7 +221,13 @@ export function ContributionText(props: ContributionTextProps) {
           const opacity =
             activeToken === null || row === undefined || active
               ? 1
-              : contributionOpacity(row, index, minimumOpacity, opacityScale);
+              : contributionOpacity(
+                  row,
+                  index,
+                  minimumOpacity,
+                  opacityScale,
+                  opacityKnee,
+                );
           const generated = index >= manifest.promptTokenCount;
           return (
             <span

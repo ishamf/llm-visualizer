@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   contributionOpacity,
+  LIGHT_MINIMUM_TOKEN_OPACITY,
+  LIGHT_OPACITY_KNEE,
   nearestTokenIndex,
   predictionContributionRow,
   sumLayerContributions,
@@ -97,6 +99,24 @@ describe('summed text contributions', () => {
 
   it('uses the floor for an all-zero row', () => {
     expect(contributionOpacity([0, 0], 0, 0.2)).toBe(0.2);
+  });
+
+  it('uses a steeper first tenth for the light-mode curve', () => {
+    const row = [0, 0.5, 1, 5.5, 10];
+    const opacity = (source: number) =>
+      contributionOpacity(
+        row,
+        source,
+        LIGHT_MINIMUM_TOKEN_OPACITY,
+        'linear',
+        LIGHT_OPACITY_KNEE,
+      );
+
+    expect(opacity(0)).toBe(0.1);
+    expect(opacity(1)).toBeCloseTo(0.175);
+    expect(opacity(2)).toBe(0.25);
+    expect(opacity(3)).toBeCloseTo(0.625);
+    expect(opacity(4)).toBe(1);
   });
 
   it('rejects malformed layer geometry', () => {

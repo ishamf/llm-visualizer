@@ -1,7 +1,16 @@
 import type { ContributionLayer } from '../generation/types.ts';
 
 export const MINIMUM_TOKEN_OPACITY = 0.15;
+export const LIGHT_MINIMUM_TOKEN_OPACITY = 0.1;
+export const LIGHT_OPACITY_KNEE = {
+  strength: 0.1,
+  opacity: 0.25,
+} as const;
 export type ContributionOpacityScale = 'linear' | 'logarithmic';
+export type ContributionOpacityKnee = {
+  strength: number;
+  opacity: number;
+};
 
 export type TokenRectangle = Pick<DOMRect, 'bottom' | 'left' | 'right' | 'top'>;
 
@@ -87,6 +96,7 @@ export function contributionOpacity(
   source: number,
   minimum = MINIMUM_TOKEN_OPACITY,
   scale: ContributionOpacityScale = 'linear',
+  knee?: ContributionOpacityKnee,
 ): number {
   if (!row || source >= row.length) return minimum;
   const maximum = Math.max(...row);
@@ -94,5 +104,17 @@ export function contributionOpacity(
   const ratio = row[source] / maximum;
   const strength =
     scale === 'logarithmic' ? Math.log1p(9 * ratio) / Math.log(10) : ratio;
+
+  if (knee) {
+    if (strength <= knee.strength) {
+      return minimum + (knee.opacity - minimum) * (strength / knee.strength);
+    }
+
+    return (
+      knee.opacity +
+      (1 - knee.opacity) * ((strength - knee.strength) / (1 - knee.strength))
+    );
+  }
+
   return minimum + (1 - minimum) * strength;
 }
