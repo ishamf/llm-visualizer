@@ -1,121 +1,234 @@
 import {
   Button,
   Container,
+  Group,
   Paper,
-  Select,
-  Stack,
   Text,
   Title,
+  UnstyledButton,
 } from '@mantine/core';
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useCallback, useMemo, useReducer, useState } from 'react';
+import { Link } from 'react-router-dom';
 
-import { getBundledContributionDatasets } from '../data/bundled-contribution-data-source.ts';
-import { getBundledSummedContributionDatasets } from '../data/bundled-summed-contribution-data-source.ts';
+import {
+  BundledSummedContributionDataSource,
+  getBundledSummedContributionDatasets,
+} from '../data/bundled-summed-contribution-data-source.ts';
 import { getConfiguredPromptTitle } from '../generation/prompts.ts';
-import { VISUALIZATIONS } from '../visualization/registry.ts';
+import { ContributionText } from '../visualization/ContributionText.tsx';
+import {
+  BrowserGenerationPanel,
+  type GenerationResult,
+} from './GenerationPage.tsx';
+import {
+  homepageGenerationReducer,
+  INITIAL_HOMEPAGE_GENERATION_STATE,
+  selectDefaultPromptId,
+} from './homepage-state.ts';
 
-const layeredDatasets = getBundledContributionDatasets();
-const summedDatasets = getBundledSummedContributionDatasets();
-
-function datasetsForVisualization(visualizationId: string | null) {
-  const visualization = VISUALIZATIONS.find(
-    (candidate) => candidate.id === visualizationId,
-  );
-  if (visualization?.preferredFormat === 'layered') return layeredDatasets;
-
-  const summedIds = new Set(summedDatasets.map(({ id }) => id));
-  return [
-    ...summedDatasets,
-    ...layeredDatasets.filter(({ id }) => !summedIds.has(id)),
-  ];
-}
+const datasets = getBundledSummedContributionDatasets();
 
 export function HomePage() {
-  const navigate = useNavigate();
-  const [visualizationId, setVisualizationId] = useState<string | null>(
-    VISUALIZATIONS[0]?.id ?? null,
+  const [datasetId, setDatasetId] = useState(() =>
+    selectDefaultPromptId(datasets.map(({ id }) => id)),
   );
-  const datasets = datasetsForVisualization(visualizationId);
-  const [datasetId, setDatasetId] = useState<string | null>(
-    datasetsForVisualization(VISUALIZATIONS[0]?.id ?? null)[0]?.id ?? null,
+  const [generationState, dispatchGeneration] = useReducer(
+    homepageGenerationReducer,
+    INITIAL_HOMEPAGE_GENERATION_STATE,
   );
-  const selectedVisualization = VISUALIZATIONS.find(
-    (visualization) => visualization.id === visualizationId,
+  const [generationResult, setGenerationResult] = useState<GenerationResult>();
+  const customGenerationActive = generationState.mode === 'custom';
+  const selectedDataset = datasets.find(({ id }) => id === datasetId);
+  const selectedSource = useMemo(
+    () =>
+      selectedDataset
+        ? new BundledSummedContributionDataSource(selectedDataset.id)
+        : undefined,
+    [selectedDataset],
   );
-  const selectedDataset = datasets.find((dataset) => dataset.id === datasetId);
 
-  const viewVisualization = () => {
-    if (!visualizationId || !datasetId) return;
-    navigate(
-      `/visualizations/${encodeURIComponent(visualizationId)}/${encodeURIComponent(datasetId)}`,
-    );
-  };
-
-  const selectVisualization = (value: string | null) => {
-    setVisualizationId(value);
-    const compatibleDatasets = datasetsForVisualization(value);
-    if (!compatibleDatasets.some(({ id }) => id === datasetId)) {
-      setDatasetId(compatibleDatasets[0]?.id ?? null);
-    }
+  const handleGenerationStarted = useCallback(() => {
+    dispatchGeneration({ type: 'start' });
+  }, []);
+  const handleResultChange = useCallback(
+    (result: GenerationResult | undefined) => setGenerationResult(result),
+    [],
+  );
+  const clearGeneration = () => {
+    setGenerationResult(undefined);
+    dispatchGeneration({ type: 'clear' });
   };
 
   return (
-    <main className="app-shell home-shell">
-      <Container size="sm" className="home-container">
-        <header className="home-header">
-          <Text className="eyebrow">LLM Visualizer</Text>
-          <Title order={1}>Choose what to explore</Title>
-          <Text c="dimmed" maw={620}>
-            Pair a visualization with one of the generated model runs bundled
-            into this build.
-          </Text>
+    <main className="app-shell homepage-shell">
+      <Container size="xl" className="homepage-container">
+        <header className="homepage-header">
+          <div>
+            <Text className="eyebrow">LLM Visualizer</Text>
+            <Title order={1}>See what shaped each token</Title>
+            <Text c="dimmed" maw={720}>
+              Explore how earlier words contributed to a model response, or
+              generate a new response privately in your browser.
+            </Text>
+          </div>
+          {import.meta.env.DEV && (
+            <Button
+              component={Link}
+              to="/dev/visualizations"
+              variant="subtle"
+              size="compact-sm"
+            >
+              View other visualizations
+            </Button>
+          )}
         </header>
 
-        <Paper className="selector-card" withBorder radius="lg" p="xl">
-          <Stack gap="lg">
-            <Select
-              label="Visualization"
-              description={selectedVisualization?.description}
-              placeholder="Select a visualization"
-              data={VISUALIZATIONS.map(({ id, label }) => ({
-                value: id,
-                label,
-              }))}
-              value={visualizationId}
-              onChange={selectVisualization}
-              allowDeselect={false}
-            />
-
-            <Select
-              label="Generated data"
-              description={
-                selectedDataset
-                  ? `${selectedDataset.manifest.model.id} · ${selectedDataset.manifest.tokens.length} tokens · ${selectedDataset.manifest.geometry.layers} layers`
-                  : 'Select a generated model run'
-              }
-              placeholder="Select generated data"
-              data={datasets.map(({ id, manifest }) => ({
-                value: id,
-                label: `${manifest.title ?? getConfiguredPromptTitle(id) ?? manifest.prompt} — ${id}`,
-              }))}
-              value={datasetId}
-              onChange={setDatasetId}
-              allowDeselect={false}
-            />
-
-            <Button
-              size="md"
-              disabled={!visualizationId || !datasetId}
-              onClick={viewVisualization}
+        <div
+          className={`homepage-controls ${customGenerationActive ? 'custom-generation-active' : ''}`}
+        >
+          {!customGenerationActive && (
+            <section
+              className="prompt-picker"
+              aria-labelledby="prompt-picker-title"
             >
-              View
-            </Button>
-            <Button component={Link} to="/generate" variant="light" size="md">
-              Generate from a prompt
-            </Button>
-          </Stack>
-        </Paper>
+              <div>
+                <Text className="eyebrow">Pre-generated examples</Text>
+                <Title order={2} id="prompt-picker-title">
+                  Pick a prompt
+                </Title>
+                <Text c="dimmed" size="sm">
+                  These examples are ready immediately.
+                </Text>
+              </div>
+              <div className="prompt-list" role="list">
+                {datasets.map(({ id, manifest }) => {
+                  const selected = id === datasetId;
+                  const generatedTokens =
+                    manifest.tokens.length - manifest.promptTokenCount;
+                  return (
+                    <UnstyledButton
+                      key={id}
+                      className={`prompt-option ${selected ? 'selected-prompt-option' : ''}`}
+                      role="listitem"
+                      aria-pressed={selected}
+                      onClick={() => setDatasetId(id)}
+                    >
+                      <Text fw={650} size="sm">
+                        {manifest.title ??
+                          getConfiguredPromptTitle(id) ??
+                          manifest.prompt}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {generatedTokens} generated token
+                        {generatedTokens === 1 ? '' : 's'}
+                      </Text>
+                    </UnstyledButton>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          <div className="generation-column">
+            {customGenerationActive && (
+              <Paper
+                className="clear-generation-note"
+                withBorder
+                radius="md"
+                p="md"
+              >
+                <Group
+                  className="clear-generation-content"
+                  justify="space-between"
+                  align="center"
+                  gap="md"
+                >
+                  <Text size="sm">
+                    Your generated contribution data is active. Clearing it will
+                    discard this run.
+                  </Text>
+                  <Button color="red" variant="light" onClick={clearGeneration}>
+                    Clear and use a pre-generated prompt
+                  </Button>
+                </Group>
+              </Paper>
+            )}
+            <BrowserGenerationPanel
+              key={generationState.session}
+              onGenerationStarted={handleGenerationStarted}
+              onResultChange={handleResultChange}
+            />
+          </div>
+        </div>
+
+        <section className="homepage-visualization" aria-live="polite">
+          <header className="generation-result-header">
+            <div>
+              <Text className="eyebrow">
+                {customGenerationActive
+                  ? 'Live contribution text'
+                  : 'Pre-generated contribution text'}
+              </Text>
+              <Title order={2}>What the model used</Title>
+            </div>
+            <Text size="sm" c="dimmed">
+              {generationResult && customGenerationActive
+                ? `${generationResult.manifest.tokens.length - generationResult.manifest.promptTokenCount} generated tokens · summed across ${generationResult.manifest.geometry.layers} layers`
+                : selectedDataset
+                  ? `${selectedDataset.manifest.model.id} · ${selectedDataset.manifest.geometry.layers} layers`
+                  : ''}
+            </Text>
+          </header>
+
+          {customGenerationActive ? (
+            generationResult ? (
+              <ContributionText
+                manifest={generationResult.manifest}
+                contributions={generationResult.contributions}
+              />
+            ) : (
+              <Paper
+                className="text-visualization-state"
+                withBorder
+                radius="lg"
+                p="xl"
+              >
+                <Text size="sm" c="dimmed">
+                  The live visualization will appear when the prompt is ready.
+                </Text>
+              </Paper>
+            )
+          ) : selectedDataset && selectedSource ? (
+            <>
+              <Paper className="dataset-note" radius="md" p="sm">
+                <Text size="xs" c="dimmed">
+                  Selected prompt
+                </Text>
+                <Text size="sm" fw={600}>
+                  {selectedDataset.manifest.title ??
+                    getConfiguredPromptTitle(selectedDataset.id) ??
+                    selectedDataset.manifest.prompt}
+                </Text>
+              </Paper>
+              <ContributionText
+                key={selectedDataset.id}
+                source={selectedSource}
+                manifest={selectedDataset.manifest}
+              />
+            </>
+          ) : (
+            <Paper
+              className="text-visualization-state"
+              withBorder
+              radius="lg"
+              p="xl"
+            >
+              <Text size="sm" c="dimmed">
+                No pre-generated prompts are available in this build.
+              </Text>
+            </Paper>
+          )}
+        </section>
       </Container>
     </main>
   );

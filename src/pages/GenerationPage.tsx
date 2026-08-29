@@ -3,7 +3,6 @@ import {
   Badge,
   Button,
   Collapse,
-  Container,
   Group,
   NumberInput,
   Paper,
@@ -15,7 +14,7 @@ import {
   Title,
 } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 
 import {
   BROWSER_MODEL_WEIGHTS_PATH,
@@ -32,7 +31,6 @@ import type {
   BrowserGenerationResponse,
 } from '../generation/browser-generation-protocol.ts';
 import { DEFAULT_SYSTEM_PROMPT } from '../generation/prompts.ts';
-import { ContributionText } from '../visualization/ContributionText.tsx';
 import type {
   ContributionManifest,
   SummedContributions,
@@ -54,9 +52,14 @@ type ModelProgress = {
   file?: string;
 };
 
-type GenerationResult = {
+export type GenerationResult = {
   manifest: ContributionManifest;
   contributions: SummedContributions;
+};
+
+type BrowserGenerationPanelProps = {
+  onGenerationStarted: () => void;
+  onResultChange: (result: GenerationResult | undefined) => void;
 };
 
 const DEFAULT_MAX_NEW_TOKENS = 128;
@@ -77,8 +80,12 @@ function formatBytes(bytes: number | undefined) {
   return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
-export function GenerationPage() {
+export function BrowserGenerationPanel({
+  onGenerationStarted,
+  onResultChange,
+}: BrowserGenerationPanelProps) {
   const workerRef = useRef<Worker | null>(null);
+  const resultRef = useRef<GenerationResult | undefined>(undefined);
   const [prompt, setPrompt] = useState('');
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
   const [assistantPrefix, setAssistantPrefix] = useState('');
@@ -134,6 +141,12 @@ export function GenerationPage() {
       ? Math.min(100, (generatedTokenCount / maxNewTokens) * 100)
       : Math.min(100, Math.max(0, modelProgress.progress ?? 0));
 
+  const publishResult = (next: GenerationResult | undefined) => {
+    resultRef.current = next;
+    setResult(next);
+    onResultChange(next);
+  };
+
   const handleWorkerResponse = (
     worker: Worker,
     response: BrowserGenerationResponse,
@@ -156,28 +169,27 @@ export function GenerationPage() {
         }));
         break;
       case 'prompt-ready':
-        setResult({
+        publishResult({
           manifest: response.manifest,
           contributions: response.contributions,
         });
         break;
-      case 'generation-step':
-        setResult((current) => {
-          if (!current) return current;
-          const rows = [...current.contributions.rows];
-          rows[response.rowIndex] = response.row;
-          return {
-            manifest: {
-              ...current.manifest,
-              generatedText: response.generatedText,
-              tokens: [...current.manifest.tokens, response.token],
-            },
-            contributions: { ...current.contributions, rows },
-          };
+      case 'generation-step': {
+        if (!resultRef.current) break;
+        const rows = [...resultRef.current.contributions.rows];
+        rows[response.rowIndex] = response.row;
+        publishResult({
+          manifest: {
+            ...resultRef.current.manifest,
+            generatedText: response.generatedText,
+            tokens: [...resultRef.current.manifest.tokens, response.token],
+          },
+          contributions: { ...resultRef.current.contributions, rows },
         });
         break;
+      }
       case 'complete':
-        setResult({
+        publishResult({
           manifest: response.manifest,
           contributions: response.contributions,
         });
@@ -191,6 +203,7 @@ export function GenerationPage() {
 
   const startGeneration = () => {
     if (!canSubmit) return;
+    onGenerationStarted();
     let worker = workerRef.current;
     if (!worker) {
       const createdWorker = new Worker(
@@ -211,7 +224,7 @@ export function GenerationPage() {
     }
     setStatus('loading-model');
     setError(undefined);
-    setResult(undefined);
+    publishResult(undefined);
     setModelProgress({});
 
     const values: BrowserGenerationPrompt = {
@@ -238,303 +251,271 @@ export function GenerationPage() {
   };
 
   return (
-    <main className="app-shell">
-      <Container size="xl" className="page-container generation-page">
-        <Button
-          component={Link}
-          to="/"
-          variant="subtle"
-          size="compact-sm"
-          className="back-link"
+    <section className="browser-generation" aria-labelledby="generate-title">
+      <header className="browser-generation-header">
+        <div>
+          <Text className="eyebrow">Or try your own prompt</Text>
+          <Title order={2} id="generate-title">
+            Generate in your browser
+          </Title>
+          <Text c="dimmed" size="sm">
+            Nothing is sent to a server.
+          </Text>
+        </div>
+        <Badge variant="outline">Qwen3 0.6B · INT8</Badge>
+      </header>
+
+      {modelCached === false && (
+        <Alert
+          className="model-download-note"
+          color="violet"
+          title="First run downloads the model"
         >
-          ← Back to visualizations
-        </Button>
+          Starting generation automatically downloads the instrumented model
+          (about {formatBytes(BROWSER_MODEL_SIZE_BYTES)}) into this browser’s
+          cache. The download happens only once per browser cache.
+        </Alert>
+      )}
 
-        <header className="page-header generation-header">
-          <div>
-            <Text className="eyebrow">In-browser generation</Text>
-            <Title order={1}>See a model think in tokens</Title>
-            <Text c="dimmed" maw={720}>
-              Run an arbitrary prompt through the instrumented Qwen3 model and
-              watch each generated token reveal its summed causal sources.
-            </Text>
-          </div>
-          <Badge variant="outline">Qwen3 0.6B · INT8 · CPU</Badge>
-        </header>
-
-        {modelCached === false && (
-          <Alert
-            className="model-download-note"
-            color="violet"
-            title="First run downloads the model"
-          >
-            Starting generation automatically downloads the instrumented model
-            (about {formatBytes(BROWSER_MODEL_SIZE_BYTES)}) into this browser’s
-            cache. The download happens only once per browser cache.
-          </Alert>
-        )}
-
-        <Paper
-          className="selector-card generation-form"
-          withBorder
-          radius="lg"
-          p="xl"
+      <Paper
+        className="selector-card generation-form"
+        withBorder
+        radius="lg"
+        p="xl"
+      >
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            startGeneration();
+          }}
         >
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              startGeneration();
-            }}
-          >
-            <Stack gap="lg">
-              <Textarea
-                label="Prompt"
-                description="Ask the local model anything. Nothing is sent to a server."
-                placeholder="Explain why the sky appears blue."
-                value={prompt}
-                onChange={(event) => setPrompt(event.currentTarget.value)}
-                minRows={5}
-                autosize
-                maxRows={12}
-                required
-              />
+          <Stack gap="lg">
+            <Textarea
+              label="Prompt"
+              description="Ask the local model anything. Nothing is sent to a server."
+              placeholder="Explain why the sky appears blue."
+              value={prompt}
+              onChange={(event) => setPrompt(event.currentTarget.value)}
+              minRows={5}
+              autosize
+              maxRows={12}
+              required
+            />
 
-              <Button
-                type="button"
-                variant="subtle"
-                className="advanced-options-toggle"
-                onClick={() => setAdvancedOpen((open) => !open)}
-                aria-expanded={advancedOpen}
-              >
-                {advancedOpen
-                  ? '⌃ Hide advanced options'
-                  : '⌄ Advanced options'}
-              </Button>
+            <Button
+              type="button"
+              variant="subtle"
+              className="advanced-options-toggle"
+              onClick={() => setAdvancedOpen((open) => !open)}
+              aria-expanded={advancedOpen}
+            >
+              {advancedOpen ? '⌃ Hide advanced options' : '⌄ Advanced options'}
+            </Button>
 
-              <Collapse expanded={advancedOpen}>
-                <div className="generation-advanced-options">
-                  <Textarea
-                    label="System prompt"
-                    placeholder="You are a helpful assistant."
-                    value={systemPrompt}
-                    onChange={(event) =>
-                      setSystemPrompt(event.currentTarget.value)
-                    }
-                    minRows={2}
-                  />
-                  <Textarea
-                    label="Assistant prefix"
-                    description="Optional text to place immediately before generation."
-                    value={assistantPrefix}
-                    onChange={(event) =>
-                      setAssistantPrefix(event.currentTarget.value)
-                    }
-                    minRows={2}
-                  />
-                  <div className="generation-number-grid">
-                    <NumberInput
-                      label="Max new tokens"
-                      value={maxNewTokens}
-                      onChange={(value) =>
-                        setMaxNewTokens(
-                          Math.min(
-                            MAX_GENERATED_TOKENS,
-                            Math.max(
-                              1,
-                              Math.round(
-                                numberValue(value, DEFAULT_MAX_NEW_TOKENS),
-                              ),
-                            ),
-                          ),
-                        )
-                      }
-                      min={1}
-                      max={MAX_GENERATED_TOKENS}
-                      step={1}
-                    />
-                    <NumberInput
-                      label="Temperature"
-                      value={temperature}
-                      onChange={(value) =>
-                        setTemperature(
-                          Math.min(
-                            2,
-                            Math.max(
-                              0.01,
-                              numberValue(value, GENERATION_TEMPERATURE),
-                            ),
-                          ),
-                        )
-                      }
-                      min={0.01}
-                      max={2}
-                      step={0.05}
-                      decimalScale={2}
-                    />
-                    <NumberInput
-                      label="Top K"
-                      value={topK}
-                      onChange={(value) =>
-                        setTopK(
+            <Collapse expanded={advancedOpen}>
+              <div className="generation-advanced-options">
+                <Textarea
+                  label="System prompt"
+                  placeholder="You are a helpful assistant."
+                  value={systemPrompt}
+                  onChange={(event) =>
+                    setSystemPrompt(event.currentTarget.value)
+                  }
+                  minRows={2}
+                />
+                <Textarea
+                  label="Assistant prefix"
+                  description="Optional text to place immediately before generation."
+                  value={assistantPrefix}
+                  onChange={(event) =>
+                    setAssistantPrefix(event.currentTarget.value)
+                  }
+                  minRows={2}
+                />
+                <div className="generation-number-grid">
+                  <NumberInput
+                    label="Max new tokens"
+                    value={maxNewTokens}
+                    onChange={(value) =>
+                      setMaxNewTokens(
+                        Math.min(
+                          MAX_GENERATED_TOKENS,
                           Math.max(
                             1,
-                            Math.round(numberValue(value, GENERATION_TOP_K)),
-                          ),
-                        )
-                      }
-                      min={1}
-                      step={1}
-                    />
-                    <NumberInput
-                      label="Top P"
-                      value={topP}
-                      onChange={(value) =>
-                        setTopP(
-                          Math.min(
-                            1,
-                            Math.max(
-                              0.01,
-                              numberValue(value, GENERATION_TOP_P),
-                            ),
-                          ),
-                        )
-                      }
-                      min={0.01}
-                      max={1}
-                      step={0.05}
-                      decimalScale={2}
-                    />
-                    <NumberInput
-                      label="Seed"
-                      value={seed}
-                      onChange={(value) =>
-                        setSeed(
-                          Math.max(
-                            0,
                             Math.round(
-                              numberValue(value, DEFAULT_GENERATION_SEED),
+                              numberValue(value, DEFAULT_MAX_NEW_TOKENS),
                             ),
                           ),
-                        )
-                      }
-                      min={0}
-                      step={1}
-                    />
-                  </div>
-                  <Switch
-                    label="Enable thinking"
-                    description="Include Qwen3's reasoning phase in the generated stream."
-                    checked={enableThinking}
-                    onChange={(event) =>
-                      setEnableThinking(event.currentTarget.checked)
+                        ),
+                      )
                     }
+                    min={1}
+                    max={MAX_GENERATED_TOKENS}
+                    step={1}
+                  />
+                  <NumberInput
+                    label="Temperature"
+                    value={temperature}
+                    onChange={(value) =>
+                      setTemperature(
+                        Math.min(
+                          2,
+                          Math.max(
+                            0.01,
+                            numberValue(value, GENERATION_TEMPERATURE),
+                          ),
+                        ),
+                      )
+                    }
+                    min={0.01}
+                    max={2}
+                    step={0.05}
+                    decimalScale={2}
+                  />
+                  <NumberInput
+                    label="Top K"
+                    value={topK}
+                    onChange={(value) =>
+                      setTopK(
+                        Math.max(
+                          1,
+                          Math.round(numberValue(value, GENERATION_TOP_K)),
+                        ),
+                      )
+                    }
+                    min={1}
+                    step={1}
+                  />
+                  <NumberInput
+                    label="Top P"
+                    value={topP}
+                    onChange={(value) =>
+                      setTopP(
+                        Math.min(
+                          1,
+                          Math.max(0.01, numberValue(value, GENERATION_TOP_P)),
+                        ),
+                      )
+                    }
+                    min={0.01}
+                    max={1}
+                    step={0.05}
+                    decimalScale={2}
+                  />
+                  <NumberInput
+                    label="Seed"
+                    value={seed}
+                    onChange={(value) =>
+                      setSeed(
+                        Math.max(
+                          0,
+                          Math.round(
+                            numberValue(value, DEFAULT_GENERATION_SEED),
+                          ),
+                        ),
+                      )
+                    }
+                    min={0}
+                    step={1}
                   />
                 </div>
-              </Collapse>
+                <Switch
+                  label="Enable thinking"
+                  description="Include Qwen3's reasoning phase in the generated stream."
+                  checked={enableThinking}
+                  onChange={(event) =>
+                    setEnableThinking(event.currentTarget.checked)
+                  }
+                />
+              </div>
+            </Collapse>
 
-              <Group justify="flex-end">
-                {isBusy && (
-                  <Button
-                    type="button"
-                    variant="light"
-                    color="red"
-                    onClick={cancelGeneration}
-                  >
-                    Cancel
-                  </Button>
-                )}
-                <Button type="submit" disabled={!canSubmit} loading={isBusy}>
-                  {isBusy ? 'Generating…' : 'Generate contributions'}
+            <Group justify="flex-end">
+              {isBusy && (
+                <Button
+                  type="button"
+                  variant="light"
+                  color="red"
+                  onClick={cancelGeneration}
+                >
+                  Cancel
                 </Button>
-              </Group>
-            </Stack>
-          </form>
-        </Paper>
-
-        {status !== 'idle' && (
-          <Paper className="generation-status" withBorder radius="lg" p="lg">
-            <Group justify="space-between" align="flex-start" mb="xs">
-              <div>
-                <Text fw={700}>
-                  {status === 'loading-model'
-                    ? 'Preparing the model'
-                    : status === 'generating'
-                      ? 'Generating and measuring contributions'
-                      : status === 'cancelling'
-                        ? 'Cancelling generation'
-                        : status === 'complete'
-                          ? 'Generation complete'
-                          : status === 'cancelled'
-                            ? 'Generation cancelled'
-                            : 'Generation failed'}
-                </Text>
-                <Text size="sm" c="dimmed">
-                  {status === 'loading-model'
-                    ? `Downloaded ${formatBytes(modelProgress.loaded)}${modelProgress.total ? ` of ${formatBytes(modelProgress.total)}` : ''}`
-                    : status === 'generating'
-                      ? `${generatedTokenCount} of ${maxNewTokens} tokens`
-                      : status === 'cancelling'
-                        ? 'Finishing the current model step…'
-                        : status === 'cancelled'
-                          ? 'Generation cancelled.'
-                          : ''}
-                </Text>
-              </div>
-              <Badge
-                color={
-                  status === 'error'
-                    ? 'red'
-                    : status === 'complete'
-                      ? 'teal'
-                      : status === 'cancelled'
-                        ? 'gray'
-                        : 'violet'
-                }
-                variant="light"
-              >
-                {status}
-              </Badge>
+              )}
+              <Button type="submit" disabled={!canSubmit} loading={isBusy}>
+                {isBusy ? 'Generating…' : 'Generate contributions'}
+              </Button>
             </Group>
-            {(status === 'loading-model' || status === 'generating') && (
-              <Progress
-                value={progressValue}
-                animated={status === 'loading-model'}
-              />
-            )}
-            {status === 'loading-model' && modelProgress.file && (
-              <Text size="xs" c="dimmed" mt="xs">
-                Loading {modelProgress.file}
+          </Stack>
+        </form>
+      </Paper>
+
+      {status !== 'idle' && (
+        <Paper className="generation-status" withBorder radius="lg" p="lg">
+          <Group justify="space-between" align="flex-start" mb="xs">
+            <div>
+              <Text fw={700}>
+                {status === 'loading-model'
+                  ? 'Preparing the model'
+                  : status === 'generating'
+                    ? 'Generating and measuring contributions'
+                    : status === 'cancelling'
+                      ? 'Cancelling generation'
+                      : status === 'complete'
+                        ? 'Generation complete'
+                        : status === 'cancelled'
+                          ? 'Generation cancelled'
+                          : 'Generation failed'}
               </Text>
-            )}
-          </Paper>
-        )}
-
-        {error && (
-          <Alert color="red" title="Generation could not start">
-            {error.message}
-          </Alert>
-        )}
-
-        {result && (
-          <section className="generation-result" aria-live="polite">
-            <header className="generation-result-header">
-              <div>
-                <Text className="eyebrow">Live contribution text</Text>
-                <Title order={2}>What the model used</Title>
-              </div>
               <Text size="sm" c="dimmed">
-                {generatedTokenCount} generated token
-                {generatedTokenCount === 1 ? '' : 's'} · summed across{' '}
-                {result.manifest.geometry.layers} layers
+                {status === 'loading-model'
+                  ? `Downloaded ${formatBytes(modelProgress.loaded)}${modelProgress.total ? ` of ${formatBytes(modelProgress.total)}` : ''}`
+                  : status === 'generating'
+                    ? `${generatedTokenCount} of ${maxNewTokens} tokens`
+                    : status === 'cancelling'
+                      ? 'Finishing the current model step…'
+                      : status === 'cancelled'
+                        ? 'Generation cancelled.'
+                        : ''}
               </Text>
-            </header>
-            <ContributionText
-              manifest={result.manifest}
-              contributions={result.contributions}
+            </div>
+            <Badge
+              color={
+                status === 'error'
+                  ? 'red'
+                  : status === 'complete'
+                    ? 'teal'
+                    : status === 'cancelled'
+                      ? 'gray'
+                      : 'violet'
+              }
+              variant="light"
+            >
+              {status}
+            </Badge>
+          </Group>
+          {(status === 'loading-model' || status === 'generating') && (
+            <Progress
+              value={progressValue}
+              animated={status === 'loading-model'}
             />
-          </section>
-        )}
-      </Container>
-    </main>
+          )}
+          {status === 'loading-model' && modelProgress.file && (
+            <Text size="xs" c="dimmed" mt="xs">
+              Loading {modelProgress.file}
+            </Text>
+          )}
+        </Paper>
+      )}
+
+      {error && (
+        <Alert color="red" title="Generation could not start">
+          {error.message}
+        </Alert>
+      )}
+    </section>
   );
+}
+
+export function GenerationPage() {
+  return <Navigate to="/" replace />;
 }

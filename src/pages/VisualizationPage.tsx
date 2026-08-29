@@ -71,7 +71,11 @@ export function VisualizationPage() {
             This visualization or generated dataset is not available in this
             build.
           </Alert>
-          <Button component={Link} to="/" variant="light">
+          <Button
+            component={Link}
+            to={import.meta.env.DEV ? '/dev/visualizations' : '/'}
+            variant="light"
+          >
             Back to selector
           </Button>
         </Container>
@@ -84,7 +88,7 @@ export function VisualizationPage() {
       <Container size="xl" className="page-container">
         <Button
           component={Link}
-          to="/"
+          to={import.meta.env.DEV ? '/dev/visualizations' : '/'}
           variant="subtle"
           size="compact-sm"
           className="back-link"
