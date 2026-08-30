@@ -64,12 +64,13 @@ export function ContributionTextExperience({
   const [presetVisualizationPlaying, setPresetVisualizationPlaying] =
     useState(true);
   const [customVisualizationPlaying, setCustomVisualizationPlaying] =
-    useState(true);
+    useState(false);
   const [promptSelectorOpen, setPromptSelectorOpen] = useState(false);
   const selectedDataset = datasets.find(({ id }) => id === datasetId);
 
   const handleGenerationStarted = () => {
     setGenerationStarted(true);
+    setCustomVisualizationPlaying(false);
   };
   const handleResultChange = (result: GenerationResult | undefined) =>
     setGenerationResult(result);
