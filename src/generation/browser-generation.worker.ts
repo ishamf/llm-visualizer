@@ -11,6 +11,7 @@ import {
   DATASET_SCHEMA_VERSION,
   getBrowserModelUrls,
   LAYER_COUNT,
+  type BrowserModelSource,
 } from './config.ts';
 import {
   generateSummedContributionDataset,
@@ -80,23 +81,48 @@ function postProgress(info: ProgressInfo) {
   }
 }
 
-async function loadModel(modelBaseUrl: string): Promise<LoadedModel> {
+async function loadModel(source: BrowserModelSource): Promise<LoadedModel> {
   if (modelPromise) return modelPromise;
-
-  const modelUrls = getBrowserModelUrls(modelBaseUrl, globalThis.location.href);
 
   // Transformers.js caches these responses in the browser, so subsequent runs
   // do not download the large weights again.
-  env.allowLocalModels = true;
-  env.allowRemoteModels = false;
-  env.localModelPath = modelUrls.root;
-
   const progress_callback = (info: ProgressInfo) => postProgress(info);
   const loading = (async () => {
+    if (source.type === 'hugging-face') {
+      env.allowLocalModels = false;
+      env.allowRemoteModels = true;
+      const options = {
+        revision: source.revision,
+        progress_callback,
+      };
+      const tokenizer = await AutoTokenizer.from_pretrained(
+        source.repoId,
+        options,
+      );
+      const model = await AutoModelForCausalLM.from_pretrained(source.repoId, {
+        ...options,
+        dtype: BROWSER_MODEL_PROFILE.dtype,
+        model_file_name: BROWSER_MODEL_PROFILE.instrumentation,
+      });
+      return {
+        tokenizer: tokenizer as unknown as Tokenizer,
+        model: model as unknown as CausalLanguageModel,
+      };
+    }
+
+    const modelUrls = getBrowserModelUrls(source, globalThis.location.href);
+    const modelUrl = new URL(
+      `${BROWSER_MODEL_PROFILE.id}/`,
+      modelUrls.root,
+    ).href.slice(0, -1);
+    env.allowLocalModels = true;
+    env.allowRemoteModels = false;
+    env.localModelPath = modelUrls.root;
+
     // Tokenizer auto-discovery in Transformers.js 4.2 does not recognize an
     // absolute localModelPath. Give it the absolute model directory and finish
     // loading its small files before starting the much larger model request.
-    const tokenizer = await AutoTokenizer.from_pretrained(modelUrls.model, {
+    const tokenizer = await AutoTokenizer.from_pretrained(modelUrl, {
       local_files_only: true,
       progress_callback,
     });
@@ -171,7 +197,7 @@ function validatedPrompt(values: BrowserGenerationPrompt) {
 
 async function run(
   promptValues: BrowserGenerationPrompt,
-  modelBaseUrl: string,
+  modelSource: BrowserModelSource,
 ) {
   const controller = new AbortController();
   activeController = controller;
@@ -182,7 +208,7 @@ async function run(
 
   try {
     const prompt = validatedPrompt(promptValues);
-    const { model, tokenizer } = await loadModel(modelBaseUrl);
+    const { model, tokenizer } = await loadModel(modelSource);
     throwIfGenerationAborted(controller.signal);
     post({
       type: 'status',
@@ -279,7 +305,7 @@ workerScope.onmessage = (event) => {
     return;
   }
   if (activeRun) return;
-  activeRun = run(request.prompt, request.modelBaseUrl).finally(() => {
+  activeRun = run(request.prompt, request.modelSource).finally(() => {
     activeRun = undefined;
   });
 };

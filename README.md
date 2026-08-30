@@ -11,16 +11,56 @@ pnpm install
 pnpm dev
 ```
 
-The browser model defaults to `/models/`. Pre-generated data defaults to
-`/generated/`. The data origin can be changed at static build time:
+During development, the browser model continues to load from `/models/`.
+Pre-generated data defaults to `/generated/`.
+
+## Static production build
+
+Production builds require a public Hugging Face model repository:
+
+```sh
+VITE_HF_MODEL_REPO=organization/instrumented-qwen3 \
+VITE_HF_MODEL_REVISION=<commit-sha> \
+  pnpm build
+```
+
+The repository ID and revision are compiled into the client bundle. The browser
+downloads the files directly from Hugging Face on first use and then uses the
+Transformers.js browser cache. No model files are copied into `dist/`.
+
+`VITE_HF_MODEL_REVISION` defaults to `main`, but a commit SHA is strongly
+recommended so a deployment and its browser cache always refer to immutable
+artifacts. The repository must be public; these variables are not secrets and
+the static app does not support a Hugging Face access token.
+
+The repository root must contain the Transformers.js configuration and
+tokenizer files, plus the instrumented weights at:
+
+```text
+onnx/instrumented_int8.onnx
+```
+
+The pre-generated data origin can also be changed at static build time:
 
 ```sh
 VITE_GENERATED_DATA_BASE_URL=https://data.example.com/releases/v1/ \
   pnpm build
 ```
 
-`VITE_GENERATED_DATA_BASE_URL` is compiled into the client bundle and therefore
-must be a public URL, not a secret. It may be absolute or relative to the page.
+`VITE_GENERATED_DATA_BASE_URL` is likewise public configuration. It may be
+absolute or relative to the page.
+
+The production static host must send these headers on the app documents and
+assets, as the Vite development and preview servers already do:
+
+```text
+Cross-Origin-Embedder-Policy: require-corp
+Cross-Origin-Opener-Policy: same-origin
+```
+
+For the web-component build, omitting `model-base-url` uses the build-time
+Hugging Face repository. Setting the attribute retains the custom static-host
+layout `<model-base-url>/Qwen3-0.6B-ONNX/...`.
 
 ## Generated-data discovery manifest
 

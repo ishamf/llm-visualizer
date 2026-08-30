@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { RemoteDataset } from './data/dataset-catalog.ts';
 import { HttpSummedContributionDataSource } from './data/summed-contribution-data-source.ts';
 import { useDatasetCatalog } from './data/use-dataset-catalog.ts';
+import type { BrowserModelSource } from './generation/config.ts';
 import { getConfiguredPromptTitle } from './generation/prompts.ts';
 import {
   BrowserGenerationPanel,
@@ -15,7 +16,7 @@ import { ContributionText } from './visualization/ContributionText.tsx';
 type ContributionTextExperienceProps = {
   createWorker: () => Worker;
   generatedDataBaseUrl: string;
-  modelBaseUrl: string;
+  modelSource: BrowserModelSource;
 };
 
 function RemoteContributionText({
@@ -49,7 +50,7 @@ function RemoteContributionText({
 export function ContributionTextExperience({
   createWorker,
   generatedDataBaseUrl,
-  modelBaseUrl,
+  modelSource,
 }: ContributionTextExperienceProps) {
   const catalog = useDatasetCatalog(generatedDataBaseUrl);
   const datasets = catalog.datasets.filter(({ format }) => format === 'summed');
@@ -211,7 +212,7 @@ export function ContributionTextExperience({
       <div className="generation-column">
         <BrowserGenerationPanel
           createWorker={createWorker}
-          modelBaseUrl={modelBaseUrl}
+          modelSource={modelSource}
           onGenerationStarted={handleGenerationStarted}
           onResultChange={handleResultChange}
           onGenerationActiveChange={setGenerationActive}

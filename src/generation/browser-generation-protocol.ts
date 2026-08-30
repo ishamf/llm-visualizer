@@ -3,6 +3,7 @@ import type {
   DatasetToken,
   SummedContributions,
 } from './types.ts';
+import type { BrowserModelSource } from './config.ts';
 
 /** Values accepted by the in-browser generation form. */
 export type BrowserGenerationPrompt = {
@@ -18,7 +19,11 @@ export type BrowserGenerationPrompt = {
 };
 
 export type BrowserGenerationRequest =
-  | { type: 'start'; prompt: BrowserGenerationPrompt; modelBaseUrl: string }
+  | {
+      type: 'start';
+      prompt: BrowserGenerationPrompt;
+      modelSource: BrowserModelSource;
+    }
   | { type: 'cancel' };
 
 export type BrowserGenerationResponse =

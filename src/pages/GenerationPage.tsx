@@ -23,6 +23,7 @@ import {
   GENERATION_TOP_P,
   getBrowserModelUrls,
   MAX_GENERATED_TOKENS,
+  type BrowserModelSource,
 } from '../generation/config.ts';
 import type {
   BrowserGenerationPrompt,
@@ -58,7 +59,7 @@ export type GenerationResult = {
 
 type BrowserGenerationPanelProps = {
   createWorker: () => Worker;
-  modelBaseUrl: string;
+  modelSource: BrowserModelSource;
   onGenerationStarted: () => void;
   onResultChange: (result: GenerationResult | undefined) => void;
   onGenerationActiveChange: (active: boolean) => void;
@@ -84,7 +85,7 @@ function formatBytes(bytes: number | undefined) {
 
 export function BrowserGenerationPanel({
   createWorker,
-  modelBaseUrl,
+  modelSource,
   onGenerationStarted,
   onResultChange,
   onGenerationActiveChange,
@@ -122,7 +123,7 @@ export function BrowserGenerationPanel({
 
   useEffect(() => {
     let active = true;
-    const modelUrls = getBrowserModelUrls(modelBaseUrl, document.baseURI);
+    const modelUrls = getBrowserModelUrls(modelSource, document.baseURI);
     const inspectModelCache = async () => {
       if (!('caches' in globalThis)) {
         if (active) setModelCached(false);
@@ -142,7 +143,7 @@ export function BrowserGenerationPanel({
       workerRef.current?.terminate();
       workerRef.current = null;
     };
-  }, [modelBaseUrl]);
+  }, [modelSource]);
 
   const progressValue =
     status === 'generating'
@@ -257,7 +258,13 @@ export function BrowserGenerationPanel({
     const request: BrowserGenerationRequest = {
       type: 'start',
       prompt: values,
-      modelBaseUrl: getBrowserModelUrls(modelBaseUrl, document.baseURI).root,
+      modelSource:
+        modelSource.type === 'local'
+          ? {
+              type: 'local',
+              baseUrl: getBrowserModelUrls(modelSource, document.baseURI).root,
+            }
+          : modelSource,
     };
     worker.postMessage(request);
   };

@@ -7,7 +7,10 @@ import { createRoot, type Root } from 'react-dom/client';
 
 import { ContributionTextExperience } from '../ContributionTextExperience.tsx';
 import { GENERATED_DATA_BASE_URL } from '../data/dataset-catalog.ts';
-import { BROWSER_MODEL_ROOT } from '../generation/config.ts';
+import {
+  BROWSER_MODEL_SOURCE,
+  type BrowserModelSource,
+} from '../generation/config.ts';
 import { PortalTargetProvider } from './portal-target.tsx';
 import { contributionTextStyleSheet } from './styles.ts';
 import { createDistributionWorker } from './worker-loader.ts';
@@ -92,10 +95,13 @@ export function defineContributionTextElement(workerUrl: URL) {
         this.getAttribute('generated-data-base-url') ?? GENERATED_DATA_BASE_URL,
         document.baseURI,
       ).href;
-      const modelBaseUrl = new URL(
-        this.getAttribute('model-base-url') ?? BROWSER_MODEL_ROOT,
-        document.baseURI,
-      ).href;
+      const modelBaseUrl = this.getAttribute('model-base-url');
+      const modelSource: BrowserModelSource = modelBaseUrl
+        ? {
+            type: 'local',
+            baseUrl: new URL(modelBaseUrl, document.baseURI).href,
+          }
+        : BROWSER_MODEL_SOURCE;
 
       this.#root ??= createRoot(this.#mountNode);
       this.#root.render(
@@ -110,7 +116,7 @@ export function defineContributionTextElement(workerUrl: URL) {
             <ContributionTextExperience
               createWorker={() => createDistributionWorker(workerUrl)}
               generatedDataBaseUrl={generatedDataBaseUrl}
-              modelBaseUrl={modelBaseUrl}
+              modelSource={modelSource}
             />
           </PortalTargetProvider>
         </MantineProvider>,
