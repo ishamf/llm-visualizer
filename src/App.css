@@ -68,10 +68,6 @@
   gap: 24px;
 }
 
-.experience-primary.custom-generation-active {
-  grid-template-columns: minmax(0, 1fr);
-}
-
 .prompt-picker,
 .browser-generation,
 .generation-column,
@@ -89,11 +85,9 @@
 
 .prompt-list {
   display: grid;
-  max-height: 526px;
+  min-height: 526px;
   gap: 8px;
   padding: 4px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
 }
 
 .prompt-option {
@@ -144,20 +138,9 @@
   min-width: 0;
 }
 
-.generation-form,
-.generation-status {
+.generation-column .generation-form,
+.generation-column .generation-status {
   max-width: none;
-}
-
-.clear-generation-note {
-  border-color: light-dark(
-    var(--mantine-color-red-2),
-    var(--mantine-color-red-9)
-  );
-  background: light-dark(
-    var(--mantine-color-red-0),
-    color-mix(in srgb, var(--mantine-color-red-9) 25%, transparent)
-  );
 }
 
 .homepage-visualization {
@@ -249,8 +232,11 @@
 }
 
 .mobile-prompt-popover .prompt-list {
+  min-height: 0;
   max-height: min(60svh, 420px);
   padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .text-visualization-state {
@@ -766,15 +752,6 @@
     gap: 12px;
   }
 
-  .clear-generation-content {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .clear-generation-note button {
-    width: 100%;
-  }
-
   .header-badges {
     justify-content: flex-start;
   }
@@ -807,8 +784,7 @@
 }
 
 @container contribution-experience (max-width: 760px) {
-  .experience-primary,
-  .experience-primary.custom-generation-active {
+  .experience-primary {
     grid-template-columns: minmax(0, 1fr);
   }
 

@@ -1,13 +1,5 @@
-import {
-  Button,
-  Group,
-  Paper,
-  Popover,
-  Text,
-  Title,
-  UnstyledButton,
-} from '@mantine/core';
-import { useCallback, useMemo, useReducer, useState } from 'react';
+import { Paper, Popover, Text, Title, UnstyledButton } from '@mantine/core';
+import { useCallback, useMemo, useState } from 'react';
 
 import {
   BundledSummedContributionDataSource,
@@ -18,11 +10,7 @@ import {
   BrowserGenerationPanel,
   type GenerationResult,
 } from './pages/GenerationPage.tsx';
-import {
-  homepageGenerationReducer,
-  INITIAL_HOMEPAGE_GENERATION_STATE,
-  selectDefaultPromptId,
-} from './pages/homepage-state.ts';
+import { selectDefaultPromptId } from './pages/homepage-state.ts';
 import { ContributionText } from './visualization/ContributionText.tsx';
 
 const datasets = getBundledSummedContributionDatasets();
@@ -39,15 +27,14 @@ export function ContributionTextExperience({
   const [datasetId, setDatasetId] = useState(() =>
     selectDefaultPromptId(datasets.map(({ id }) => id)),
   );
-  const [generationState, dispatchGeneration] = useReducer(
-    homepageGenerationReducer,
-    INITIAL_HOMEPAGE_GENERATION_STATE,
-  );
   const [generationResult, setGenerationResult] = useState<GenerationResult>();
+  const [generationStarted, setGenerationStarted] = useState(false);
   const [generationActive, setGenerationActive] = useState(false);
-  const [visualizationPlaying, setVisualizationPlaying] = useState(true);
+  const [presetVisualizationPlaying, setPresetVisualizationPlaying] =
+    useState(true);
+  const [customVisualizationPlaying, setCustomVisualizationPlaying] =
+    useState(true);
   const [promptSelectorOpen, setPromptSelectorOpen] = useState(false);
-  const customGenerationActive = generationState.mode === 'custom';
   const selectedDataset = datasets.find(({ id }) => id === datasetId);
   const selectedSource = useMemo(
     () =>
@@ -58,17 +45,12 @@ export function ContributionTextExperience({
   );
 
   const handleGenerationStarted = useCallback(() => {
-    dispatchGeneration({ type: 'start' });
+    setGenerationStarted(true);
   }, []);
   const handleResultChange = useCallback(
     (result: GenerationResult | undefined) => setGenerationResult(result),
     [],
   );
-  const clearGeneration = () => {
-    setGenerationResult(undefined);
-    dispatchGeneration({ type: 'clear' });
-  };
-
   const selectDataset = (id: string) => {
     setDatasetId(id);
     setPromptSelectorOpen(false);
@@ -97,71 +79,39 @@ export function ContributionTextExperience({
 
   return (
     <div className="contribution-text-experience">
-      <div
-        className={`experience-primary ${customGenerationActive ? 'custom-generation-active' : ''}`}
-      >
-        {!customGenerationActive && (
-          <section
-            className="prompt-picker"
-            aria-labelledby="prompt-picker-title"
-          >
-            <div>
-              <Text className="eyebrow">Pre-generated examples</Text>
-              <Title order={2} id="prompt-picker-title">
-                Pick a prompt
-              </Title>
-              <Text c="dimmed" size="sm">
-                These examples are ready immediately.
-              </Text>
-            </div>
-            <div className="prompt-list" role="list">
-              {promptOptions}
-            </div>
-          </section>
-        )}
+      <div className="experience-primary">
+        <section
+          className="prompt-picker"
+          aria-labelledby="prompt-picker-title"
+        >
+          <div>
+            <Text className="eyebrow">Pre-generated examples</Text>
+            <Title order={2} id="prompt-picker-title">
+              Pick a prompt
+            </Title>
+            <Text c="dimmed" size="sm">
+              These examples are ready immediately.
+            </Text>
+          </div>
+          <div className="prompt-list" role="list">
+            {promptOptions}
+          </div>
+        </section>
 
         <section className="homepage-visualization" aria-live="polite">
           <header className="generation-result-header">
             <div>
-              <Text className="eyebrow">
-                {customGenerationActive
-                  ? 'Live contribution text'
-                  : 'Pre-generated contribution text'}
-              </Text>
+              <Text className="eyebrow">Pre-generated contribution text</Text>
               <Title order={2}>What the model used</Title>
             </div>
             <Text size="sm" c="dimmed">
-              {generationResult && customGenerationActive
-                ? `${generationResult.manifest.tokens.length - generationResult.manifest.promptTokenCount} generated tokens · summed across ${generationResult.manifest.geometry.layers} layers`
-                : selectedDataset
-                  ? `${selectedDataset.manifest.model.id} · ${selectedDataset.manifest.geometry.layers} layers`
-                  : ''}
+              {selectedDataset
+                ? `${selectedDataset.manifest.model.id} · ${selectedDataset.manifest.geometry.layers} layers`
+                : ''}
             </Text>
           </header>
 
-          {customGenerationActive ? (
-            generationResult ? (
-              <ContributionText
-                manifest={generationResult.manifest}
-                contributions={generationResult.contributions}
-                showOpacityControls={false}
-                playing={visualizationPlaying}
-                onPlayingChange={setVisualizationPlaying}
-                animationSuppressed={generationActive}
-              />
-            ) : (
-              <Paper
-                className="text-visualization-state"
-                withBorder
-                radius="lg"
-                p="xl"
-              >
-                <Text size="sm" c="dimmed">
-                  The live visualization will appear when the prompt is ready.
-                </Text>
-              </Paper>
-            )
-          ) : selectedDataset && selectedSource ? (
+          {selectedDataset && selectedSource ? (
             <>
               <Popover
                 opened={promptSelectorOpen}
@@ -207,8 +157,8 @@ export function ContributionTextExperience({
                 source={selectedSource}
                 manifest={selectedDataset.manifest}
                 showOpacityControls={false}
-                playing={visualizationPlaying}
-                onPlayingChange={setVisualizationPlaying}
+                playing={presetVisualizationPlaying}
+                onPlayingChange={setPresetVisualizationPlaying}
               />
             </>
           ) : (
@@ -227,31 +177,7 @@ export function ContributionTextExperience({
       </div>
 
       <div className="generation-column">
-        {customGenerationActive && (
-          <Paper
-            className="clear-generation-note"
-            withBorder
-            radius="md"
-            p="md"
-          >
-            <Group
-              className="clear-generation-content"
-              justify="space-between"
-              align="center"
-              gap="md"
-            >
-              <Text size="sm">
-                Your generated contribution data is active. Clearing it will
-                discard this run.
-              </Text>
-              <Button color="red" variant="light" onClick={clearGeneration}>
-                Clear and use a pre-generated prompt
-              </Button>
-            </Group>
-          </Paper>
-        )}
         <BrowserGenerationPanel
-          key={generationState.session}
           createWorker={createWorker}
           modelBaseUrl={modelBaseUrl}
           onGenerationStarted={handleGenerationStarted}
@@ -259,6 +185,50 @@ export function ContributionTextExperience({
           onGenerationActiveChange={setGenerationActive}
         />
       </div>
+
+      {generationStarted && (
+        <section
+          className="homepage-visualization custom-prompt-visualization"
+          aria-live="polite"
+        >
+          <header className="generation-result-header">
+            <div>
+              <Text className="eyebrow">Live contribution text</Text>
+              <Title order={2}>What your prompt generated</Title>
+            </div>
+            {generationResult && (
+              <Text size="sm" c="dimmed">
+                {generationResult.manifest.tokens.length -
+                  generationResult.manifest.promptTokenCount}{' '}
+                generated tokens · summed across{' '}
+                {generationResult.manifest.geometry.layers} layers
+              </Text>
+            )}
+          </header>
+
+          {generationResult ? (
+            <ContributionText
+              manifest={generationResult.manifest}
+              contributions={generationResult.contributions}
+              showOpacityControls={false}
+              playing={customVisualizationPlaying}
+              onPlayingChange={setCustomVisualizationPlaying}
+              animationSuppressed={generationActive}
+            />
+          ) : (
+            <Paper
+              className="text-visualization-state"
+              withBorder
+              radius="lg"
+              p="xl"
+            >
+              <Text size="sm" c="dimmed">
+                The live visualization will appear when the prompt is ready.
+              </Text>
+            </Paper>
+          )}
+        </section>
+      )}
     </div>
   );
 }
