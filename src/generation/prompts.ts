@@ -34,8 +34,8 @@ Therefore, 5726 × 37 =`,
     maxNewTokens: 48,
   },
   {
-    id: 'fix-average-off-by-one',
-    title: 'Fixing an Average Function',
+    id: 'fix-average-reference-error',
+    title: 'Debugging an Average Function',
     prompt: `This JavaScript function should calculate the average of its input, but it crashes with ReferenceError: array is not defined instead. Why did it happen? Can you fix it?
 
 
@@ -56,13 +56,18 @@ console.log(arrayAverage([2, 4, 6]));
   {
     id: 'extract-contact',
     title: 'Finding Contact Details',
-    prompt: `Extract Maya's job title, company, and email address from this message. A job title means her role, such as "product designer," not her name. Respond using exactly this three-line format and do not mention anything else:
+    prompt: `Could you turn the signature in this email into a contact record? Return exactly four lines labeled Full name, Job title, Company, and Email. Copy each value exactly and do not add any other information.
 
-Job title: ...
-Company: ...
-Email: ...
+Hi team,
 
-We had a productive planning session yesterday. The team discussed the new dashboard, reviewed some early sketches, and agreed to meet again next week. Maya Chen led the design portion of the meeting. She recently joined Northstar Labs as a product designer and will prepare the next set of mockups. The engineering team will send her their feedback before Friday. If you need to share additional comments with Maya, her email address is maya.chen@example.com. The next meeting will take place in the upstairs conference room.`,
+Thanks for the productive planning session yesterday. I'll prepare the next set of dashboard mockups once the engineering feedback arrives.
+
+Best,
+Maya Chen
+Product Designer
+Northstar Labs
+maya.chen@example.com`,
+    assistantPrefix: 'Full name:',
     maxNewTokens: 64,
     contributionFormats: ['summed'],
   },
@@ -105,7 +110,7 @@ The Riverside team has worked from its current building for nearly six years, an
   {
     id: 'summarize-customer-message',
     title: 'Customer Support Summary',
-    prompt: `Briefly summarize the duplicate-charge problem and what the customer wants done about it. Ignore the background about their usual receipts. Please answer with exactly two short labeled lines: Problem and Requested action.
+    prompt: `Summarize this customer message for a support handoff. Please answer with exactly two short labeled lines: Problem and Requested action.
 
 I have been using the monthly plan since January and normally receive a single receipt on the first day of each month. This morning I noticed that my card was charged twice for invoice 7812. Both payments have completed, rather than appearing as pending transactions. I still use the service every day and do not want my account closed or my current subscription changed. Please refund the duplicate payment but leave the subscription active. I have kept copies of both card notifications in case you need them.`,
     maxNewTokens: 96,
