@@ -17,13 +17,15 @@ import { useEffect, useRef, useState } from 'react';
 
 import {
   BROWSER_MODEL_SIZE_BYTES,
+  getBrowserModelUrls,
+  type BrowserModelSource,
+} from '../generation/browser-config.ts';
+import {
   DEFAULT_GENERATION_SEED,
   GENERATION_TEMPERATURE,
   GENERATION_TOP_K,
   GENERATION_TOP_P,
-  getBrowserModelUrls,
   MAX_GENERATED_TOKENS,
-  type BrowserModelSource,
 } from '../generation/config.ts';
 import type {
   BrowserGenerationPrompt,

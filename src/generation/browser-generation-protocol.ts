@@ -3,7 +3,7 @@ import type {
   DatasetToken,
   SummedContributions,
 } from './types.ts';
-import type { BrowserModelSource } from './config.ts';
+import type { BrowserModelSource } from './browser-config.ts';
 
 /** Values accepted by the in-browser generation form. */
 export type BrowserGenerationPrompt = {

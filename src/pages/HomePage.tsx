@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { ContributionTextExperience } from '../ContributionTextExperience.tsx';
 import { GENERATED_DATA_BASE_URL } from '../data/dataset-catalog.ts';
-import { BROWSER_MODEL_SOURCE } from '../generation/config.ts';
+import { BROWSER_MODEL_SOURCE } from '../generation/browser-config.ts';
 
 function createStandaloneWorker() {
   return new Worker(

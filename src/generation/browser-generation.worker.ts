@@ -7,12 +7,10 @@ import {
 
 import {
   BROWSER_MODEL_PROFILE,
-  CONTRIBUTION_METRIC,
-  DATASET_SCHEMA_VERSION,
   getBrowserModelUrls,
-  LAYER_COUNT,
   type BrowserModelSource,
-} from './config.ts';
+} from './browser-config.ts';
+import { CONTRIBUTION_METRIC, DATASET_SCHEMA_VERSION } from './config.ts';
 import {
   generateSummedContributionDataset,
   throwIfGenerationAborted,
@@ -168,7 +166,7 @@ function emptyContributions(promptTokenCount: number) {
     schemaVersion: DATASET_SCHEMA_VERSION,
     metric: CONTRIBUTION_METRIC,
     aggregation: 'sum' as const,
-    layerCount: LAYER_COUNT,
+    layerCount: BROWSER_MODEL_PROFILE.geometry.layers,
     targetTokenStart: promptTokenCount,
     rows: [] as number[][],
   };

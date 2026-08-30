@@ -4,7 +4,6 @@ import {
   CONTRIBUTION_METRIC,
   DATASET_SCHEMA_VERSION,
   GENERATION_EOS_TOKEN_IDS,
-  LAYER_COUNT,
   type ModelProfile,
 } from './config.ts';
 import {
@@ -122,7 +121,7 @@ export function disposeTokenizedPrompt(inputs: TokenizedPrompt) {
   inputs.attentionMask.dispose();
 }
 
-export function pastKeyValues(outputs: ModelOutputs, layerCount = LAYER_COUNT) {
+export function pastKeyValues(outputs: ModelOutputs, layerCount: number) {
   const cache: Record<string, ModelTensor> = {};
   for (let layer = 0; layer < layerCount; ++layer) {
     const key = outputs[presentKeyOutputName(layer)];

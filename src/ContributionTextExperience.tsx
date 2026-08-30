@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { RemoteDataset } from './data/dataset-catalog.ts';
 import { HttpSummedContributionDataSource } from './data/summed-contribution-data-source.ts';
 import { useDatasetCatalog } from './data/use-dataset-catalog.ts';
-import type { BrowserModelSource } from './generation/config.ts';
+import type { BrowserModelSource } from './generation/browser-config.ts';
 import { getConfiguredPromptTitle } from './generation/prompts.ts';
 import {
   BrowserGenerationPanel,

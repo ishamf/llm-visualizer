@@ -10,7 +10,7 @@ import { GENERATED_DATA_BASE_URL } from '../data/dataset-catalog.ts';
 import {
   BROWSER_MODEL_SOURCE,
   type BrowserModelSource,
-} from '../generation/config.ts';
+} from '../generation/browser-config.ts';
 import { PortalTargetProvider } from './portal-target.tsx';
 import { contributionTextStyleSheet } from './styles.ts';
 import { createDistributionWorker } from './worker-loader.ts';

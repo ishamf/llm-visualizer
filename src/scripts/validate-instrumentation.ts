@@ -164,7 +164,7 @@ async function main() {
         outputs = await model.forward({
           input_ids: inputIds,
           attention_mask: mask,
-          past_key_values: pastKeyValues(previousOutputs),
+          past_key_values: pastKeyValues(previousOutputs, LAYER_COUNT),
         });
       } finally {
         inputIds.dispose();

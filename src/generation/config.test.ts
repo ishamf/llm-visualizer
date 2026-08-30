@@ -6,7 +6,7 @@ import {
   BROWSER_MODEL_PROFILE,
   BROWSER_MODEL_WEIGHTS_PATH,
   getBrowserModelUrls,
-} from './config.ts';
+} from './browser-config.ts';
 
 describe('browser model configuration', () => {
   it('keeps the Vite development model source local', () => {
