@@ -305,6 +305,42 @@ export function ContributionText(props: ContributionTextProps) {
         </div>
       )}
 
+      <div className="text-visualization-playback">
+        <ActionIcon
+          variant="light"
+          size="lg"
+          aria-label={
+            playing ? 'Pause token animation' : 'Play token animation'
+          }
+          onClick={() => setPlaying(!playing)}
+        >
+          <span aria-hidden="true">{playing ? '❚❚' : '▶'}</span>
+        </ActionIcon>
+        <Progress
+          className="text-visualization-progress"
+          value={
+            !playing ||
+            animationSuppressed ||
+            !animationReady ||
+            generatedTokenCount === 0
+              ? 0
+              : (animatedTokenPosition / generatedTokenCount) * 100
+          }
+          aria-label="Token animation progress"
+        />
+      </div>
+
+      <div className="text-visualization-legend">
+        <span className="legend-swatch prompt-swatch" />
+        <Text size="xs" c="dimmed">
+          Prompt
+        </Text>
+        <span className="legend-swatch generated-swatch" />
+        <Text size="xs" c="dimmed">
+          Generated
+        </Text>
+      </div>
+
       <div
         ref={contributionText}
         className={`contribution-text ${animationVisible ? 'animating-contribution-text' : ''}`}
@@ -393,51 +429,6 @@ export function ContributionText(props: ContributionTextProps) {
             </span>
           );
         })}
-      </div>
-
-      <div className="text-visualization-playback">
-        <ActionIcon
-          variant="light"
-          size="lg"
-          aria-label={
-            playing ? 'Pause token animation' : 'Play token animation'
-          }
-          onClick={() => setPlaying(!playing)}
-        >
-          <span aria-hidden="true">{playing ? '❚❚' : '▶'}</span>
-        </ActionIcon>
-        <Progress
-          className="text-visualization-progress"
-          value={
-            !playing ||
-            animationSuppressed ||
-            !animationReady ||
-            generatedTokenCount === 0
-              ? 0
-              : (animatedTokenPosition / generatedTokenCount) * 100
-          }
-          aria-label="Token animation progress"
-        />
-      </div>
-
-      <div className="text-visualization-legend">
-        <span className="legend-swatch prompt-swatch" />
-        <Text size="xs" c="dimmed">
-          Prompt
-        </Text>
-        <span className="legend-swatch generated-swatch" />
-        <Text size="xs" c="dimmed">
-          Generated
-        </Text>
-        <Text size="xs" c="dimmed" className="hovered-token-detail">
-          {activeToken === null
-            ? 'Hover or focus a token to reveal its sources.'
-            : interactionToken === null && animationMix > 0
-              ? `Blending generated tokens ${animatedToken} and ${nextAnimatedToken}, summed across all layers.`
-              : activeToken < manifest.promptTokenCount
-                ? 'Prompt-token contribution rows are not stored for this view.'
-                : `Token ${activeToken} uses contributions at position ${activeToken - 1}, summed across all layers.`}
-        </Text>
       </div>
     </Paper>
   );
