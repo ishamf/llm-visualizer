@@ -1,10 +1,15 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { exampleDataset } from '../generation/test-fixtures.ts';
-import { compileDatasetManifest } from './compile-dataset-manifest.ts';
+import {
+  compileDatasetManifest,
+  compileDatasetManifests,
+  writeDatasetManifest,
+  writeDatasetManifests,
+} from './compile-dataset-manifest.ts';
 
 const temporaryDirectories: string[] = [];
 
@@ -57,23 +62,40 @@ describe('compile dataset manifest', () => {
       ),
     ]);
 
-    const result = await compileDatasetManifest(generatedRoot);
+    const result = await compileDatasetManifests(generatedRoot);
 
-    expect(result.datasets).toMatchObject([
+    expect(result).toMatchObject([
       {
-        id: 'example',
         modelKey: 'qwen3-0.6b',
         modelVariant: 'int8',
-        format: 'layered',
-        path: 'contributions/qwen3-0.6b/int8/example/',
-      },
-      {
-        id: 'example',
-        modelKey: 'qwen3-0.6b',
-        modelVariant: 'int8',
-        format: 'summed',
-        path: 'summed-contributions/qwen3-0.6b/int8/example/',
+        datasets: [
+          {
+            id: 'example',
+            format: 'layered',
+            path: 'contributions/qwen3-0.6b/int8/example/',
+          },
+          {
+            id: 'example',
+            format: 'summed',
+            path: 'summed-contributions/qwen3-0.6b/int8/example/',
+          },
+        ],
       },
     ]);
+
+    expect(
+      await compileDatasetManifest(generatedRoot, 'qwen3-0.6b', 'int8'),
+    ).toEqual(result[0]);
+
+    await writeDatasetManifest(generatedRoot, 'qwen3-0.6b', 'int8');
+    const written = JSON.parse(
+      await readFile(
+        path.join(generatedRoot, 'manifests/qwen3-0.6b/int8.json'),
+        'utf8',
+      ),
+    );
+    expect(written).toEqual(result[0]);
+
+    await writeDatasetManifests(generatedRoot);
   });
 });

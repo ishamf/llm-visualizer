@@ -68,25 +68,42 @@ Generated artifacts use this layout:
 
 ```text
 generated/
+  manifests/<model-key>/<model-variant>.json
   contributions/<model-key>/<model-variant>/<dataset-id>/manifest.json
   contributions/<model-key>/<model-variant>/<dataset-id>/layer-00.json
   summed-contributions/<model-key>/<model-variant>/<dataset-id>/manifest.json
   summed-contributions/<model-key>/<model-variant>/<dataset-id>/contributions.json
 ```
 
-Compile `generated/manifest.json` after generating or changing datasets:
+Compile the model/variant discovery manifests after generating or changing
+datasets:
 
 ```sh
 pnpm generate:data-manifest
 ```
 
-The compiler validates every dataset manifest, checks that all expected data
-files exist, and writes a stable catalog containing metadata and relative
-artifact paths. The app fetches this file at runtime instead of using Vite glob
-imports, then lazily fetches the selected contribution files.
+Running either contribution generation command without `--id` also refreshes
+the catalog for the selected model and variant after the batch succeeds. A
+single-dataset generation leaves the catalog unchanged.
 
-Deploy the entire contents of `generated/` at the configured data base URL. If
-that URL has a different origin from the app, its responses must include:
+The compiler validates every dataset manifest, checks that all expected data
+files exist, and writes one stable catalog per model and variant under
+`generated/manifests/`. Each catalog contains metadata and paths relative to the
+generated-data root. The app fetches only the catalog for its configured model
+and variant, then lazily fetches the selected contribution files.
+
+To deploy only one model variant, copy its catalog and matching artifact trees,
+preserving their paths relative to `generated/`. For example, an `int8`
+deployment of `qwen3-0.6b` needs:
+
+```text
+manifests/qwen3-0.6b/int8.json
+contributions/qwen3-0.6b/int8/
+summed-contributions/qwen3-0.6b/int8/
+```
+
+If the configured data URL has a different origin from the app, its responses
+must include:
 
 ```text
 Access-Control-Allow-Origin: https://app.example.com

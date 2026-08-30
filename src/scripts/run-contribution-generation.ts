@@ -41,6 +41,7 @@ import type {
   Tokenizer,
   ValidatedPromptConfiguration,
 } from '../generation/types.ts';
+import { writeDatasetManifest } from './compile-dataset-manifest.ts';
 
 const MODEL_ROOT = fileURLToPath(new URL('../../models/', import.meta.url));
 
@@ -136,6 +137,19 @@ export function modelOutputRoot(outputRoot: string, profile: ModelProfile) {
   return path.join(outputRoot, profile.key, profile.dtype);
 }
 
+async function updateBatchManifest(options: CommandLineOptions) {
+  if (options.datasetId !== undefined) return;
+  const generatedRoot = path.dirname(options.outputRoot);
+  await writeDatasetManifest(
+    generatedRoot,
+    options.modelKey,
+    options.modelVariant,
+  );
+  console.error(
+    `Updated dataset manifest for ${options.modelKey}/${options.modelVariant}.`,
+  );
+}
+
 export async function partitionExistingPromptConfigurations(
   configurations: ValidatedPromptConfiguration[],
   outputRoot: string,
@@ -208,6 +222,7 @@ export async function runContributionGeneration<
     console.error(
       `No prompts are configured for ${target.format} contributions; nothing to generate.`,
     );
+    await updateBatchManifest(options);
     return;
   }
   if (options.datasetId === undefined && !options.overwrite) {
@@ -223,6 +238,7 @@ export async function runContributionGeneration<
       console.error(
         'All configured datasets already exist; nothing to generate.',
       );
+      await updateBatchManifest(options);
       return;
     }
   } else {
@@ -328,4 +344,5 @@ export async function runContributionGeneration<
   } finally {
     await model.dispose();
   }
+  await updateBatchManifest(options);
 }
