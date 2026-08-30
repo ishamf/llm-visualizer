@@ -124,8 +124,8 @@ export function ContributionTextExperience({
         <section className="homepage-visualization" aria-live="polite">
           <header className="generation-result-header">
             <div>
-              <Text className="eyebrow">Pre-generated contribution text</Text>
-              <Title order={2}>What the model used</Title>
+              <Text className="eyebrow">Pre-generated attention</Text>
+              <Title order={2}>Attention by token</Title>
             </div>
             <Text size="sm" c="dimmed">
               {selectedDataset
@@ -227,7 +227,7 @@ export function ContributionTextExperience({
         >
           <header className="generation-result-header">
             <div>
-              <Text className="eyebrow">Live contribution text</Text>
+              <Text className="eyebrow">Live attention</Text>
               <Title order={2}>What your prompt generated</Title>
             </div>
             {generationResult && (
@@ -257,7 +257,7 @@ export function ContributionTextExperience({
               p="xl"
             >
               <Text size="sm" c="dimmed">
-                The live visualization will appear when the prompt is ready.
+                Attention will appear when the prompt is ready.
               </Text>
             </Paper>
           )}

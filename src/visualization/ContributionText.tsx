@@ -181,7 +181,7 @@ export function ContributionText(props: ContributionTextProps) {
       <Paper className="text-visualization-state" withBorder radius="lg" p="xl">
         <Loader size="sm" />
         <Text size="sm" c="dimmed">
-          Loading contributions summed across {manifest.geometry.layers} layers…
+          Loading attention data for {manifest.geometry.layers} layers…
         </Text>
       </Paper>
     );
@@ -189,7 +189,7 @@ export function ContributionText(props: ContributionTextProps) {
 
   if (aggregate.status === 'error') {
     return (
-      <Alert color="red" title="Contribution data could not be loaded">
+      <Alert color="red" title="Attention data could not be loaded">
         {aggregate.error.message}
       </Alert>
     );

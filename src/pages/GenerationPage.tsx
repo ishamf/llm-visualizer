@@ -471,7 +471,7 @@ export function BrowserGenerationPanel({
                 </Button>
               )}
               <Button type="submit" disabled={!canSubmit} loading={isBusy}>
-                {isBusy ? 'Generating…' : 'Generate contributions'}
+                {isBusy ? 'Generating…' : 'Generate response'}
               </Button>
             </Group>
           </Stack>
@@ -486,7 +486,7 @@ export function BrowserGenerationPanel({
                 {status === 'loading-model'
                   ? 'Preparing the model'
                   : status === 'generating'
-                    ? 'Generating and measuring contributions'
+                    ? 'Generating and measuring attention'
                     : status === 'cancelling'
                       ? 'Cancelling generation'
                       : status === 'complete'

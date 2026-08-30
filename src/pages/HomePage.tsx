@@ -19,10 +19,10 @@ export function HomePage() {
         <header className="homepage-header">
           <div>
             <Text className="eyebrow">LLM Visualizer</Text>
-            <Title order={1}>See what shaped each token</Title>
+            <Title order={1}>Attention by token</Title>
             <Text c="dimmed" maw={720}>
-              Explore how earlier words contributed to a model response, or
-              generate a new response privately in your browser.
+              Choose an example or generate a response privately in your
+              browser.
             </Text>
           </div>
           {import.meta.env.DEV && (
