@@ -3,6 +3,7 @@ import type {
   SummedContributions,
 } from '../generation/types.ts';
 import type { ContributionDataSource } from './contribution-data-source.ts';
+import { parseContributionManifest } from './contribution-data-source.ts';
 
 export interface SummedContributionDataSource {
   readonly id: string;
@@ -103,5 +104,41 @@ export class LayerSummingContributionDataSource implements SummedContributionDat
       targetTokenStart: manifest.promptTokenCount,
       rows,
     };
+  }
+}
+
+export class HttpSummedContributionDataSource implements SummedContributionDataSource {
+  readonly id: string;
+  readonly #baseUrl: string;
+  #manifest?: ContributionManifest;
+
+  constructor(id: string, baseUrl: string, manifest?: ContributionManifest) {
+    this.id = id;
+    this.#baseUrl = baseUrl.replace(/\/$/, '');
+    this.#manifest = manifest;
+  }
+
+  async getManifest(signal?: AbortSignal) {
+    if (this.#manifest) return this.#manifest;
+    const value = await this.#fetchJson('manifest.json', signal);
+    const manifest = parseContributionManifest(value);
+    this.#manifest = manifest;
+    return manifest;
+  }
+
+  async getContributions(signal?: AbortSignal) {
+    const manifest = await this.getManifest(signal);
+    const value = await this.#fetchJson('contributions.json', signal);
+    return parseSummedContributions(value, manifest);
+  }
+
+  async #fetchJson(file: string, signal?: AbortSignal) {
+    const response = await fetch(`${this.#baseUrl}/${file}`, { signal });
+    if (!response.ok) {
+      throw new Error(
+        `Could not load ${file}: ${response.status} ${response.statusText}`,
+      );
+    }
+    return response.json() as Promise<unknown>;
   }
 }

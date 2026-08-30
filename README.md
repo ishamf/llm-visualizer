@@ -1,73 +1,66 @@
-# React + TypeScript + Vite
+# LLM Visualizer
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A Vite/React application for exploring token contributions from instrumented
+ONNX language models. Generation runs locally in a browser worker; pre-generated
+visualizations are loaded as static JSON from a separately deployable origin.
 
-Currently, two official plugins are available:
+## Development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
+```sh
+pnpm install
+pnpm dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The browser model defaults to `/models/`. Pre-generated data defaults to
+`/generated/`. The data origin can be changed at static build time:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x';
-import reactDom from 'eslint-plugin-react-dom';
+```sh
+VITE_GENERATED_DATA_BASE_URL=https://data.example.com/releases/v1/ \
+  pnpm build
+```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
+`VITE_GENERATED_DATA_BASE_URL` is compiled into the client bundle and therefore
+must be a public URL, not a secret. It may be absolute or relative to the page.
+
+## Generated-data discovery manifest
+
+Generated artifacts use this layout:
+
+```text
+generated/
+  contributions/<model-key>/<dataset-id>/manifest.json
+  contributions/<model-key>/<dataset-id>/layer-00.json
+  summed-contributions/<model-key>/<dataset-id>/manifest.json
+  summed-contributions/<model-key>/<dataset-id>/contributions.json
+```
+
+Compile `generated/manifest.json` after generating or changing datasets:
+
+```sh
+pnpm generate:data-manifest
+```
+
+The compiler validates every dataset manifest, checks that all expected data
+files exist, and writes a stable catalog containing metadata and relative
+artifact paths. The app fetches this file at runtime instead of using Vite glob
+imports, then lazily fetches the selected contribution files.
+
+Deploy the entire contents of `generated/` at the configured data base URL. If
+that URL has a different origin from the app, its responses must include:
+
+```text
+Access-Control-Allow-Origin: https://app.example.com
+Cross-Origin-Resource-Policy: cross-origin
+```
+
+Use `Access-Control-Allow-Origin: *` instead when the artifacts are intended to
+be publicly reusable. The CORP header is required because the app enables
+cross-origin isolation for browser model execution.
+
+## Verification
+
+```sh
+pnpm test
+pnpm lint
+pnpm build
 ```

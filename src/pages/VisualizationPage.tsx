@@ -11,15 +11,13 @@ import {
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
+import { HttpContributionDataSource } from '../data/contribution-data-source.ts';
+import { GENERATED_DATA_BASE_URL } from '../data/dataset-catalog.ts';
 import {
-  BundledContributionDataSource,
-  getBundledContributionDatasets,
-} from '../data/bundled-contribution-data-source.ts';
-import {
-  BundledSummedContributionDataSource,
-  getBundledSummedContributionDatasets,
-} from '../data/bundled-summed-contribution-data-source.ts';
-import { LayerSummingContributionDataSource } from '../data/summed-contribution-data-source.ts';
+  HttpSummedContributionDataSource,
+  LayerSummingContributionDataSource,
+} from '../data/summed-contribution-data-source.ts';
+import { useDatasetCatalog } from '../data/use-dataset-catalog.ts';
 import { getConfiguredPromptTitle } from '../generation/prompts.ts';
 import { ContributionGrid } from '../visualization/ContributionGrid.tsx';
 import { ContributionText } from '../visualization/ContributionText.tsx';
@@ -27,12 +25,13 @@ import { getVisualization } from '../visualization/registry.ts';
 
 export function VisualizationPage() {
   const { visualizationId = '', datasetId = '' } = useParams();
+  const catalog = useDatasetCatalog(GENERATED_DATA_BASE_URL);
   const visualization = getVisualization(visualizationId);
-  const layeredDataset = getBundledContributionDatasets().find(
-    (candidate) => candidate.id === datasetId,
+  const layeredDataset = catalog.datasets.find(
+    (candidate) => candidate.format === 'layered' && candidate.id === datasetId,
   );
-  const summedDataset = getBundledSummedContributionDatasets().find(
-    (candidate) => candidate.id === datasetId,
+  const summedDataset = catalog.datasets.find(
+    (candidate) => candidate.format === 'summed' && candidate.id === datasetId,
   );
   const dataset =
     visualization?.preferredFormat === 'layered'
@@ -41,14 +40,22 @@ export function VisualizationPage() {
   const layeredSource = useMemo(
     () =>
       layeredDataset
-        ? new BundledContributionDataSource(layeredDataset.id)
+        ? new HttpContributionDataSource(
+            layeredDataset.id,
+            layeredDataset.baseUrl,
+            layeredDataset.manifest,
+          )
         : null,
     [layeredDataset],
   );
   const summedSource = useMemo(
     () =>
       summedDataset
-        ? new BundledSummedContributionDataSource(summedDataset.id)
+        ? new HttpSummedContributionDataSource(
+            summedDataset.id,
+            summedDataset.baseUrl,
+            summedDataset.manifest,
+          )
         : null,
     [summedDataset],
   );
@@ -63,13 +70,24 @@ export function VisualizationPage() {
   const source =
     visualization?.kind === 'contribution-grid' ? layeredSource : textSource;
 
+  if (catalog.status === 'loading') {
+    return (
+      <main className="app-shell">
+        <Container size="sm" className="page-state">
+          <Text c="dimmed">Loading generated datasets…</Text>
+        </Container>
+      </main>
+    );
+  }
+
   if (!visualization || !dataset || !source) {
     return (
       <main className="app-shell">
         <Container size="sm" className="page-state">
           <Alert color="red" title="Visualization not found">
-            This visualization or generated dataset is not available in this
-            build.
+            {catalog.status === 'error'
+              ? catalog.error.message
+              : 'This visualization or generated dataset is not available.'}
           </Alert>
           <Button
             component={Link}

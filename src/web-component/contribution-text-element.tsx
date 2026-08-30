@@ -6,6 +6,7 @@ import {
 import { createRoot, type Root } from 'react-dom/client';
 
 import { ContributionTextExperience } from '../ContributionTextExperience.tsx';
+import { GENERATED_DATA_BASE_URL } from '../data/dataset-catalog.ts';
 import { BROWSER_MODEL_ROOT } from '../generation/config.ts';
 import { PortalTargetProvider } from './portal-target.tsx';
 import { contributionTextStyleSheet } from './styles.ts';
@@ -28,7 +29,11 @@ export function defineContributionTextElement(workerUrl: URL) {
   if (customElements.get(ELEMENT_NAME)) return;
 
   class ContributionTextElement extends HTMLElement {
-    static observedAttributes = ['color-scheme', 'model-base-url'];
+    static observedAttributes = [
+      'color-scheme',
+      'generated-data-base-url',
+      'model-base-url',
+    ];
 
     readonly #mountNode: HTMLDivElement;
     readonly #portalNode: HTMLDivElement;
@@ -83,6 +88,10 @@ export function defineContributionTextElement(workerUrl: URL) {
 
     #render() {
       const colorScheme = parseColorScheme(this.getAttribute('color-scheme'));
+      const generatedDataBaseUrl = new URL(
+        this.getAttribute('generated-data-base-url') ?? GENERATED_DATA_BASE_URL,
+        document.baseURI,
+      ).href;
       const modelBaseUrl = new URL(
         this.getAttribute('model-base-url') ?? BROWSER_MODEL_ROOT,
         document.baseURI,
@@ -100,6 +109,7 @@ export function defineContributionTextElement(workerUrl: URL) {
           <PortalTargetProvider target={this.#portalNode}>
             <ContributionTextExperience
               createWorker={() => createDistributionWorker(workerUrl)}
+              generatedDataBaseUrl={generatedDataBaseUrl}
               modelBaseUrl={modelBaseUrl}
             />
           </PortalTargetProvider>

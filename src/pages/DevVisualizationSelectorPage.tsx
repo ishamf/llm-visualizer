@@ -10,17 +10,26 @@ import {
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
-import { getBundledContributionDatasets } from '../data/bundled-contribution-data-source.ts';
-import { getBundledSummedContributionDatasets } from '../data/bundled-summed-contribution-data-source.ts';
+import {
+  GENERATED_DATA_BASE_URL,
+  type RemoteDataset,
+} from '../data/dataset-catalog.ts';
+import { useDatasetCatalog } from '../data/use-dataset-catalog.ts';
 import { getConfiguredPromptTitle } from '../generation/prompts.ts';
 import { VISUALIZATIONS } from '../visualization/registry.ts';
 
-const layeredDatasets = getBundledContributionDatasets();
-const summedDatasets = getBundledSummedContributionDatasets();
-
-function datasetsForVisualization(visualizationId: string | null) {
+function datasetsForVisualization(
+  visualizationId: string | null,
+  allDatasets: readonly RemoteDataset[],
+) {
   const visualization = VISUALIZATIONS.find(
     (candidate) => candidate.id === visualizationId,
+  );
+  const layeredDatasets = allDatasets.filter(
+    ({ format }) => format === 'layered',
+  );
+  const summedDatasets = allDatasets.filter(
+    ({ format }) => format === 'summed',
   );
   if (visualization?.preferredFormat === 'layered') return layeredDatasets;
 
@@ -33,13 +42,17 @@ function datasetsForVisualization(visualizationId: string | null) {
 
 export function DevVisualizationSelectorPage() {
   const navigate = useNavigate();
+  const catalog = useDatasetCatalog(GENERATED_DATA_BASE_URL);
   const [visualizationId, setVisualizationId] = useState<string | null>(
     VISUALIZATIONS[0]?.id ?? null,
   );
-  const datasets = datasetsForVisualization(visualizationId);
-  const [datasetId, setDatasetId] = useState<string | null>(
-    datasetsForVisualization(VISUALIZATIONS[0]?.id ?? null)[0]?.id ?? null,
+  const datasets = datasetsForVisualization(visualizationId, catalog.datasets);
+  const [requestedDatasetId, setRequestedDatasetId] = useState<string | null>(
+    null,
   );
+  const datasetId = datasets.some(({ id }) => id === requestedDatasetId)
+    ? requestedDatasetId
+    : (datasets[0]?.id ?? null);
   const selectedVisualization = VISUALIZATIONS.find(
     (visualization) => visualization.id === visualizationId,
   );
@@ -54,9 +67,12 @@ export function DevVisualizationSelectorPage() {
 
   const selectVisualization = (value: string | null) => {
     setVisualizationId(value);
-    const compatibleDatasets = datasetsForVisualization(value);
-    if (!compatibleDatasets.some(({ id }) => id === datasetId)) {
-      setDatasetId(compatibleDatasets[0]?.id ?? null);
+    const compatibleDatasets = datasetsForVisualization(
+      value,
+      catalog.datasets,
+    );
+    if (!compatibleDatasets.some(({ id }) => id === requestedDatasetId)) {
+      setRequestedDatasetId(compatibleDatasets[0]?.id ?? null);
     }
   };
 
@@ -83,6 +99,11 @@ export function DevVisualizationSelectorPage() {
 
         <Paper className="selector-card" withBorder radius="lg" p="xl">
           <Stack gap="lg">
+            {catalog.status === 'error' && (
+              <Text c="red" size="sm">
+                {catalog.error.message}
+              </Text>
+            )}
             <Select
               label="Visualization"
               description={selectedVisualization?.description}
@@ -109,7 +130,7 @@ export function DevVisualizationSelectorPage() {
                 label: `${manifest.title ?? getConfiguredPromptTitle(id) ?? manifest.prompt} — ${id}`,
               }))}
               value={datasetId}
-              onChange={setDatasetId}
+              onChange={setRequestedDatasetId}
               allowDeselect={false}
             />
 

@@ -124,9 +124,10 @@ export class HttpContributionDataSource implements ContributionDataSource {
   readonly #baseUrl: string;
   #manifest?: ContributionManifest;
 
-  constructor(id: string, baseUrl: string) {
+  constructor(id: string, baseUrl: string, manifest?: ContributionManifest) {
     this.id = id;
     this.#baseUrl = baseUrl.replace(/\/$/, '');
+    this.#manifest = manifest;
   }
 
   async getManifest(signal?: AbortSignal) {

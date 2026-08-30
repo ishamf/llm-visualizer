@@ -145,10 +145,11 @@ portal behavior remains unchanged there.
 
 Keep the initial API small:
 
-| Attribute        | Property       | Default    | Purpose                                   |
-| ---------------- | -------------- | ---------- | ----------------------------------------- |
-| `model-base-url` | `modelBaseUrl` | `/models/` | Base URL for tokenizer and ONNX assets    |
-| `color-scheme`   | `colorScheme`  | `auto`     | `light`, `dark`, or `auto` Mantine scheme |
+| Attribute                 | Property               | Default       | Purpose                                      |
+| ------------------------- | ---------------------- | ------------- | -------------------------------------------- |
+| `model-base-url`          | `modelBaseUrl`         | `/models/`    | Base URL for tokenizer and ONNX assets       |
+| `generated-data-base-url` | `generatedDataBaseUrl` | `/generated/` | Base URL for dataset discovery and artifacts |
+| `color-scheme`            | `colorScheme`          | `auto`        | `light`, `dark`, or `auto` Mantine scheme    |
 
 There is no `initial-path` because the element has no router.
 

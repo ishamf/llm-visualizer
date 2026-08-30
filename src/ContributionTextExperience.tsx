@@ -1,10 +1,9 @@
 import { Paper, Popover, Text, Title, UnstyledButton } from '@mantine/core';
-import { useCallback, useMemo, useState } from 'react';
+import { useState } from 'react';
 
-import {
-  BundledSummedContributionDataSource,
-  getBundledSummedContributionDatasets,
-} from './data/bundled-summed-contribution-data-source.ts';
+import type { RemoteDataset } from './data/dataset-catalog.ts';
+import { HttpSummedContributionDataSource } from './data/summed-contribution-data-source.ts';
+import { useDatasetCatalog } from './data/use-dataset-catalog.ts';
 import { getConfiguredPromptTitle } from './generation/prompts.ts';
 import {
   BrowserGenerationPanel,
@@ -13,20 +12,51 @@ import {
 import { selectDefaultPromptId } from './pages/homepage-state.ts';
 import { ContributionText } from './visualization/ContributionText.tsx';
 
-const datasets = getBundledSummedContributionDatasets();
-
 type ContributionTextExperienceProps = {
   createWorker: () => Worker;
+  generatedDataBaseUrl: string;
   modelBaseUrl: string;
 };
 
+function RemoteContributionText({
+  dataset,
+  playing,
+  onPlayingChange,
+}: {
+  dataset: RemoteDataset;
+  playing: boolean;
+  onPlayingChange: (playing: boolean) => void;
+}) {
+  const [source] = useState(
+    () =>
+      new HttpSummedContributionDataSource(
+        dataset.id,
+        dataset.baseUrl,
+        dataset.manifest,
+      ),
+  );
+  return (
+    <ContributionText
+      source={source}
+      manifest={dataset.manifest}
+      showOpacityControls={false}
+      playing={playing}
+      onPlayingChange={onPlayingChange}
+    />
+  );
+}
+
 export function ContributionTextExperience({
   createWorker,
+  generatedDataBaseUrl,
   modelBaseUrl,
 }: ContributionTextExperienceProps) {
-  const [datasetId, setDatasetId] = useState(() =>
-    selectDefaultPromptId(datasets.map(({ id }) => id)),
-  );
+  const catalog = useDatasetCatalog(generatedDataBaseUrl);
+  const datasets = catalog.datasets.filter(({ format }) => format === 'summed');
+  const [requestedDatasetId, setRequestedDatasetId] = useState('');
+  const datasetId = datasets.some(({ id }) => id === requestedDatasetId)
+    ? requestedDatasetId
+    : selectDefaultPromptId(datasets.map(({ id }) => id));
   const [generationResult, setGenerationResult] = useState<GenerationResult>();
   const [generationStarted, setGenerationStarted] = useState(false);
   const [generationActive, setGenerationActive] = useState(false);
@@ -36,23 +66,14 @@ export function ContributionTextExperience({
     useState(true);
   const [promptSelectorOpen, setPromptSelectorOpen] = useState(false);
   const selectedDataset = datasets.find(({ id }) => id === datasetId);
-  const selectedSource = useMemo(
-    () =>
-      selectedDataset
-        ? new BundledSummedContributionDataSource(selectedDataset.id)
-        : undefined,
-    [selectedDataset],
-  );
 
-  const handleGenerationStarted = useCallback(() => {
+  const handleGenerationStarted = () => {
     setGenerationStarted(true);
-  }, []);
-  const handleResultChange = useCallback(
-    (result: GenerationResult | undefined) => setGenerationResult(result),
-    [],
-  );
+  };
+  const handleResultChange = (result: GenerationResult | undefined) =>
+    setGenerationResult(result);
   const selectDataset = (id: string) => {
-    setDatasetId(id);
+    setRequestedDatasetId(id);
     setPromptSelectorOpen(false);
   };
 
@@ -111,7 +132,18 @@ export function ContributionTextExperience({
             </Text>
           </header>
 
-          {selectedDataset && selectedSource ? (
+          {catalog.status === 'error' ? (
+            <Paper
+              className="text-visualization-state"
+              withBorder
+              radius="lg"
+              p="xl"
+            >
+              <Text size="sm" c="red">
+                {catalog.error.message}
+              </Text>
+            </Paper>
+          ) : selectedDataset ? (
             <>
               <Popover
                 opened={promptSelectorOpen}
@@ -152,11 +184,9 @@ export function ContributionTextExperience({
                   </div>
                 </Popover.Dropdown>
               </Popover>
-              <ContributionText
+              <RemoteContributionText
                 key={selectedDataset.id}
-                source={selectedSource}
-                manifest={selectedDataset.manifest}
-                showOpacityControls={false}
+                dataset={selectedDataset}
                 playing={presetVisualizationPlaying}
                 onPlayingChange={setPresetVisualizationPlaying}
               />
@@ -169,7 +199,9 @@ export function ContributionTextExperience({
               p="xl"
             >
               <Text size="sm" c="dimmed">
-                No pre-generated prompts are available in this build.
+                {catalog.status === 'loading'
+                  ? 'Loading pre-generated prompts…'
+                  : 'No pre-generated prompts are available.'}
               </Text>
             </Paper>
           )}

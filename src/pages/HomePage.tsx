@@ -2,6 +2,7 @@ import { Button, Container, Text, Title } from '@mantine/core';
 import { Link } from 'react-router-dom';
 
 import { ContributionTextExperience } from '../ContributionTextExperience.tsx';
+import { GENERATED_DATA_BASE_URL } from '../data/dataset-catalog.ts';
 import { BROWSER_MODEL_ROOT } from '../generation/config.ts';
 
 function createStandaloneWorker() {
@@ -38,6 +39,7 @@ export function HomePage() {
 
         <ContributionTextExperience
           createWorker={createStandaloneWorker}
+          generatedDataBaseUrl={GENERATED_DATA_BASE_URL}
           modelBaseUrl={BROWSER_MODEL_ROOT}
         />
       </Container>
