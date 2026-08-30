@@ -5,15 +5,22 @@ export type ModelGeometry = {
   headDimension: number;
 };
 
+export type ModelVariant = 'int8' | 'uint8' | 'q4f16';
+
 export type ModelProfile = {
   key: string;
   id: string;
-  dtype: 'int8';
+  dtype: ModelVariant;
   instrumentation: string;
+  modelSizeBytes: number;
   geometry: ModelGeometry;
   generation: GenerationDefaults;
   contextAbsoluteTolerance: number;
   logitsAbsoluteTolerance: number;
+};
+
+export type ModelDefinition = Omit<ModelProfile, 'dtype' | 'modelSizeBytes'> & {
+  modelSizeBytesByVariant: Record<ModelVariant, number>;
 };
 
 export type GenerationDefaults = {
@@ -43,8 +50,12 @@ export const MODEL_PROFILES = {
   'qwen3-0.6b': {
     key: 'qwen3-0.6b',
     id: 'Qwen3-0.6B-ONNX',
-    dtype: 'int8',
     instrumentation: 'instrumented',
+    modelSizeBytesByVariant: {
+      int8: 617_690_408,
+      uint8: 617_690_408,
+      q4f16: 569_795_470,
+    },
     geometry: QWEN3_GEOMETRY,
     generation: QWEN3_GENERATION_DEFAULTS,
     contextAbsoluteTolerance: 0.025,
@@ -53,20 +64,43 @@ export const MODEL_PROFILES = {
   'qwen3-1.7b': {
     key: 'qwen3-1.7b',
     id: 'Qwen3-1.7B-ONNX',
-    dtype: 'int8',
     instrumentation: 'instrumented',
+    modelSizeBytesByVariant: {
+      int8: 1_742_390_682,
+      uint8: 1_742_390_682,
+      q4f16: 1_426_072_028,
+    },
     geometry: QWEN3_GEOMETRY,
     generation: QWEN3_GENERATION_DEFAULTS,
     contextAbsoluteTolerance: 0.025,
     logitsAbsoluteTolerance: 1e-5,
   },
-} as const satisfies Record<string, ModelProfile>;
+} as const satisfies Record<string, ModelDefinition>;
 
 export type ModelKey = keyof typeof MODEL_PROFILES;
 
-export const DEFAULT_EXPORT_MODEL_KEY: ModelKey = 'qwen3-0.6b';
-export const UI_MODEL_KEY: ModelKey = 'qwen3-0.6b';
-export const UI_MODEL_PROFILE: ModelProfile = MODEL_PROFILES[UI_MODEL_KEY];
+/** The model and quantization variant used by the app and exporter defaults. */
+export const MODEL_CONFIGURATION = {
+  key: 'qwen3-0.6b',
+  variant: 'int8',
+} as const satisfies { key: ModelKey; variant: ModelVariant };
+
+export function getModelProfile(
+  key: ModelKey,
+  variant: ModelVariant,
+): ModelProfile {
+  const { modelSizeBytesByVariant, ...definition } = MODEL_PROFILES[key];
+  return {
+    ...definition,
+    dtype: variant,
+    modelSizeBytes: modelSizeBytesByVariant[variant],
+  };
+}
+
+export const UI_MODEL_PROFILE = getModelProfile(
+  MODEL_CONFIGURATION.key,
+  MODEL_CONFIGURATION.variant,
+);
 
 const MODEL_ALIASES: Record<string, ModelKey> = {
   '0.6b': 'qwen3-0.6b',
@@ -83,6 +117,16 @@ export function parseModelKey(value: string): ModelKey {
     );
   }
   return key;
+}
+
+export function parseModelVariant(value: string): ModelVariant {
+  const variant = value.toLowerCase();
+  if (variant !== 'int8' && variant !== 'uint8' && variant !== 'q4f16') {
+    throw new Error(
+      `Unknown model variant ${JSON.stringify(value)}. Available variants: int8, uint8, q4f16`,
+    );
+  }
+  return variant;
 }
 
 // These defaults remain available to the command-line validation scripts.

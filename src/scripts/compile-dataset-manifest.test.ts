@@ -23,13 +23,14 @@ describe('compile dataset manifest', () => {
     );
     temporaryDirectories.push(generatedRoot);
     const dataset = exampleDataset();
+    dataset.manifest.model.dtype = 'int8';
     const layeredRoot = path.join(
       generatedRoot,
-      'contributions/qwen3-0.6b/example',
+      'contributions/qwen3-0.6b/int8/example',
     );
     const summedRoot = path.join(
       generatedRoot,
-      'summed-contributions/qwen3-0.6b/example',
+      'summed-contributions/qwen3-0.6b/int8/example',
     );
     await Promise.all([
       mkdir(layeredRoot, { recursive: true }),
@@ -62,14 +63,16 @@ describe('compile dataset manifest', () => {
       {
         id: 'example',
         modelKey: 'qwen3-0.6b',
+        modelVariant: 'int8',
         format: 'layered',
-        path: 'contributions/qwen3-0.6b/example/',
+        path: 'contributions/qwen3-0.6b/int8/example/',
       },
       {
         id: 'example',
         modelKey: 'qwen3-0.6b',
+        modelVariant: 'int8',
         format: 'summed',
-        path: 'summed-contributions/qwen3-0.6b/example/',
+        path: 'summed-contributions/qwen3-0.6b/int8/example/',
       },
     ]);
   });

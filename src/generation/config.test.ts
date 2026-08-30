@@ -16,7 +16,7 @@ describe('browser model configuration', () => {
     });
   });
 
-  it('pins browser generation to the 0.6B INT8 model', () => {
+  it('uses the centrally selected model and variant for browser generation', () => {
     expect(BROWSER_MODEL_PROFILE).toMatchObject({
       key: 'qwen3-0.6b',
       id: 'Qwen3-0.6B-ONNX',

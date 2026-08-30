@@ -402,6 +402,7 @@ pnpm generate:contributions --model 1.7b --id <dataset-id>
 pnpm generate:contributions --model 1.7b --output <directory> --overwrite
 pnpm generate:contributions --model 1.7b --id <dataset-id> --validate
 pnpm generate:contributions --model 1.7b --id <dataset-id> --no-stream
+pnpm generate:contributions --model 0.6b --variant uint8 --id <dataset-id>
 ```
 
 A second exporter stores the exact layer sum consumed by the contribution-text
@@ -413,27 +414,29 @@ pnpm generate:summed-contributions --model 1.7b --id <dataset-id>
 pnpm generate:summed-contributions --model 1.7b --output <directory> --overwrite
 pnpm generate:summed-contributions --model 1.7b --id <dataset-id> --validate
 pnpm generate:summed-contributions --model 1.7b --id <dataset-id> --no-stream
+pnpm generate:summed-contributions --model 0.6b --variant uint8 --id <dataset-id>
 ```
 
 The supported model keys are `qwen3-0.6b` and `qwen3-1.7b`; the short aliases
-`0.6b` and `1.7b` are accepted. Both profiles use the local int8 ONNX artifact.
-The selected profile controls model loading, attention geometry, validation
-tolerances, sampling defaults, and manifest metadata. Omitting `--model`
-retains `qwen3-0.6b` as the exporter default.
+`0.6b` and `1.7b` are accepted. The supported model variants are `int8`,
+`uint8`, and `q4f16`. The selected profile controls model loading, attention geometry,
+validation tolerances, sampling defaults, and manifest metadata. Omitting
+`--model` and `--variant` uses `MODEL_CONFIGURATION` from `config.ts`.
 
 Before exporting, instrument a downloaded model with:
 
 ```text
 pnpm instrument:model --model 1.7b
 pnpm instrument:model --model 1.7b --validation-outputs
+pnpm instrument:model models/Qwen3-0.6B-ONNX/onnx/model_uint8.onnx
 ```
 
 This reads `models/Qwen3-1.7B-ONNX/onnx/model_int8.onnx` and writes
-`instrumented_int8.onnx` beside it. An explicit ONNX source path remains
-supported for models outside the configured profiles.
+`instrumented_int8.onnx` beside it. Use an explicit source path for another
+variant; the destination name is derived from the source filename.
 
 Summed output defaults to
-`generated/summed-contributions/<model-key>/<dataset-id>/` and
+`generated/summed-contributions/<model-key>/<model-variant>/<dataset-id>/` and
 contains an eagerly discovered `manifest.json` plus one lazily loaded
 `contributions.json`. The latter contains one source-contribution row per
 generated target token, produced by adding layers as model steps complete.
@@ -474,9 +477,10 @@ only the instrumented model is loaded. Passing `--validate` first loads the
 original model to capture final-position reference logits and also reconstructs
 instrumented attention contexts at every generation step. Validation statistics
 are included in the manifest only when this flag is enabled. Layered output
-defaults to `generated/contributions/<model-key>/<dataset-id>/`; both generated
-roots are ignored by Git. The browser intentionally has no model selector and
-loads the bundled `qwen3-1.7b` datasets.
+defaults to `generated/contributions/<model-key>/<model-variant>/<dataset-id>/`;
+both generated roots are ignored by Git. The browser intentionally has no model
+selector and loads only datasets matching the central `MODEL_CONFIGURATION`
+selection.
 The summed exporter reports generated-token count and elapsed time about once
 per second. Unlike layered exports, it stops before the unused forward pass
 after EOS or the token at the configured limit.

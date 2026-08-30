@@ -8,13 +8,14 @@ import type { ContributionFormat } from '../generation/types.ts';
 type CompiledDatasetEntry = {
   id: string;
   modelKey: string;
+  modelVariant: string;
   format: ContributionFormat;
   path: string;
   manifest: ReturnType<typeof parseContributionManifest>;
 };
 
 export type CompiledDatasetManifest = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   datasets: CompiledDatasetEntry[];
 };
 
@@ -64,21 +65,34 @@ export async function compileDatasetManifest(
     const formatRoot = path.join(generatedRoot, directory);
     for (const modelKey of await directories(formatRoot)) {
       const modelRoot = path.join(formatRoot, modelKey);
-      for (const id of await directories(modelRoot)) {
-        const datasetRoot = path.join(modelRoot, id);
-        const manifest = parseContributionManifest(
-          JSON.parse(
-            await readFile(path.join(datasetRoot, 'manifest.json'), 'utf8'),
-          ),
-        );
-        await assertDatasetFiles(datasetRoot, format, manifest.geometry.layers);
-        datasets.push({
-          id,
-          modelKey,
-          format,
-          path: `${directory}/${modelKey}/${id}/`,
-          manifest,
-        });
+      for (const modelVariant of await directories(modelRoot)) {
+        const variantRoot = path.join(modelRoot, modelVariant);
+        for (const id of await directories(variantRoot)) {
+          const datasetRoot = path.join(variantRoot, id);
+          const manifest = parseContributionManifest(
+            JSON.parse(
+              await readFile(path.join(datasetRoot, 'manifest.json'), 'utf8'),
+            ),
+          );
+          if (manifest.model.dtype !== modelVariant) {
+            throw new Error(
+              `${datasetRoot} contains ${manifest.model.dtype} data under the ${modelVariant} variant`,
+            );
+          }
+          await assertDatasetFiles(
+            datasetRoot,
+            format,
+            manifest.geometry.layers,
+          );
+          datasets.push({
+            id,
+            modelKey,
+            modelVariant,
+            format,
+            path: `${directory}/${modelKey}/${modelVariant}/${id}/`,
+            manifest,
+          });
+        }
       }
     }
   }
@@ -86,10 +100,11 @@ export async function compileDatasetManifest(
   datasets.sort(
     (left, right) =>
       left.modelKey.localeCompare(right.modelKey) ||
+      left.modelVariant.localeCompare(right.modelVariant) ||
       left.id.localeCompare(right.id) ||
       left.format.localeCompare(right.format),
   );
-  return { schemaVersion: 1, datasets };
+  return { schemaVersion: 2, datasets };
 }
 
 export async function writeDatasetManifest(

@@ -68,10 +68,10 @@ Generated artifacts use this layout:
 
 ```text
 generated/
-  contributions/<model-key>/<dataset-id>/manifest.json
-  contributions/<model-key>/<dataset-id>/layer-00.json
-  summed-contributions/<model-key>/<dataset-id>/manifest.json
-  summed-contributions/<model-key>/<dataset-id>/contributions.json
+  contributions/<model-key>/<model-variant>/<dataset-id>/manifest.json
+  contributions/<model-key>/<model-variant>/<dataset-id>/layer-00.json
+  summed-contributions/<model-key>/<model-variant>/<dataset-id>/manifest.json
+  summed-contributions/<model-key>/<model-variant>/<dataset-id>/contributions.json
 ```
 
 Compile `generated/manifest.json` after generating or changing datasets:

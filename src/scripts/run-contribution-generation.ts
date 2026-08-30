@@ -9,11 +9,13 @@ import {
 } from '@huggingface/transformers';
 
 import {
-  DEFAULT_EXPORT_MODEL_KEY,
-  MODEL_PROFILES,
+  MODEL_CONFIGURATION,
+  getModelProfile,
   parseModelKey,
+  parseModelVariant,
   type ModelKey,
   type ModelProfile,
+  type ModelVariant,
 } from '../generation/config.ts';
 import {
   assertDatasetDestinationAvailable,
@@ -45,6 +47,7 @@ const MODEL_ROOT = fileURLToPath(new URL('../../models/', import.meta.url));
 type CommandLineOptions = {
   datasetId?: string;
   modelKey: ModelKey;
+  modelVariant: ModelVariant;
   outputRoot: string;
   overwrite: boolean;
   stream: boolean;
@@ -73,7 +76,8 @@ export function parseArguments(
   defaultOutputRoot: string,
 ): CommandLineOptions {
   let datasetId: string | undefined;
-  let modelKey = DEFAULT_EXPORT_MODEL_KEY;
+  let modelKey: ModelKey = MODEL_CONFIGURATION.key;
+  let modelVariant: ModelVariant = MODEL_CONFIGURATION.variant;
   let outputRoot = path.resolve(defaultOutputRoot);
   let overwrite = false;
   let stream = true;
@@ -99,6 +103,12 @@ export function parseArguments(
         throw new Error('--model requires a model name');
       }
       modelKey = parseModelKey(value);
+    } else if (argument === '--variant') {
+      const value = arguments_[++index];
+      if (!value || value.startsWith('--')) {
+        throw new Error('--variant requires a model variant');
+      }
+      modelVariant = parseModelVariant(value);
     } else if (argument === '--no-stream') {
       stream = false;
     } else if (argument === '--validate') {
@@ -111,11 +121,19 @@ export function parseArguments(
       throw new Error(`Unknown argument: ${argument}`);
     }
   }
-  return { datasetId, modelKey, outputRoot, overwrite, stream, validate };
+  return {
+    datasetId,
+    modelKey,
+    modelVariant,
+    outputRoot,
+    overwrite,
+    stream,
+    validate,
+  };
 }
 
 export function modelOutputRoot(outputRoot: string, profile: ModelProfile) {
-  return path.join(outputRoot, profile.key);
+  return path.join(outputRoot, profile.key, profile.dtype);
 }
 
 export async function partitionExistingPromptConfigurations(
@@ -178,7 +196,7 @@ export async function runContributionGeneration<
   Dataset extends { manifest: ContributionManifest },
 >(arguments_: string[], target: ContributionGenerationTarget<Dataset>) {
   const options = parseArguments(arguments_, target.defaultOutputRoot);
-  const modelProfile = MODEL_PROFILES[options.modelKey];
+  const modelProfile = getModelProfile(options.modelKey, options.modelVariant);
   const scopedOutputRoot = modelOutputRoot(options.outputRoot, modelProfile);
   // Validation and format filtering deliberately happen before model loading.
   let configurations = selectPromptConfigurations(

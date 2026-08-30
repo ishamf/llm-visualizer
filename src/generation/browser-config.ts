@@ -1,13 +1,13 @@
-import { MODEL_PROFILES, type ModelProfile } from './config.ts';
+import { UI_MODEL_PROFILE, type ModelProfile } from './config.ts';
 
-export const BROWSER_MODEL_PROFILE: ModelProfile = MODEL_PROFILES['qwen3-0.6b'];
+export const BROWSER_MODEL_PROFILE: ModelProfile = UI_MODEL_PROFILE;
 
 /** The static model directory exposed by the Vite development server. */
 export const BROWSER_MODEL_ROOT = '/models/';
 export const BROWSER_MODEL_PATH = `${BROWSER_MODEL_ROOT}${BROWSER_MODEL_PROFILE.id}`;
 export const BROWSER_MODEL_WEIGHTS_PATH = `${BROWSER_MODEL_PATH}/onnx/${BROWSER_MODEL_PROFILE.instrumentation}_${BROWSER_MODEL_PROFILE.dtype}.onnx`;
-/** Approximate size of the instrumented int8 ONNX weights. */
-export const BROWSER_MODEL_SIZE_BYTES = 617_690_408;
+/** Approximate size of the selected instrumented ONNX weights. */
+export const BROWSER_MODEL_SIZE_BYTES = BROWSER_MODEL_PROFILE.modelSizeBytes;
 
 export type BrowserModelSource =
   | { type: 'local'; baseUrl: string }

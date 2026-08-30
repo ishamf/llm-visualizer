@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { MODEL_PROFILES } from '../generation/config.ts';
+import { getModelProfile } from '../generation/config.ts';
 import { validatePrompts } from '../generation/prompts.ts';
 import {
   modelOutputRoot,
@@ -15,6 +15,7 @@ import {
 describe('contribution generation arguments', () => {
   it('uses the 0.6B exporter profile by default', () => {
     expect(parseArguments([], 'generated/test').modelKey).toBe('qwen3-0.6b');
+    expect(parseArguments([], 'generated/test').modelVariant).toBe('int8');
   });
 
   it('selects a model using its short alias', () => {
@@ -29,13 +30,19 @@ describe('contribution generation arguments', () => {
     ).toThrow('Available models: qwen3-0.6b, qwen3-1.7b');
   });
 
-  it('scopes generated output by model key', () => {
+  it('selects a model variant', () => {
+    expect(
+      parseArguments(['--variant', 'uint8'], 'generated/test').modelVariant,
+    ).toBe('uint8');
+  });
+
+  it('scopes generated output by model key and variant', () => {
     expect(
       modelOutputRoot(
         '/tmp/generated/contributions',
-        MODEL_PROFILES['qwen3-1.7b'],
+        getModelProfile('qwen3-1.7b', 'int8'),
       ),
-    ).toBe('/tmp/generated/contributions/qwen3-1.7b');
+    ).toBe('/tmp/generated/contributions/qwen3-1.7b/int8');
   });
 
   it('streams generated text by default', () => {
