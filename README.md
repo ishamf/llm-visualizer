@@ -58,6 +58,10 @@ Cross-Origin-Embedder-Policy: require-corp
 Cross-Origin-Opener-Policy: same-origin
 ```
 
+Cloudflare Pages is configured through `public/_headers`; Vite copies that file
+to the root of `dist/`, where Pages reads it during deployment. Other static
+hosts need equivalent header configuration.
+
 For the web-component build, omitting `model-base-url` uses the build-time
 Hugging Face repository. Setting the attribute retains the custom static-host
 layout `<model-base-url>/Qwen3-0.6B-ONNX/...`.
