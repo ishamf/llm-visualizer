@@ -7,15 +7,15 @@ import type { ContributionFormat } from '../generation/types.ts';
 
 type CompiledDatasetEntry = {
   id: string;
-  format: ContributionFormat;
   path: string;
   manifest: ReturnType<typeof parseContributionManifest>;
 };
 
 export type CompiledDatasetManifest = {
-  schemaVersion: 3;
+  schemaVersion: 4;
   modelKey: string;
   modelVariant: string;
+  format: ContributionFormat;
   datasets: CompiledDatasetEntry[];
 };
 
@@ -59,91 +59,88 @@ async function assertDatasetFiles(
 export async function compileDatasetManifests(
   generatedRoot: string,
 ): Promise<CompiledDatasetManifest[]> {
-  const variants = new Map<
-    string,
-    { modelKey: string; modelVariant: string }
-  >();
-  for (const { directory } of FORMAT_DIRECTORIES) {
+  const manifests: Promise<CompiledDatasetManifest>[] = [];
+  for (const { directory, format } of FORMAT_DIRECTORIES) {
     const formatRoot = path.join(generatedRoot, directory);
     for (const modelKey of await directories(formatRoot)) {
       const modelRoot = path.join(formatRoot, modelKey);
       for (const modelVariant of await directories(modelRoot)) {
-        variants.set(`${modelKey}\0${modelVariant}`, {
-          modelKey,
-          modelVariant,
-        });
+        manifests.push(
+          compileDatasetManifest(generatedRoot, format, modelKey, modelVariant),
+        );
       }
     }
   }
-
-  const sortedVariants = [...variants.values()].sort(
-    (left, right) =>
-      left.modelKey.localeCompare(right.modelKey) ||
-      left.modelVariant.localeCompare(right.modelVariant),
-  );
-  return Promise.all(
-    sortedVariants.map(({ modelKey, modelVariant }) =>
-      compileDatasetManifest(generatedRoot, modelKey, modelVariant),
-    ),
-  );
+  return Promise.all(manifests);
 }
 
 export async function compileDatasetManifest(
   generatedRoot: string,
+  format: ContributionFormat,
+  modelKey: string,
+  modelVariant: string,
+): Promise<CompiledDatasetManifest> {
+  const configuration = FORMAT_DIRECTORIES.find(
+    (candidate) => candidate.format === format,
+  );
+  if (!configuration) throw new Error(`Unsupported dataset format: ${format}`);
+
+  return compileFormatDatasetManifest(
+    path.join(generatedRoot, configuration.directory),
+    format,
+    modelKey,
+    modelVariant,
+  );
+}
+
+async function compileFormatDatasetManifest(
+  formatRoot: string,
+  format: ContributionFormat,
   modelKey: string,
   modelVariant: string,
 ): Promise<CompiledDatasetManifest> {
   const catalog: CompiledDatasetManifest = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     modelKey,
     modelVariant,
+    format,
     datasets: [],
   };
 
-  for (const { directory, format } of FORMAT_DIRECTORIES) {
-    const variantRoot = path.join(
-      generatedRoot,
-      directory,
-      modelKey,
-      modelVariant,
+  const variantRoot = path.join(formatRoot, modelKey, modelVariant);
+  for (const id of await directories(variantRoot)) {
+    const datasetRoot = path.join(variantRoot, id);
+    const manifest = parseContributionManifest(
+      JSON.parse(
+        await readFile(path.join(datasetRoot, 'manifest.json'), 'utf8'),
+      ),
     );
-    for (const id of await directories(variantRoot)) {
-      const datasetRoot = path.join(variantRoot, id);
-      const manifest = parseContributionManifest(
-        JSON.parse(
-          await readFile(path.join(datasetRoot, 'manifest.json'), 'utf8'),
-        ),
+    if (manifest.model.dtype !== modelVariant) {
+      throw new Error(
+        `${datasetRoot} contains ${manifest.model.dtype} data under the ${modelVariant} variant`,
       );
-      if (manifest.model.dtype !== modelVariant) {
-        throw new Error(
-          `${datasetRoot} contains ${manifest.model.dtype} data under the ${modelVariant} variant`,
-        );
-      }
-      await assertDatasetFiles(datasetRoot, format, manifest.geometry.layers);
-      catalog.datasets.push({
-        id,
-        format,
-        path: `${directory}/${modelKey}/${modelVariant}/${id}/`,
-        manifest,
-      });
     }
+    await assertDatasetFiles(datasetRoot, format, manifest.geometry.layers);
+    catalog.datasets.push({
+      id,
+      path: `${id}/`,
+      manifest,
+    });
   }
 
-  catalog.datasets.sort(
-    (left, right) =>
-      left.id.localeCompare(right.id) ||
-      left.format.localeCompare(right.format),
-  );
+  catalog.datasets.sort((left, right) => left.id.localeCompare(right.id));
   return catalog;
 }
 
 export async function writeDatasetManifest(
   generatedRoot: string,
+  format: ContributionFormat,
   modelKey: string,
   modelVariant: string,
 ) {
   const manifest = await compileDatasetManifest(
     generatedRoot,
+    format,
     modelKey,
     modelVariant,
   );
@@ -151,18 +148,51 @@ export async function writeDatasetManifest(
   return manifest;
 }
 
+export async function writeFormatDatasetManifest(
+  formatRoot: string,
+  format: ContributionFormat,
+  modelKey: string,
+  modelVariant: string,
+) {
+  const manifest = await compileFormatDatasetManifest(
+    formatRoot,
+    format,
+    modelKey,
+    modelVariant,
+  );
+  await writeManifestFile(
+    path.join(formatRoot, modelKey, modelVariant, 'manifest.json'),
+    manifest,
+  );
+  return manifest;
+}
+
+async function writeManifestFile(
+  output: string,
+  manifest: CompiledDatasetManifest,
+) {
+  await mkdir(path.dirname(output), { recursive: true });
+  await writeFile(output, `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
 async function writeCompiledDatasetManifest(
   generatedRoot: string,
   manifest: CompiledDatasetManifest,
 ) {
+  const configuration = FORMAT_DIRECTORIES.find(
+    (candidate) => candidate.format === manifest.format,
+  );
+  if (!configuration) {
+    throw new Error(`Unsupported dataset format: ${manifest.format}`);
+  }
   const output = path.join(
     generatedRoot,
-    'manifests',
+    configuration.directory,
     manifest.modelKey,
-    `${manifest.modelVariant}.json`,
+    manifest.modelVariant,
+    'manifest.json',
   );
-  await mkdir(path.dirname(output), { recursive: true });
-  await writeFile(output, `${JSON.stringify(manifest, null, 2)}\n`);
+  await writeManifestFile(output, manifest);
 }
 
 export async function writeDatasetManifests(generatedRoot: string) {
@@ -183,6 +213,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === import.meta.filename) {
     0,
   );
   console.log(
-    `Wrote ${manifests.length} manifests with ${datasetCount} datasets under ${path.join(generatedRoot, 'manifests')}`,
+    `Wrote ${manifests.length} colocated manifests with ${datasetCount} datasets under ${generatedRoot}`,
   );
 }

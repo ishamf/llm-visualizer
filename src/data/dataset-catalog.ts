@@ -5,7 +5,7 @@ import type {
 } from '../generation/types.ts';
 import { parseContributionManifest } from './contribution-data-source.ts';
 
-export const DATASET_CATALOG_SCHEMA_VERSION = 3 as const;
+export const DATASET_CATALOG_SCHEMA_VERSION = 4 as const;
 export const GENERATED_DATA_BASE_URL =
   import.meta.env.VITE_GENERATED_DATA_BASE_URL || '/generated/';
 
@@ -20,13 +20,14 @@ export type DatasetCatalogEntry = {
 
 type CatalogDatasetEntry = Omit<
   DatasetCatalogEntry,
-  'modelKey' | 'modelVariant'
+  'modelKey' | 'modelVariant' | 'format'
 >;
 
 export type DatasetCatalog = {
   schemaVersion: typeof DATASET_CATALOG_SCHEMA_VERSION;
   modelKey: string;
   modelVariant: string;
+  format: ContributionFormat;
   datasets: CatalogDatasetEntry[];
 };
 
@@ -53,6 +54,7 @@ export function parseDatasetCatalog(value: unknown): DatasetCatalog {
     value.modelKey.length === 0 ||
     typeof value.modelVariant !== 'string' ||
     value.modelVariant.length === 0 ||
+    (value.format !== 'layered' && value.format !== 'summed') ||
     !Array.isArray(value.datasets)
   ) {
     throw new Error('Dataset discovery manifest has an unsupported shape');
@@ -63,7 +65,6 @@ export function parseDatasetCatalog(value: unknown): DatasetCatalog {
       !isRecord(entry) ||
       typeof entry.id !== 'string' ||
       entry.id.length === 0 ||
-      (entry.format !== 'layered' && entry.format !== 'summed') ||
       typeof entry.path !== 'string' ||
       entry.path.length === 0 ||
       entry.path.startsWith('/') ||
@@ -79,7 +80,6 @@ export function parseDatasetCatalog(value: unknown): DatasetCatalog {
     }
     return {
       id: entry.id,
-      format: entry.format,
       path: entry.path,
       manifest,
     };
@@ -89,9 +89,18 @@ export function parseDatasetCatalog(value: unknown): DatasetCatalog {
     schemaVersion: DATASET_CATALOG_SCHEMA_VERSION,
     modelKey: value.modelKey,
     modelVariant: value.modelVariant,
+    format: value.format,
     datasets,
   };
 }
+
+const CATALOG_LOCATIONS = [
+  { directory: 'contributions', format: 'layered' },
+  { directory: 'summed-contributions', format: 'summed' },
+] as const satisfies readonly {
+  directory: string;
+  format: ContributionFormat;
+}[];
 
 export async function loadDatasetCatalog(
   dataBaseUrl: string,
@@ -101,32 +110,48 @@ export async function loadDatasetCatalog(
     dataBaseUrl.endsWith('/') ? dataBaseUrl : `${dataBaseUrl}/`,
     document.baseURI,
   );
-  const catalogUrl = new URL(
-    `manifests/${MODEL_CONFIGURATION.key}/${MODEL_CONFIGURATION.variant}.json`,
-    root,
+  const catalogs = await Promise.all(
+    CATALOG_LOCATIONS.map(async ({ directory, format }) => {
+      const catalogUrl = new URL(
+        `${directory}/${MODEL_CONFIGURATION.key}/${MODEL_CONFIGURATION.variant}/manifest.json`,
+        root,
+      );
+      const response = await fetch(catalogUrl, { signal });
+      if (response.status === 404) return undefined;
+      if (!response.ok) {
+        throw new Error(
+          `Could not load dataset discovery manifest: ${response.status} ${response.statusText}`,
+        );
+      }
+      const catalog = parseDatasetCatalog(await response.json());
+      if (
+        catalog.modelKey !== MODEL_CONFIGURATION.key ||
+        catalog.modelVariant !== MODEL_CONFIGURATION.variant ||
+        catalog.format !== format
+      ) {
+        throw new Error(
+          'Dataset discovery manifest does not match its configured model, variant, and format',
+        );
+      }
+      return { catalog, catalogUrl };
+    }),
   );
-  const response = await fetch(catalogUrl, { signal });
-  if (!response.ok) {
-    throw new Error(
-      `Could not load dataset discovery manifest: ${response.status} ${response.statusText}`,
-    );
+  const availableCatalogs = catalogs.filter(
+    (catalog): catalog is NonNullable<typeof catalog> => catalog !== undefined,
+  );
+  if (availableCatalogs.length === 0) {
+    throw new Error('Could not load any dataset discovery manifests');
   }
-  const catalog = parseDatasetCatalog(await response.json());
-  if (
-    catalog.modelKey !== MODEL_CONFIGURATION.key ||
-    catalog.modelVariant !== MODEL_CONFIGURATION.variant
-  ) {
-    throw new Error(
-      'Dataset discovery manifest does not match the configured model',
-    );
-  }
-  return catalog.datasets.map((entry) => ({
-    ...entry,
-    modelKey: catalog.modelKey,
-    modelVariant: catalog.modelVariant,
-    baseUrl: new URL(
-      entry.path.endsWith('/') ? entry.path : `${entry.path}/`,
-      root,
-    ).href,
-  }));
+  return availableCatalogs.flatMap(({ catalog, catalogUrl }) =>
+    catalog.datasets.map((entry) => ({
+      ...entry,
+      modelKey: catalog.modelKey,
+      modelVariant: catalog.modelVariant,
+      format: catalog.format,
+      baseUrl: new URL(
+        entry.path.endsWith('/') ? entry.path : `${entry.path}/`,
+        catalogUrl,
+      ).href,
+    })),
+  );
 }

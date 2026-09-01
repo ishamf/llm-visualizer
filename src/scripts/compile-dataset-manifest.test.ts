@@ -68,34 +68,45 @@ describe('compile dataset manifest', () => {
       {
         modelKey: 'qwen3-0.6b',
         modelVariant: 'int8',
-        datasets: [
-          {
-            id: 'example',
-            format: 'layered',
-            path: 'contributions/qwen3-0.6b/int8/example/',
-          },
-          {
-            id: 'example',
-            format: 'summed',
-            path: 'summed-contributions/qwen3-0.6b/int8/example/',
-          },
-        ],
+        format: 'layered',
+        datasets: [{ id: 'example', path: 'example/' }],
+      },
+      {
+        modelKey: 'qwen3-0.6b',
+        modelVariant: 'int8',
+        format: 'summed',
+        datasets: [{ id: 'example', path: 'example/' }],
       },
     ]);
 
     expect(
-      await compileDatasetManifest(generatedRoot, 'qwen3-0.6b', 'int8'),
+      await compileDatasetManifest(
+        generatedRoot,
+        'layered',
+        'qwen3-0.6b',
+        'int8',
+      ),
     ).toEqual(result[0]);
 
-    await writeDatasetManifest(generatedRoot, 'qwen3-0.6b', 'int8');
-    const written = JSON.parse(
+    await writeDatasetManifest(generatedRoot, 'layered', 'qwen3-0.6b', 'int8');
+    const writtenLayered = JSON.parse(
       await readFile(
-        path.join(generatedRoot, 'manifests/qwen3-0.6b/int8.json'),
+        path.join(generatedRoot, 'contributions/qwen3-0.6b/int8/manifest.json'),
         'utf8',
       ),
     );
-    expect(written).toEqual(result[0]);
+    expect(writtenLayered).toEqual(result[0]);
 
     await writeDatasetManifests(generatedRoot);
+    const writtenSummed = JSON.parse(
+      await readFile(
+        path.join(
+          generatedRoot,
+          'summed-contributions/qwen3-0.6b/int8/manifest.json',
+        ),
+        'utf8',
+      ),
+    );
+    expect(writtenSummed).toEqual(result[1]);
   });
 });

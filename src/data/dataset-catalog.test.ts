@@ -18,11 +18,11 @@ describe('dataset discovery manifest', () => {
       schemaVersion: DATASET_CATALOG_SCHEMA_VERSION,
       modelKey: 'qwen3-0.6b',
       modelVariant: 'int8',
+      format: 'summed',
       datasets: [
         {
           id: 'example',
-          format: 'summed',
-          path: 'summed-contributions/qwen3-0.6b/int8/example/',
+          path: 'example/',
           manifest,
         },
       ],
@@ -37,10 +37,10 @@ describe('dataset discovery manifest', () => {
         schemaVersion: DATASET_CATALOG_SCHEMA_VERSION,
         modelKey: 'qwen3-0.6b',
         modelVariant: 'int8',
+        format: 'summed',
         datasets: [
           {
             id: 'example',
-            format: 'summed',
             path: '../private/',
             manifest: exampleDataset().manifest,
           },
@@ -73,35 +73,98 @@ describe('dataset discovery manifest', () => {
   it('loads only the configured model and variant manifest', async () => {
     const manifest = exampleDataset().manifest;
     manifest.model.dtype = 'int8';
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        schemaVersion: DATASET_CATALOG_SCHEMA_VERSION,
-        modelKey: 'qwen3-0.6b',
-        modelVariant: 'int8',
-        datasets: [
-          {
-            id: 'example',
-            format: 'summed',
-            path: 'summed-contributions/qwen3-0.6b/int8/example/',
-            manifest,
+    const fetchMock = vi.fn(async (url: URL) =>
+      url.pathname.includes('/contributions/') &&
+      !url.pathname.includes('/summed-contributions/')
+        ? { ok: false, status: 404, statusText: 'Not Found' }
+        : {
+            ok: true,
+            status: 200,
+            statusText: 'OK',
+            json: async () => ({
+              schemaVersion: DATASET_CATALOG_SCHEMA_VERSION,
+              modelKey: 'qwen3-0.6b',
+              modelVariant: 'int8',
+              format: 'summed',
+              datasets: [
+                {
+                  id: 'example',
+                  path: 'example/',
+                  manifest,
+                },
+              ],
+            }),
           },
-        ],
-      }),
-    });
+    );
     vi.stubGlobal('document', { baseURI: 'https://app.example/' });
     vi.stubGlobal('fetch', fetchMock);
 
     const datasets = await loadDatasetCatalog('https://data.example/release');
 
-    expect(fetchMock.mock.calls[0]?.[0].href).toBe(
-      'https://data.example/release/manifests/qwen3-0.6b/int8.json',
-    );
+    expect(fetchMock.mock.calls.map(([url]) => url.href)).toEqual([
+      'https://data.example/release/contributions/qwen3-0.6b/int8/manifest.json',
+      'https://data.example/release/summed-contributions/qwen3-0.6b/int8/manifest.json',
+    ]);
     expect(datasets[0]).toMatchObject({
+      format: 'summed',
       modelKey: 'qwen3-0.6b',
       modelVariant: 'int8',
       baseUrl:
         'https://data.example/release/summed-contributions/qwen3-0.6b/int8/example/',
     });
+  });
+
+  it('loads layered and summed catalogs independently', async () => {
+    const manifest = exampleDataset().manifest;
+    manifest.model.dtype = 'int8';
+    const fetchMock = vi.fn(async (url: URL) => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => ({
+        schemaVersion: DATASET_CATALOG_SCHEMA_VERSION,
+        modelKey: 'qwen3-0.6b',
+        modelVariant: 'int8',
+        format: url.pathname.includes('/summed-contributions/')
+          ? 'summed'
+          : 'layered',
+        datasets: [{ id: 'example', path: 'example/', manifest }],
+      }),
+    }));
+    vi.stubGlobal('document', { baseURI: 'https://app.example/' });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const datasets = await loadDatasetCatalog('https://data.example/release');
+
+    expect(datasets.map(({ format }) => format)).toEqual(['layered', 'summed']);
+    expect(datasets.map(({ baseUrl }) => baseUrl)).toEqual([
+      'https://data.example/release/contributions/qwen3-0.6b/int8/example/',
+      'https://data.example/release/summed-contributions/qwen3-0.6b/int8/example/',
+    ]);
+  });
+
+  it('rejects a catalog stored under the wrong format path', async () => {
+    const manifest = exampleDataset().manifest;
+    manifest.model.dtype = 'int8';
+    vi.stubGlobal('document', { baseURI: 'https://app.example/' });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ({
+          schemaVersion: DATASET_CATALOG_SCHEMA_VERSION,
+          modelKey: 'qwen3-0.6b',
+          modelVariant: 'int8',
+          format: 'summed',
+          datasets: [],
+        }),
+      }),
+    );
+
+    await expect(
+      loadDatasetCatalog('https://data.example/release'),
+    ).rejects.toThrow('does not match');
   });
 });

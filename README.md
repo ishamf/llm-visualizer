@@ -72,9 +72,10 @@ Generated artifacts use this layout:
 
 ```text
 generated/
-  manifests/<model-key>/<model-variant>.json
+  contributions/<model-key>/<model-variant>/manifest.json
   contributions/<model-key>/<model-variant>/<dataset-id>/manifest.json
   contributions/<model-key>/<model-variant>/<dataset-id>/layer-00.json
+  summed-contributions/<model-key>/<model-variant>/manifest.json
   summed-contributions/<model-key>/<model-variant>/<dataset-id>/manifest.json
   summed-contributions/<model-key>/<model-variant>/<dataset-id>/contributions.json
 ```
@@ -91,20 +92,21 @@ the catalog for the selected model and variant after the batch succeeds. A
 single-dataset generation leaves the catalog unchanged.
 
 The compiler validates every dataset manifest, checks that all expected data
-files exist, and writes one stable catalog per model and variant under
-`generated/manifests/`. Each catalog contains metadata and paths relative to the
-generated-data root. The app fetches only the catalog for its configured model
-and variant, then lazily fetches the selected contribution files.
+files exist, and writes one stable catalog inside each format/model/variant
+folder. Catalog paths are relative to that folder, making the folder a
+self-contained artifact. The app fetches the available layered and summed
+catalogs for its configured model and variant, then lazily fetches the selected
+contribution files.
 
-To deploy only one model variant, copy its catalog and matching artifact trees,
-preserving their paths relative to `generated/`. For example, an `int8`
-deployment of `qwen3-0.6b` needs:
+To deploy only one data format, model, and variant, copy its folder. For example,
+the following folder is complete by itself:
 
 ```text
-manifests/qwen3-0.6b/int8.json
-contributions/qwen3-0.6b/int8/
 summed-contributions/qwen3-0.6b/int8/
 ```
+
+When it is served beneath a generated-data root, keep that path so the app can
+discover it. The other format may be omitted; a missing catalog is ignored.
 
 If the configured data URL has a different origin from the app, its responses
 must include:
