@@ -115,6 +115,7 @@ export function defineContributionTextElement(workerUrl: URL) {
           <PortalTargetProvider target={this.#portalNode}>
             <ContributionTextExperience
               createWorker={() => createDistributionWorker(workerUrl)}
+              embedded
               generatedDataBaseUrl={generatedDataBaseUrl}
               modelSource={modelSource}
             />

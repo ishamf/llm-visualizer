@@ -5,6 +5,7 @@ import type { RemoteDataset } from './data/dataset-catalog.ts';
 import { HttpSummedContributionDataSource } from './data/summed-contribution-data-source.ts';
 import { useDatasetCatalog } from './data/use-dataset-catalog.ts';
 import type { BrowserModelSource } from './generation/browser-config.ts';
+import { isCrossOriginIsolated } from './generation/cross-origin-isolation.ts';
 import { getConfiguredPromptTitle } from './generation/prompts.ts';
 import {
   BrowserGenerationPanel,
@@ -15,6 +16,12 @@ import { ContributionText } from './visualization/ContributionText.tsx';
 
 type ContributionTextExperienceProps = {
   createWorker: () => Worker;
+  /**
+   * True when rendered inside the web component on a host page that does not
+   * control the response headers. Enables the reduced-performance warning when
+   * the host page is not cross-origin isolated.
+   */
+  embedded?: boolean;
   generatedDataBaseUrl: string;
   modelSource: BrowserModelSource;
 };
@@ -49,6 +56,7 @@ function RemoteContributionText({
 
 export function ContributionTextExperience({
   createWorker,
+  embedded = false,
   generatedDataBaseUrl,
   modelSource,
 }: ContributionTextExperienceProps) {
@@ -213,6 +221,7 @@ export function ContributionTextExperience({
       <div className="generation-column">
         <BrowserGenerationPanel
           createWorker={createWorker}
+          crossOriginIsolationWarning={embedded && !isCrossOriginIsolated()}
           modelSource={modelSource}
           onGenerationStarted={handleGenerationStarted}
           onResultChange={handleResultChange}

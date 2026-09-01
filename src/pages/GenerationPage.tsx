@@ -1,5 +1,6 @@
 import {
   Alert,
+  Anchor,
   Badge,
   Button,
   Collapse,
@@ -62,10 +63,13 @@ export type GenerationResult = {
 type BrowserGenerationPanelProps = {
   createWorker: () => Worker;
   modelSource: BrowserModelSource;
+  crossOriginIsolationWarning?: boolean;
   onGenerationStarted: () => void;
   onResultChange: (result: GenerationResult | undefined) => void;
   onGenerationActiveChange: (active: boolean) => void;
 };
+
+const FULL_SPEED_EXPERIENCE_URL = 'https://llm-visualizer.ishamf.dev/';
 
 const DEFAULT_MAX_NEW_TOKENS = 128;
 
@@ -88,6 +92,7 @@ function formatBytes(bytes: number | undefined) {
 export function BrowserGenerationPanel({
   createWorker,
   modelSource,
+  crossOriginIsolationWarning = false,
   onGenerationStarted,
   onResultChange,
   onGenerationActiveChange,
@@ -303,6 +308,26 @@ export function BrowserGenerationPanel({
           Starting generation automatically downloads the instrumented model
           (about {formatBytes(BROWSER_MODEL_SIZE_BYTES)}) into this browser’s
           cache. The download happens only once per browser cache.
+        </Alert>
+      )}
+
+      {crossOriginIsolationWarning && (
+        <Alert
+          className="cross-origin-isolation-warning"
+          color="yellow"
+          title="Reduced generation performance"
+        >
+          This page isn’t cross-origin isolated, so the model can’t use
+          multi-threaded inference and generation will be noticeably slower. For
+          full speed, open the{' '}
+          <Anchor
+            href={FULL_SPEED_EXPERIENCE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            full version at llm-visualizer.ishamf.dev
+          </Anchor>
+          .
         </Alert>
       )}
 

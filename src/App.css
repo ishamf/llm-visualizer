@@ -678,7 +678,8 @@
   align-items: flex-start;
 }
 
-.model-download-note {
+.model-download-note,
+.cross-origin-isolation-warning {
   line-height: 1.55;
 }
 

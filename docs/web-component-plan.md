@@ -224,6 +224,14 @@ or ONNX needs cross-origin isolation, the embedding HTML response must set COOP
 and COEP; the custom element cannot set response headers. Model responses also
 need the corresponding CORS/CORP headers.
 
+The component detects a non-isolated host page at runtime with
+`window.crossOriginIsolated` (see
+`src/generation/cross-origin-isolation.ts`). Without isolation, the generation
+worker cannot use `SharedArrayBuffer` for multi-threaded inference, so the panel
+shows a reduced-performance warning linking to
+<https://llm-visualizer.ishamf.dev/>, where the site serves the isolation
+headers itself.
+
 The bundled pre-generated contribution JSON uses `import.meta.glob` and dynamic
 imports. Keep those generated chunks beside the component output and verify
 their URLs are relative to the component deployment rather than the host page.
