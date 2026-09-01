@@ -91,6 +91,15 @@ export function predictionContributionRow(
   return totals[hoveredToken - targetTokenStart];
 }
 
+export function contributionRowMaximum(
+  row: number[] | undefined,
+): number | undefined {
+  if (!row || row.length < 2) return undefined;
+  // Skip the first token: it acts as an attention sink and would dominate
+  // the normalization, hiding the meaningful sources.
+  return Math.max(...row.slice(1));
+}
+
 export function contributionOpacity(
   row: number[] | undefined,
   source: number,
@@ -99,9 +108,9 @@ export function contributionOpacity(
   knee?: ContributionOpacityKnee,
   rowMaximum?: number,
 ): number {
-  if (!row || source >= row.length) return minimum;
-  const maximum = rowMaximum ?? Math.max(...row);
-  if (maximum <= 0) return minimum;
+  if (!row || source === 0 || source >= row.length) return minimum;
+  const maximum = rowMaximum ?? Math.max(...row.slice(1));
+  if (!(maximum > 0)) return minimum;
   const ratio = row[source] / maximum;
   const strength =
     scale === 'logarithmic' ? Math.log1p(9 * ratio) / Math.log(10) : ratio;

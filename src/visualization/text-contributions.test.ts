@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   contributionOpacity,
+  contributionRowMaximum,
   LIGHT_MINIMUM_TOKEN_OPACITY,
   LIGHT_OPACITY_KNEE,
   nearestTokenIndex,
@@ -99,6 +100,24 @@ describe('summed text contributions', () => {
 
   it('uses the floor for an all-zero row', () => {
     expect(contributionOpacity([0, 0], 0, 0.2)).toBe(0.2);
+  });
+
+  it('always renders the first token at the floor as an attention sink', () => {
+    const row = [10, 5, 1];
+    expect(contributionOpacity(row, 0, 0.2)).toBe(0.2);
+    expect(contributionOpacity(row, 0, 0.2, 'logarithmic')).toBe(0.2);
+  });
+
+  it('excludes the first token from the normalization maximum', () => {
+    const row = [10, 5, 1];
+    expect(contributionRowMaximum(row)).toBe(5);
+    expect(contributionOpacity(row, 1, 0.2)).toBe(1);
+    expect(contributionOpacity(row, 2, 0.2)).toBeCloseTo(0.36);
+  });
+
+  it('uses the floor when only the first token has a contribution', () => {
+    expect(contributionRowMaximum([10])).toBeUndefined();
+    expect(contributionOpacity([10, 0], 1, 0.2)).toBe(0.2);
   });
 
   it('uses a steeper first tenth for the light-mode curve', () => {

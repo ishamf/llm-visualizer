@@ -24,6 +24,7 @@ import { usePortalTarget } from '../web-component/portal-target-context.ts';
 import {
   contributionOpacity,
   type ContributionOpacityScale,
+  contributionRowMaximum,
   LIGHT_MINIMUM_TOKEN_OPACITY,
   LIGHT_OPACITY_KNEE,
   MINIMUM_TOKEN_OPACITY,
@@ -240,13 +241,9 @@ export function ContributionText(props: ContributionTextProps) {
         aggregate.contributions.targetTokenStart,
       )
     : undefined;
-  const rowMaximum = row ? Math.max(...row) : undefined;
-  const currentAnimationMaximum = currentAnimationRow
-    ? Math.max(...currentAnimationRow)
-    : undefined;
-  const nextAnimationMaximum = nextAnimationRow
-    ? Math.max(...nextAnimationRow)
-    : undefined;
+  const rowMaximum = contributionRowMaximum(row);
+  const currentAnimationMaximum = contributionRowMaximum(currentAnimationRow);
+  const nextAnimationMaximum = contributionRowMaximum(nextAnimationRow);
 
   const measureTokenRectangles = () => {
     const rectangles = manifest.tokens.map((_, index) =>
