@@ -1,3 +1,7 @@
 /*
   Cross-Origin-Embedder-Policy: require-corp
   Cross-Origin-Opener-Policy: same-origin
+
+/web-component/*
+  Access-Control-Allow-Origin: https://ishamf.dev
+  
