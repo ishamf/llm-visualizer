@@ -157,7 +157,7 @@ describe('prompt selection', () => {
 
 describe('prompt titles', () => {
   it('looks up configured titles without inventing one for unknown prompts', () => {
-    expect(getConfiguredPromptTitle('hello')).toBe('A Friendly Hello');
+    expect(getConfiguredPromptTitle('summarize-office-move')).toBe('Office Move Summary');
     expect(getConfiguredPromptTitle('missing')).toBeUndefined();
   });
 });
