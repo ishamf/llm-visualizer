@@ -3,6 +3,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 import { parseContributionManifest } from '../data/contribution-data-source.ts';
+import { prompts } from '../generation/prompts.ts';
 import type { ContributionFormat } from '../generation/types.ts';
 
 type CompiledDatasetEntry = {
@@ -26,6 +27,21 @@ const FORMAT_DIRECTORIES = [
   directory: string;
   format: ContributionFormat;
 }[];
+
+const CONFIGURED_PROMPT_ORDER = new Map(
+  prompts.map(({ id }, index) => [id, index]),
+);
+
+function compareDatasetIds(left: string, right: string) {
+  const leftIndex = CONFIGURED_PROMPT_ORDER.get(left);
+  const rightIndex = CONFIGURED_PROMPT_ORDER.get(right);
+  if (leftIndex !== undefined && rightIndex !== undefined) {
+    return leftIndex - rightIndex;
+  }
+  if (leftIndex !== undefined) return -1;
+  if (rightIndex !== undefined) return 1;
+  return left.localeCompare(right);
+}
 
 async function directories(root: string) {
   try {
@@ -128,7 +144,7 @@ async function compileFormatDatasetManifest(
     });
   }
 
-  catalog.datasets.sort((left, right) => left.id.localeCompare(right.id));
+  catalog.datasets.sort((left, right) => compareDatasetIds(left.id, right.id));
   return catalog;
 }
 

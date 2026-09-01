@@ -109,4 +109,50 @@ describe('compile dataset manifest', () => {
     );
     expect(writtenSummed).toEqual(result[1]);
   });
+
+  it('orders configured prompts first and filesystem-only datasets alphabetically', async () => {
+    const generatedRoot = await mkdtemp(
+      path.join(tmpdir(), 'llm-visualizer-manifest-order-'),
+    );
+    temporaryDirectories.push(generatedRoot);
+    const dataset = exampleDataset();
+    dataset.manifest.model.dtype = 'int8';
+    const variantRoot = path.join(
+      generatedRoot,
+      'summed-contributions/qwen3-0.6b/int8',
+    );
+    const ids = [
+      'zeta-filesystem-only',
+      'summarize-customer-message',
+      'alpha-filesystem-only',
+      'summarize-office-move',
+    ];
+    await Promise.all(
+      ids.map(async (id) => {
+        const datasetRoot = path.join(variantRoot, id);
+        await mkdir(datasetRoot, { recursive: true });
+        await Promise.all([
+          writeFile(
+            path.join(datasetRoot, 'manifest.json'),
+            JSON.stringify(dataset.manifest),
+          ),
+          writeFile(path.join(datasetRoot, 'contributions.json'), '{}'),
+        ]);
+      }),
+    );
+
+    const result = await compileDatasetManifest(
+      generatedRoot,
+      'summed',
+      'qwen3-0.6b',
+      'int8',
+    );
+
+    expect(result.datasets.map(({ id }) => id)).toEqual([
+      'summarize-office-move',
+      'summarize-customer-message',
+      'alpha-filesystem-only',
+      'zeta-filesystem-only',
+    ]);
+  });
 });

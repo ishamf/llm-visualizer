@@ -98,6 +98,10 @@ self-contained artifact. The app fetches the available layered and summed
 catalogs for its configured model and variant, then lazily fetches the selected
 contribution files.
 
+Datasets that have an entry in `src/generation/prompts.ts` appear in that file's
+order. Datasets found only on the filesystem follow them in alphabetical ID
+order. Configured prompts without generated files are omitted.
+
 To deploy only one data format, model, and variant, copy its folder. For example,
 the following folder is complete by itself:
 
