@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "pnpm build:site && vite build --config vite.web-component.config.ts --outDir dist/web-component",
+    "build:site": "tsc -b && vite build",
     "build:web-component": "tsc -b && vite build --config vite.web-component.config.ts",
     "generate": "tsx src/scripts/generate.ts",
     "generate:contributions": "tsx src/scripts/generate-contributions.ts",

@@ -4,7 +4,7 @@ LLM Visualizer is deployed as static files. The application bundle, browser
 model, and pre-generated contribution data can be hosted separately, provided
 their URLs and response headers are configured correctly.
 
-## Application build
+## Combined deployment build
 
 Production builds require a public Hugging Face model repository:
 
@@ -14,7 +14,31 @@ VITE_HF_MODEL_REVISION=<commit-sha> \
   pnpm build
 ```
 
-The static application is written to `dist/`.
+The Cloudflare Pages-ready output is written to `dist/`. It contains both the
+static application and the distributable web component:
+
+```text
+dist/
+├── index.html
+├── assets/
+└── web-component/
+    ├── contribution-text.js
+    ├── workers/
+    └── static/
+```
+
+Use `pnpm build` as the Cloudflare Pages build command and `dist` as its build
+output directory.
+
+To build only the static application, use the same configuration with:
+
+```sh
+VITE_HF_MODEL_REPO=organization/instrumented-qwen3 \
+VITE_HF_MODEL_REVISION=<commit-sha> \
+  pnpm build:site
+```
+
+The site-only output is also written to `dist/`.
 
 The repository ID and revision are compiled into the client bundle. They are
 public configuration rather than secrets, and the static application does not
@@ -98,7 +122,7 @@ Use `Access-Control-Allow-Origin: *` when the artifacts are intended to be
 publicly reusable. `Cross-Origin-Resource-Policy: cross-origin` is required
 because the application enables cross-origin isolation.
 
-## Web-component build
+## Standalone web-component build
 
 Build the distributable web component with the same public Hugging Face model
 configuration:
@@ -109,7 +133,9 @@ VITE_HF_MODEL_REVISION=<commit-sha> \
   pnpm build:web-component
 ```
 
-The output is written to `dist-web-component/`.
+The standalone output is written to `dist-web-component/`. The combined
+`pnpm build` command writes the same distribution beneath
+`dist/web-component/` so it is deployed together with the application.
 
 When the component omits its `model-base-url` attribute, it uses the Hugging
 Face repository configured at build time. Setting `model-base-url` instead uses
