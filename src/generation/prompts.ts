@@ -17,40 +17,12 @@ export const DEFAULT_SYSTEM_PROMPT =
 
 export const prompts: PromptConfiguration[] = [
   {
-    id: 'hello',
-    title: 'A Friendly Hello',
-    prompt: 'Say hello.',
-    maxNewTokens: 16,
-  },
-  {
-    id: 'multiplication-place-values',
-    title: 'Multiplication by Place Value',
-    prompt:
-      'Calculate 5726 × 37 using place values. Give a brief calculation and the final answer.',
-    assistantPrefix: `5726 × 37 = 5726 × 30 + 5726 × 7
-5726 × 30 = 171780
-5726 × 7 = 40082
-Therefore, 5726 × 37 =`,
-    maxNewTokens: 48,
-  },
-  {
-    id: 'fix-average-reference-error',
-    title: 'Debugging an Average Function',
-    prompt: `This JavaScript function should calculate the average of its input, but it crashes with ReferenceError: array is not defined instead. Why did it happen? Can you fix it?
+    id: 'summarize-office-move',
+    title: 'Office Move Summary',
+    prompt: `Can you summarize the main points of this announcement in no more than two short sentences?
 
-
-function arrayAverage(numbers) {
-  let total = 0;
-  for (let index = 0; index < array.length; index++) {
-    total += array[index];
-  }
-  return total / array.length;
-}
-
-console.log(arrayAverage([2, 4, 6]));
-`,
-    assistantPrefix: `The bug is a simple naming mismatch: the function parameter is called numbers, but the body references array`,
-    maxNewTokens: 1000,
+The Riverside team has worked from its current building for nearly six years, and many employees helped choose the furniture for the new space. Next month, the office is moving to 18 King Street. Employees should work from home on November 2 and 3 while computers and other equipment are transferred. The new office will open on November 4. Existing employee access cards will work at the new entrance, and all company phone numbers will stay the same. The kitchen will not have a coffee machine during the first week, but several cafes are located nearby.`,
+    maxNewTokens: 128,
     contributionFormats: ['summed'],
   },
   {
@@ -98,15 +70,7 @@ The city library is preparing for its annual autumn reading program, and registr
     maxNewTokens: 64,
     contributionFormats: ['summed'],
   },
-  {
-    id: 'summarize-office-move',
-    title: 'Office Move Summary',
-    prompt: `Can you summarize the main points of this announcement in no more than two short sentences?
 
-The Riverside team has worked from its current building for nearly six years, and many employees helped choose the furniture for the new space. Next month, the office is moving to 18 King Street. Employees should work from home on November 2 and 3 while computers and other equipment are transferred. The new office will open on November 4. Existing employee access cards will work at the new entrance, and all company phone numbers will stay the same. The kitchen will not have a coffee machine during the first week, but several cafes are located nearby.`,
-    maxNewTokens: 128,
-    contributionFormats: ['summed'],
-  },
   {
     id: 'summarize-customer-message',
     title: 'Customer Support Summary',
@@ -114,6 +78,37 @@ The Riverside team has worked from its current building for nearly six years, an
 
 I have been using the monthly plan since January and normally receive a single receipt on the first day of each month. This morning I noticed that my card was charged twice for invoice 7812. Both payments have completed, rather than appearing as pending transactions. I still use the service every day and do not want my account closed or my current subscription changed. Please refund the duplicate payment but leave the subscription active. I have kept copies of both card notifications in case you need them.`,
     maxNewTokens: 96,
+    contributionFormats: ['summed'],
+  },
+  {
+    id: 'multiplication-place-values',
+    title: 'Multiplication by Place Value',
+    prompt:
+      'Calculate 5726 × 37 using place values. Give a brief calculation and the final answer.',
+    assistantPrefix: `5726 × 37 = 5726 × 30 + 5726 × 7
+5726 × 30 = 171780
+5726 × 7 = 40082
+Therefore, 5726 × 37 =`,
+    maxNewTokens: 48,
+  },
+  {
+    id: 'fix-average-reference-error',
+    title: 'Debugging an Average Function',
+    prompt: `This JavaScript function should calculate the average of its input, but it crashes with ReferenceError: array is not defined instead. Why did it happen? Can you fix it?
+
+
+function arrayAverage(numbers) {
+  let total = 0;
+  for (let index = 0; index < array.length; index++) {
+    total += array[index];
+  }
+  return total / array.length;
+}
+
+console.log(arrayAverage([2, 4, 6]));
+`,
+    assistantPrefix: `The bug is a simple naming mismatch: the function parameter is called numbers, but the body references array`,
+    maxNewTokens: 1000,
     contributionFormats: ['summed'],
   },
 ];
