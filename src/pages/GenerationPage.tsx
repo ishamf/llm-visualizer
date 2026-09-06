@@ -71,7 +71,8 @@ type BrowserGenerationPanelProps = {
 
 const FULL_SPEED_EXPERIENCE_URL = 'https://llm-visualizer.ishamf.dev/';
 
-const DEFAULT_MAX_NEW_TOKENS = 128;
+/** Default to the configured token limit so long generations can be cancelled. */
+const DEFAULT_MAX_NEW_TOKENS = MAX_GENERATED_TOKENS;
 
 function numberValue(value: string | number, fallback: number) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
@@ -110,6 +111,9 @@ export function BrowserGenerationPanel({
   const [enableThinking, setEnableThinking] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [status, setStatus] = useState<RunStatus>('idle');
+  // Distinguishes a cancel that lands during model loading (the download keeps
+  // going so it can be cached) from one that lands during token generation.
+  const [reachedGenerating, setReachedGenerating] = useState(false);
   const [error, setError] = useState<Error>();
   const [modelProgress, setModelProgress] = useState<ModelProgress>({});
   const [result, setResult] = useState<GenerationResult>();
@@ -171,7 +175,10 @@ export function BrowserGenerationPanel({
     switch (response.type) {
       case 'status':
         setStatus(response.status);
-        if (response.status === 'generating') setModelCached(true);
+        if (response.status === 'generating') {
+          setModelCached(true);
+          setReachedGenerating(true);
+        }
         break;
       case 'model-progress':
         setModelProgress((current) => ({
@@ -250,6 +257,7 @@ export function BrowserGenerationPanel({
     setError(undefined);
     publishResult(undefined);
     setModelProgress({});
+    setReachedGenerating(false);
 
     const values: BrowserGenerationPrompt = {
       prompt: prompt.trim(),
@@ -526,7 +534,9 @@ export function BrowserGenerationPanel({
                   : status === 'generating'
                     ? `${generatedTokenCount} of ${maxNewTokens} tokens`
                     : status === 'cancelling'
-                      ? 'Finishing the current model step…'
+                      ? reachedGenerating
+                        ? 'Finishing the current model step…'
+                        : 'Finishing the model download before stopping…'
                       : status === 'cancelled'
                         ? 'Generation cancelled.'
                         : ''}
