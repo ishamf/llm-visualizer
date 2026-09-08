@@ -42,34 +42,6 @@ export function matchesModelConfiguration(
   );
 }
 
-/**
- * Finds the layered-format dataset that describes the same run as `dataset`,
- * so visualizations can re-sum a chosen range of layers. Returns undefined
- * unless the layered manifests agree on the tokens, prompt boundary, and
- * geometry, because mismatched rows would silently misalign the sum.
- */
-export function matchingLayeredDataset(
-  dataset: RemoteDataset,
-  datasets: readonly RemoteDataset[],
-): RemoteDataset | undefined {
-  const layered = datasets.find(
-    (candidate) =>
-      candidate.format === 'layered' && candidate.id === dataset.id,
-  );
-  if (!layered) return undefined;
-  const manifest = dataset.manifest;
-  const counterpart = layered.manifest;
-  return manifest.promptTokenCount === counterpart.promptTokenCount &&
-    manifest.geometry.layers === counterpart.geometry.layers &&
-    manifest.tokens.length === counterpart.tokens.length &&
-    manifest.tokens.every((token, index) => {
-      const other = counterpart.tokens[index];
-      return other.id === token.id && other.text === token.text;
-    })
-    ? layered
-    : undefined;
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }

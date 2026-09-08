@@ -493,15 +493,35 @@ export function addSummedContributionRows(
 }
 
 export async function generateSummedContributionDataset(
-  options: GenerateContributionDatasetOptions,
+  options: GenerateContributionDatasetOptions & {
+    /**
+     * Also retains each layer's generated-destination rows while summing, so
+     * one model run can back both the summed file and the per-layer
+     * generated-token matrices written by the exporter.
+     */
+    collectLayerRows?: boolean;
+  },
 ): Promise<SummedContributionDataset> {
   const rows: number[][] = [];
+  const layerRows = options.collectLayerRows
+    ? Array.from(
+        { length: options.modelProfile.geometry.layers },
+        () => [] as number[][],
+      )
+    : undefined;
   let firstContributionDestination: number | undefined;
   let emittedRowCount = 0;
   const manifest = await generateContributionRun({
     ...options,
-    consumeRows(_layer, firstDestination, incomingRows) {
+    consumeRows(layer, firstDestination, incomingRows) {
       firstContributionDestination ??= firstDestination;
+      if (layerRows) {
+        const collected = layerRows[layer];
+        for (const [offset, incoming] of incomingRows.entries()) {
+          collected[firstDestination - firstContributionDestination + offset] =
+            incoming;
+        }
+      }
       addSummedContributionRows(
         rows,
         firstDestination - firstContributionDestination,
@@ -510,7 +530,7 @@ export async function generateSummedContributionDataset(
       // A destination is delivered one layer at a time. Waiting until the
       // final layer avoids posting the same large partial matrix once per layer and
       // gives consumers a complete row for each streamed token.
-      if (_layer === options.modelProfile.geometry.layers - 1) {
+      if (layer === options.modelProfile.geometry.layers - 1) {
         while (emittedRowCount < rows.length) {
           options.onSummedContributionRowUpdate?.(emittedRowCount, [
             ...rows[emittedRowCount],
@@ -522,7 +542,11 @@ export async function generateSummedContributionDataset(
     contributionScope: 'generated',
   });
   return {
-    manifest,
+    // The flag marks datasets that ship per-layer generated-token matrices;
+    // it is only set on the collection path used by the exporter.
+    manifest: layerRows
+      ? { ...manifest, layeredGeneratedContributions: true }
+      : manifest,
     contributions: {
       schemaVersion: DATASET_SCHEMA_VERSION,
       metric: CONTRIBUTION_METRIC,
@@ -531,5 +555,16 @@ export async function generateSummedContributionDataset(
       targetTokenStart: manifest.promptTokenCount,
       rows,
     },
+    ...(layerRows
+      ? {
+          layers: layerRows.map((collectedRows, layer) => ({
+            schemaVersion: DATASET_SCHEMA_VERSION,
+            layer,
+            metric: CONTRIBUTION_METRIC,
+            targetTokenStart: manifest.promptTokenCount,
+            rows: collectedRows,
+          })),
+        }
+      : {}),
   };
 }

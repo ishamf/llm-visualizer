@@ -15,7 +15,9 @@ import {
   parseContributionManifest,
 } from './contribution-data-source.ts';
 import {
+  HttpSummedContributionDataSource,
   LayerSummingContributionDataSource,
+  parseLayeredGeneratedContributions,
   parseSummedContributions,
 } from './summed-contribution-data-source.ts';
 
@@ -223,5 +225,140 @@ describe('contribution data sources', () => {
         manifest,
       ),
     ).toThrow('not causal');
+  });
+});
+
+describe('layered generated contributions', () => {
+  const manifest: ContributionManifest = {
+    ...manifestFor(3, 3, 1),
+    layeredGeneratedContributions: true,
+  };
+  const layerFiles: number[][][] = [
+    [[1], [2, 3]],
+    [[10], [20, 30]],
+    [[100], [200, 300]],
+  ];
+
+  function generatedLayer(layer: number): Record<string, unknown> {
+    return {
+      schemaVersion: DATASET_SCHEMA_VERSION,
+      layer,
+      metric: CONTRIBUTION_METRIC,
+      targetTokenStart: manifest.promptTokenCount,
+      rows: layerFiles[layer],
+    };
+  }
+
+  it('validates causal generated-destination rows', () => {
+    expect(
+      parseLayeredGeneratedContributions(generatedLayer(1), manifest, 1),
+    ).toMatchObject({ layer: 1, targetTokenStart: 1, rows: [[10], [20, 30]] });
+    expect(() =>
+      parseLayeredGeneratedContributions(generatedLayer(1), manifest, 2),
+    ).toThrow('invalid shape');
+    expect(() =>
+      parseLayeredGeneratedContributions(
+        { ...generatedLayer(1), targetTokenStart: 2 },
+        manifest,
+        1,
+      ),
+    ).toThrow('invalid shape');
+    expect(() =>
+      parseLayeredGeneratedContributions(
+        { ...generatedLayer(1), rows: [[10], [20]] },
+        manifest,
+        1,
+      ),
+    ).toThrow('not causal');
+  });
+
+  it('serves layer ranges from per-layer generated-token files', async () => {
+    const requests: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: URL | string) => {
+        const file = String(url).split('/').pop()!;
+        requests.push(file);
+        const files: Record<string, unknown> = {
+          'manifest.json': manifest,
+          'contributions.json': {
+            schemaVersion: DATASET_SCHEMA_VERSION,
+            metric: CONTRIBUTION_METRIC,
+            aggregation: 'sum',
+            layerCount: 3,
+            targetTokenStart: 1,
+            rows: [[111], [222, 333]],
+          },
+          'layer-00.json': generatedLayer(0),
+          'layer-01.json': generatedLayer(1),
+          'layer-02.json': generatedLayer(2),
+        };
+        if (!(file in files)) {
+          return { ok: false, status: 404, statusText: 'Not Found' };
+        }
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => files[file],
+        };
+      }),
+    );
+    try {
+      const source = new HttpSummedContributionDataSource(
+        'example',
+        'https://data.example/summed-contributions/example/',
+      );
+
+      // The full range keeps using the pre-summed file.
+      await expect(source.getContributions()).resolves.toMatchObject({
+        layerCount: 3,
+        rows: [[111], [222, 333]],
+      });
+      await expect(
+        source.getContributions(undefined, { firstLayer: 1, lastLayer: 2 }),
+      ).resolves.toEqual({
+        schemaVersion: DATASET_SCHEMA_VERSION,
+        metric: CONTRIBUTION_METRIC,
+        aggregation: 'sum',
+        layerCount: 2,
+        targetTokenStart: 1,
+        rows: [[110], [220, 330]],
+      });
+      await expect(
+        source.getContributions(undefined, { firstLayer: 2, lastLayer: 2 }),
+      ).resolves.toMatchObject({ layerCount: 1, rows: [[100], [200, 300]] });
+
+      // Overlapping ranges reuse already-downloaded layers.
+      expect(requests.filter((file) => file === 'layer-01.json')).toHaveLength(
+        1,
+      );
+      expect(requests).not.toContain('layer-00.json.404');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('rejects layer requests on datasets without layered matrices', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => manifestFor(3, 3, 1),
+      })),
+    );
+    try {
+      const source = new HttpSummedContributionDataSource(
+        'example',
+        'https://data.example/summed-contributions/example/',
+      );
+      await expect(source.getGeneratedLayer(0)).rejects.toThrow(
+        'does not ship layered generated contributions',
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

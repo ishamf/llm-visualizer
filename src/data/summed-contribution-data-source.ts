@@ -1,10 +1,14 @@
 import type {
   ContributionLayer,
   ContributionManifest,
+  LayeredGeneratedContributions,
   SummedContributions,
 } from '../generation/types.ts';
 import type { ContributionDataSource } from './contribution-data-source.ts';
-import { parseContributionManifest } from './contribution-data-source.ts';
+import {
+  layerFileName,
+  parseContributionManifest,
+} from './contribution-data-source.ts';
 
 export interface SummedContributionDataSource {
   readonly id: string;
@@ -113,6 +117,53 @@ export function parseSummedContributions(
   return value as SummedContributions;
 }
 
+export function parseLayeredGeneratedContributions(
+  value: unknown,
+  manifest: ContributionManifest,
+  expectedLayer: number,
+): LayeredGeneratedContributions {
+  if (
+    !isRecord(value) ||
+    value.schemaVersion !== manifest.schemaVersion ||
+    value.metric !== manifest.metric ||
+    value.layer !== expectedLayer ||
+    value.targetTokenStart !== manifest.promptTokenCount ||
+    !Array.isArray(value.rows)
+  ) {
+    throw new Error(
+      `Layered generated contributions for layer ${expectedLayer} have an invalid shape`,
+    );
+  }
+
+  const targetTokenStart = value.targetTokenStart as number;
+  const expectedRows = manifest.tokens.length - targetTokenStart;
+  if (value.rows.length !== expectedRows) {
+    throw new Error(
+      `Layered generated contributions for layer ${expectedLayer} have an invalid row count`,
+    );
+  }
+  for (const [rowIndex, row] of value.rows.entries()) {
+    const expectedSources = targetTokenStart + rowIndex;
+    if (!Array.isArray(row) || row.length !== expectedSources) {
+      throw new Error(
+        `Layered generated contribution row ${rowIndex} is not causal`,
+      );
+    }
+    for (const contribution of row) {
+      if (
+        typeof contribution !== 'number' ||
+        !Number.isFinite(contribution) ||
+        contribution < 0
+      ) {
+        throw new Error(
+          `Layered generated contribution row ${rowIndex} contains an invalid value`,
+        );
+      }
+    }
+  }
+  return value as LayeredGeneratedContributions;
+}
+
 export class LayerSummingContributionDataSource implements LayerRangeSummedContributionDataSource {
   readonly id: string;
   readonly #source: ContributionDataSource;
@@ -179,9 +230,13 @@ export class LayerSummingContributionDataSource implements LayerRangeSummedContr
   }
 }
 
-export class HttpSummedContributionDataSource implements SummedContributionDataSource {
+export class HttpSummedContributionDataSource implements LayerRangeSummedContributionDataSource {
   readonly id: string;
   readonly #baseUrl: string;
+  readonly #layerRequests = new Map<
+    number,
+    Promise<LayeredGeneratedContributions>
+  >();
   #manifest?: ContributionManifest;
 
   constructor(id: string, baseUrl: string, manifest?: ContributionManifest) {
@@ -198,10 +253,83 @@ export class HttpSummedContributionDataSource implements SummedContributionDataS
     return manifest;
   }
 
-  async getContributions(signal?: AbortSignal) {
+  async getContributions(signal?: AbortSignal, range?: LayerRange) {
     const manifest = await this.getManifest(signal);
-    const value = await this.#fetchJson('contributions.json', signal);
-    return parseSummedContributions(value, manifest);
+    // The pre-summed file is the exact all-layer total, so it stays
+    // authoritative whenever no sub-range is requested.
+    if (!range || isFullLayerRange(range, manifest.geometry.layers)) {
+      const value = await this.#fetchJson('contributions.json', signal);
+      return parseSummedContributions(value, manifest);
+    }
+    const { firstLayer, lastLayer } = normalizeLayerRange(
+      range,
+      manifest.geometry.layers,
+    );
+    const layers = await Promise.all(
+      Array.from({ length: lastLayer - firstLayer + 1 }, (_, offset) =>
+        this.getGeneratedLayer(firstLayer + offset),
+      ),
+    );
+    const generatedTokenCount =
+      manifest.tokens.length - manifest.promptTokenCount;
+    const rows = Array.from({ length: generatedTokenCount }, (_, rowIndex) =>
+      Array<number>(manifest.promptTokenCount + rowIndex).fill(0),
+    );
+    for (const layer of layers) {
+      for (const [rowIndex, incoming] of layer.rows.entries()) {
+        for (const [source, contribution] of incoming.entries()) {
+          rows[rowIndex][source] += contribution;
+        }
+      }
+    }
+    return {
+      schemaVersion: manifest.schemaVersion,
+      metric: manifest.metric,
+      aggregation: 'sum' as const,
+      layerCount: lastLayer - firstLayer + 1,
+      targetTokenStart: manifest.promptTokenCount,
+      rows,
+    };
+  }
+
+  /** Fetches one layer's generated-token matrix, reusing prior downloads. */
+  getGeneratedLayer(
+    layer: number,
+    signal?: AbortSignal,
+  ): Promise<LayeredGeneratedContributions> {
+    const cached = this.#layerRequests.get(layer);
+    if (cached) return cached;
+    // Layer downloads intentionally ignore abort signals: the range control
+    // changes constantly while sliding, and every downloaded layer stays
+    // useful for the next range.
+    const request = this.getManifest(signal).then(async (manifest) => {
+      if (manifest.layeredGeneratedContributions !== true) {
+        throw new Error(
+          `Dataset ${this.id} does not ship layered generated contributions`,
+        );
+      }
+      if (
+        !Number.isSafeInteger(layer) ||
+        layer < 0 ||
+        layer >= manifest.geometry.layers
+      ) {
+        throw new Error(`Layer ${layer} is outside the dataset`);
+      }
+      const file = layerFileName(layer);
+      return parseLayeredGeneratedContributions(
+        await this.#fetchJson(file),
+        manifest,
+        layer,
+      );
+    });
+    this.#layerRequests.set(layer, request);
+    void request.catch(() => {
+      // Drop failed downloads so a later range change can retry them.
+      if (this.#layerRequests.get(layer) === request) {
+        this.#layerRequests.delete(layer);
+      }
+    });
+    return request;
   }
 
   async #fetchJson(file: string, signal?: AbortSignal) {

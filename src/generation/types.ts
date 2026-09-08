@@ -120,6 +120,11 @@ export type ContributionManifest = {
     logitsMaxAbsoluteError: number;
     contextsMaxAbsoluteError: number;
   };
+  /**
+   * True when the dataset ships per-layer generated-token matrices alongside
+   * the summed file, letting clients re-sum a chosen range of layers.
+   */
+  layeredGeneratedContributions?: boolean;
 };
 
 export type ContributionLayer = {
@@ -144,7 +149,25 @@ export type SummedContributions = {
   rows: number[][];
 };
 
+/**
+ * One transformer layer's contribution rows for generated destinations only.
+ * Row `r` holds the contributions of the query position
+ * `targetTokenStart - 1 + r` that predicts the token at `targetTokenStart + r`,
+ * so row `r` has `targetTokenStart + r` source values. Keeping only generated
+ * destinations makes each file proportional to `G × P + G² / 2` values instead
+ * of the full matrix's `(P + G)² / 2`.
+ */
+export type LayeredGeneratedContributions = {
+  schemaVersion: typeof DATASET_SCHEMA_VERSION;
+  layer: number;
+  metric: typeof CONTRIBUTION_METRIC;
+  targetTokenStart: number;
+  rows: number[][];
+};
+
 export type SummedContributionDataset = {
   manifest: ContributionManifest;
   contributions: SummedContributions;
+  /** Per-layer generated-token matrices, present when collected for export. */
+  layers?: LayeredGeneratedContributions[];
 };
