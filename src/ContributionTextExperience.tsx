@@ -1,8 +1,13 @@
 import { Paper, Popover, Text, Title, UnstyledButton } from '@mantine/core';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
+import { HttpContributionDataSource } from './data/contribution-data-source.ts';
 import type { RemoteDataset } from './data/dataset-catalog.ts';
-import { HttpSummedContributionDataSource } from './data/summed-contribution-data-source.ts';
+import { matchingLayeredDataset } from './data/dataset-catalog.ts';
+import {
+  HttpSummedContributionDataSource,
+  LayerSummingContributionDataSource,
+} from './data/summed-contribution-data-source.ts';
 import { useDatasetCatalog } from './data/use-dataset-catalog.ts';
 import type { BrowserModelSource } from './generation/browser-config.ts';
 import { isCrossOriginIsolated } from './generation/cross-origin-isolation.ts';
@@ -28,10 +33,12 @@ type ContributionTextExperienceProps = {
 
 function RemoteContributionText({
   dataset,
+  layerDataset,
   playing,
   onPlayingChange,
 }: {
   dataset: RemoteDataset;
+  layerDataset?: RemoteDataset;
   playing: boolean;
   onPlayingChange: (playing: boolean) => void;
 }) {
@@ -43,9 +50,25 @@ function RemoteContributionText({
         dataset.manifest,
       ),
   );
+  // Layered data enables the summed-layer range control. The pre-summed file
+  // still renders first; layered matrices download only for custom ranges.
+  const layerSource = useMemo(
+    () =>
+      layerDataset
+        ? new LayerSummingContributionDataSource(
+            new HttpContributionDataSource(
+              layerDataset.id,
+              layerDataset.baseUrl,
+              layerDataset.manifest,
+            ),
+          )
+        : undefined,
+    [layerDataset],
+  );
   return (
     <ContributionText
       source={source}
+      layerSource={layerSource}
       manifest={dataset.manifest}
       showOpacityControls={false}
       playing={playing}
@@ -75,6 +98,9 @@ export function ContributionTextExperience({
     useState(false);
   const [promptSelectorOpen, setPromptSelectorOpen] = useState(false);
   const selectedDataset = datasets.find(({ id }) => id === datasetId);
+  const selectedLayerDataset = selectedDataset
+    ? matchingLayeredDataset(selectedDataset, catalog.datasets)
+    : undefined;
 
   const handleGenerationStarted = () => {
     setGenerationStarted(true);
@@ -197,6 +223,7 @@ export function ContributionTextExperience({
               <RemoteContributionText
                 key={selectedDataset.id}
                 dataset={selectedDataset}
+                layerDataset={selectedLayerDataset}
                 playing={presetVisualizationPlaying}
                 onPlayingChange={setPresetVisualizationPlaying}
               />

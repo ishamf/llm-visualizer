@@ -15,12 +15,20 @@ There are two formats, each written by its own exporter:
 
 - **Layered** (`pnpm generate:contributions`) stores one triangular
   contribution matrix per transformer layer. It backs the experimental
-  contribution-grid visualization.
+  contribution-grid visualization and lets the contribution-text
+  visualization re-sum any range of layers. Because each matrix covers every
+  destination token, most of its rows are unused by the text view, which only
+  explains generated tokens.
 - **Summed** (`pnpm generate:summed-contributions`) stores the sum of all
   layer matrices, which is what the contribution-text visualization shows. It
   retains only the rows for generated tokens, so it stores approximately
   `G × P + G² / 2` values instead of `layers × (P + G)² / 2` for `P` prompt
   tokens and `G` generated tokens.
+
+The contribution-text visualization renders the summed file first and only
+downloads layered files when a layer range other than "all layers" is
+selected with its layer control. Layer downloads are cached per session, so
+adjusting the range reuses the matrices that are already in memory.
 
 ## Layout
 

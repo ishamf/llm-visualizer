@@ -5,6 +5,7 @@ import {
   NumberInput,
   Paper,
   Progress,
+  RangeSlider,
   Select,
   Text,
   useComputedColorScheme,
@@ -17,7 +18,14 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 
-import type { SummedContributionDataSource } from '../data/summed-contribution-data-source.ts';
+import {
+  fullLayerRange,
+  isFullLayerRange,
+  type LayerRange,
+  type LayerRangeSummedContributionDataSource,
+  sameLayerRange,
+  type SummedContributionDataSource,
+} from '../data/summed-contribution-data-source.ts';
 import type { ContributionManifest } from '../generation/types.ts';
 import type { SummedContributions } from '../generation/types.ts';
 import { usePortalTarget } from '../web-component/portal-target-context.ts';
@@ -38,12 +46,23 @@ type AggregateState =
   | { status: 'ready'; contributions: SummedContributions }
   | { status: 'error'; error: Error };
 
+type RangedState =
+  | { status: 'idle' }
+  | { status: 'ready'; range: LayerRange; contributions: SummedContributions }
+  | { status: 'error'; range: LayerRange; error: Error };
+
 type ContributionTextProps = {
   manifest: ContributionManifest;
   showOpacityControls?: boolean;
   playing?: boolean;
   onPlayingChange?: (playing: boolean) => void;
   animationSuppressed?: boolean;
+  /**
+   * Layered contributions backing the summed-layer range control. The control
+   * only renders when this is provided, because pre-summed data no longer
+   * knows which layer produced which contribution.
+   */
+  layerSource?: LayerRangeSummedContributionDataSource;
 } & (
   | { source: SummedContributionDataSource; contributions?: never }
   | { source?: never; contributions: SummedContributions }
@@ -63,9 +82,47 @@ export function ContributionText(props: ContributionTextProps) {
   const [sourceAggregate, setSourceAggregate] = useState<AggregateState>({
     status: 'loading',
   });
+  const layerCount = manifest.geometry.layers;
+  const layerSource = props.layerSource;
+  const layerRangeEnabled = layerSource !== undefined && layerCount > 1;
+  const [layerRange, setLayerRange] = useState<LayerRange>(() =>
+    fullLayerRange(layerCount),
+  );
+  const [rangedState, setRangedState] = useState<RangedState>({
+    status: 'idle',
+  });
+  const layerRangeIsFull = isFullLayerRange(layerRange, layerCount);
+  const rangedSettled =
+    rangedState.status !== 'idle' &&
+    sameLayerRange(rangedState.range, layerRange);
+  const rangedContributions =
+    rangedState.status === 'ready' && rangedSettled
+      ? rangedState.contributions
+      : undefined;
+  const rangedError =
+    rangedState.status === 'error' && rangedSettled
+      ? rangedState.error
+      : undefined;
+  // True while the current range has neither loaded nor failed yet.
+  const rangedPending =
+    layerSource !== undefined &&
+    !rangedSettled &&
+    !(layerRangeIsFull && source);
   const aggregate: AggregateState = contributions
     ? { status: 'ready', contributions }
-    : sourceAggregate;
+    : rangedContributions
+      ? { status: 'ready', contributions: rangedContributions }
+      : sourceAggregate.status === 'ready'
+        ? sourceAggregate
+        : rangedState.status === 'ready'
+          ? // A previous range keeps the visualization stable while the
+            // next one loads.
+            { status: 'ready', contributions: rangedState.contributions }
+          : rangedError
+            ? { status: 'error', error: rangedError }
+            : rangedPending
+              ? { status: 'loading' }
+              : sourceAggregate;
   const [pointerToken, setPointerToken] = useState<number | null>(null);
   const [pointerInside, setPointerInside] = useState(false);
   const [focusedToken, setFocusedToken] = useState<number | null>(null);
@@ -161,6 +218,38 @@ export function ContributionText(props: ContributionTextProps) {
   }, [source]);
 
   useEffect(() => {
+    if (!layerSource) return;
+    // The pre-summed data already covers every layer, so the full range
+    // reuses it instead of downloading every layered matrix.
+    if (layerRangeIsFull && source) return;
+    const controller = new AbortController();
+    const load = async () => {
+      const contributions = await layerSource.getContributions(
+        controller.signal,
+        layerRange,
+      );
+      if (!controller.signal.aborted) {
+        setRangedState({
+          status: 'ready',
+          range: layerRange,
+          contributions,
+        });
+      }
+    };
+
+    void load().catch((error: unknown) => {
+      if (!controller.signal.aborted) {
+        setRangedState({
+          status: 'error',
+          range: layerRange,
+          error: error instanceof Error ? error : new Error(String(error)),
+        });
+      }
+    });
+    return () => controller.abort();
+  }, [layerSource, source, layerRange, layerRangeIsFull]);
+
+  useEffect(() => {
     const container = contributionText.current;
     if (!container) return;
 
@@ -244,6 +333,28 @@ export function ContributionText(props: ContributionTextProps) {
   const rowMaximum = contributionRowMaximum(row);
   const currentAnimationMaximum = contributionRowMaximum(currentAnimationRow);
   const nextAnimationMaximum = contributionRowMaximum(nextAnimationRow);
+
+  // The vertical slider grows upwards from its minimum, so slider values map
+  // to the reversed layer index to keep layer 0 at the top.
+  const highestSliderValue = layerCount - 1;
+  const layerSliderValue: [number, number] = [
+    highestSliderValue - layerRange.lastLayer,
+    highestSliderValue - layerRange.firstLayer,
+  ];
+  const handleLayerSliderChange = (value: [number, number]) => {
+    const [sliderFirst, sliderLast] = value;
+    setLayerRange({
+      firstLayer: highestSliderValue - sliderLast,
+      lastLayer: highestSliderValue - sliderFirst,
+    });
+  };
+  const layerSliderMarks = Array.from({ length: layerCount }, (_, layer) => ({
+    value: highestSliderValue - layer,
+  }));
+  const layerRangeSummary =
+    layerRange.firstLayer === layerRange.lastLayer
+      ? `Layer ${layerRange.firstLayer}`
+      : `Layers ${layerRange.firstLayer}–${layerRange.lastLayer}`;
 
   const measureTokenRectangles = () => {
     const rectangles = manifest.tokens.map((_, index) =>
@@ -338,94 +449,130 @@ export function ContributionText(props: ContributionTextProps) {
         </Text>
       </div>
 
-      <div
-        ref={contributionText}
-        className={`contribution-text ${animationVisible ? 'animating-contribution-text' : ''}`}
-        aria-label="Prompt and generated text by token"
-        onPointerEnter={(event) => {
-          if (event.pointerType !== 'mouse' && event.pointerType !== 'pen') {
-            return;
-          }
-          tokenRectangles.current = undefined;
-          setPointerInside(true);
-        }}
-        onPointerMove={handlePointerMove}
-        onPointerLeave={(event) => {
-          if (event.pointerType !== 'mouse' && event.pointerType !== 'pen') {
-            return;
-          }
-          setPointerInside(false);
-          setPointerToken(null);
-        }}
-      >
-        {manifest.tokens.map((token, index) => {
-          const active = interactionToken === index;
-          const animatedFocus = animationVisible
-            ? (index === animatedToken ? 1 - animationMix : 0) +
-              (index === nextAnimatedToken ? animationMix : 0)
-            : 0;
-          let opacity = 1;
-          if (interactionToken !== null && row !== undefined && !active) {
-            opacity = contributionOpacity(
-              row,
-              index,
-              minimumOpacity,
-              opacityScale,
-              opacityKnee,
-              rowMaximum,
+      <div className="text-visualization-body">
+        <div
+          ref={contributionText}
+          className={`contribution-text ${animationVisible ? 'animating-contribution-text' : ''}`}
+          aria-label="Prompt and generated text by token"
+          onPointerEnter={(event) => {
+            if (event.pointerType !== 'mouse' && event.pointerType !== 'pen') {
+              return;
+            }
+            tokenRectangles.current = undefined;
+            setPointerInside(true);
+          }}
+          onPointerMove={handlePointerMove}
+          onPointerLeave={(event) => {
+            if (event.pointerType !== 'mouse' && event.pointerType !== 'pen') {
+              return;
+            }
+            setPointerInside(false);
+            setPointerToken(null);
+          }}
+        >
+          {manifest.tokens.map((token, index) => {
+            const active = interactionToken === index;
+            const animatedFocus = animationVisible
+              ? (index === animatedToken ? 1 - animationMix : 0) +
+                (index === nextAnimatedToken ? animationMix : 0)
+              : 0;
+            let opacity = 1;
+            if (interactionToken !== null && row !== undefined && !active) {
+              opacity = contributionOpacity(
+                row,
+                index,
+                minimumOpacity,
+                opacityScale,
+                opacityKnee,
+                rowMaximum,
+              );
+            } else if (animationVisible) {
+              const currentOpacity =
+                index === animatedToken || currentAnimationRow === undefined
+                  ? 1
+                  : contributionOpacity(
+                      currentAnimationRow,
+                      index,
+                      minimumOpacity,
+                      opacityScale,
+                      opacityKnee,
+                      currentAnimationMaximum,
+                    );
+              const nextOpacity =
+                index === nextAnimatedToken || nextAnimationRow === undefined
+                  ? 1
+                  : contributionOpacity(
+                      nextAnimationRow,
+                      index,
+                      minimumOpacity,
+                      opacityScale,
+                      opacityKnee,
+                      nextAnimationMaximum,
+                    );
+              opacity =
+                currentOpacity + (nextOpacity - currentOpacity) * animationMix;
+            }
+            const generated = index >= manifest.promptTokenCount;
+            return (
+              <span
+                ref={(element) => {
+                  tokenElements.current[index] = element;
+                }}
+                key={`${index}-${token.id}`}
+                className={`contribution-text-token ${active ? 'active-contribution-text-token' : ''} ${animatedFocus > 0 ? 'animated-contribution-text-token' : ''} ${generated ? 'generated-text-token' : 'prompt-text-token'} ${index === manifest.promptTokenCount ? 'generation-start-token' : ''}`}
+                style={
+                  {
+                    '--token-opacity': opacity,
+                    '--token-focus-percent': `${animatedFocus * 100}%`,
+                  } as CSSProperties
+                }
+                tabIndex={0}
+                aria-label={`Token ${index}, ID ${token.id}, ${JSON.stringify(token.text)}`}
+                onPointerDown={(event) => {
+                  if (event.pointerType === 'touch')
+                    event.currentTarget.focus();
+                }}
+                onFocus={() => setFocusedToken(index)}
+                onBlur={() => setFocusedToken(null)}
+              >
+                {token.text}
+              </span>
             );
-          } else if (animationVisible) {
-            const currentOpacity =
-              index === animatedToken || currentAnimationRow === undefined
-                ? 1
-                : contributionOpacity(
-                    currentAnimationRow,
-                    index,
-                    minimumOpacity,
-                    opacityScale,
-                    opacityKnee,
-                    currentAnimationMaximum,
-                  );
-            const nextOpacity =
-              index === nextAnimatedToken || nextAnimationRow === undefined
-                ? 1
-                : contributionOpacity(
-                    nextAnimationRow,
-                    index,
-                    minimumOpacity,
-                    opacityScale,
-                    opacityKnee,
-                    nextAnimationMaximum,
-                  );
-            opacity =
-              currentOpacity + (nextOpacity - currentOpacity) * animationMix;
-          }
-          const generated = index >= manifest.promptTokenCount;
-          return (
-            <span
-              ref={(element) => {
-                tokenElements.current[index] = element;
-              }}
-              key={`${index}-${token.id}`}
-              className={`contribution-text-token ${active ? 'active-contribution-text-token' : ''} ${animatedFocus > 0 ? 'animated-contribution-text-token' : ''} ${generated ? 'generated-text-token' : 'prompt-text-token'} ${index === manifest.promptTokenCount ? 'generation-start-token' : ''}`}
-              style={
-                {
-                  '--token-opacity': opacity,
-                  '--token-focus-percent': `${animatedFocus * 100}%`,
-                } as CSSProperties
-              }
-              tabIndex={0}
-              aria-label={`Token ${index}, ID ${token.id}, ${JSON.stringify(token.text)}`}
-              onPointerDown={(event) => {
-                if (event.pointerType === 'touch') event.currentTarget.focus();
-              }}
-              onFocus={() => setFocusedToken(index)}
-              onBlur={() => setFocusedToken(null)}
-            >
-              {token.text}
-            </span>
-          );
-        })}
+          })}
+        </div>
+
+        {layerRangeEnabled && (
+          <aside className="layer-range-control">
+            <Text size="xs" fw={600} c="dimmed">
+              Layers
+            </Text>
+            <RangeSlider
+              className="layer-range-slider"
+              orientation="vertical"
+              min={0}
+              max={highestSliderValue}
+              step={1}
+              minRange={0}
+              pushOnOverlap={false}
+              value={layerSliderValue}
+              onChange={handleLayerSliderChange}
+              label={(value) => String(highestSliderValue - value)}
+              thumbValueText={(value) => `Layer ${highestSliderValue - value}`}
+              thumbFromLabel="Highest summed layer"
+              thumbToLabel="Lowest summed layer"
+              marks={layerSliderMarks}
+            />
+            <Text size="xs" c="dimmed" className="layer-range-summary">
+              {layerRangeSummary}
+            </Text>
+            {rangedPending && <Loader size="xs" type="dots" />}
+            {rangedError && aggregate.status === 'ready' && (
+              <Text size="xs" c="red">
+                {rangedError.message}
+              </Text>
+            )}
+          </aside>
+        )}
       </div>
     </Paper>
   );

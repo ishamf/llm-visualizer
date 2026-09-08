@@ -1,4 +1,5 @@
 import type {
+  ContributionLayer,
   ContributionManifest,
   SummedContributions,
 } from '../generation/types.ts';
@@ -9,6 +10,55 @@ export interface SummedContributionDataSource {
   readonly id: string;
   getManifest(signal?: AbortSignal): Promise<ContributionManifest>;
   getContributions(signal?: AbortSignal): Promise<SummedContributions>;
+}
+
+/** Inclusive range of transformer layers to sum, counted from layer 0. */
+export type LayerRange = {
+  firstLayer: number;
+  lastLayer: number;
+};
+
+export function fullLayerRange(layerCount: number): LayerRange {
+  return { firstLayer: 0, lastLayer: layerCount - 1 };
+}
+
+export function sameLayerRange(a: LayerRange, b: LayerRange): boolean {
+  return a.firstLayer === b.firstLayer && a.lastLayer === b.lastLayer;
+}
+
+export function isFullLayerRange(
+  range: LayerRange,
+  layerCount: number,
+): boolean {
+  return sameLayerRange(range, fullLayerRange(layerCount));
+}
+
+function normalizeLayerRange(
+  range: LayerRange | undefined,
+  layerCount: number,
+): LayerRange {
+  const resolved = range ?? fullLayerRange(layerCount);
+  const { firstLayer, lastLayer } = resolved;
+  if (
+    !Number.isSafeInteger(firstLayer) ||
+    !Number.isSafeInteger(lastLayer) ||
+    firstLayer < 0 ||
+    lastLayer < firstLayer ||
+    lastLayer >= layerCount
+  ) {
+    throw new Error(
+      `Layer range ${firstLayer}-${lastLayer} is outside the dataset's ${layerCount} layers`,
+    );
+  }
+  return resolved;
+}
+
+/** A summed-contribution source that can also sum an arbitrary layer range. */
+export interface LayerRangeSummedContributionDataSource extends SummedContributionDataSource {
+  getContributions(
+    signal?: AbortSignal,
+    range?: LayerRange,
+  ): Promise<SummedContributions>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -63,9 +113,10 @@ export function parseSummedContributions(
   return value as SummedContributions;
 }
 
-export class LayerSummingContributionDataSource implements SummedContributionDataSource {
+export class LayerSummingContributionDataSource implements LayerRangeSummedContributionDataSource {
   readonly id: string;
   readonly #source: ContributionDataSource;
+  readonly #layerRequests = new Map<number, Promise<ContributionLayer>>();
 
   constructor(source: ContributionDataSource) {
     this.id = source.id;
@@ -76,11 +127,32 @@ export class LayerSummingContributionDataSource implements SummedContributionDat
     return this.#source.getManifest(signal);
   }
 
-  async getContributions(signal?: AbortSignal) {
+  #loadLayer(layer: number): Promise<ContributionLayer> {
+    const cached = this.#layerRequests.get(layer);
+    if (cached) return cached;
+    // Layer downloads intentionally ignore abort signals: the range control
+    // changes constantly while sliding, and every downloaded layer stays
+    // useful for the next range.
+    const request = this.#source.getLayer(layer);
+    this.#layerRequests.set(layer, request);
+    void request.catch(() => {
+      // Drop failed downloads so a later range change can retry them.
+      if (this.#layerRequests.get(layer) === request) {
+        this.#layerRequests.delete(layer);
+      }
+    });
+    return request;
+  }
+
+  async getContributions(signal?: AbortSignal, range?: LayerRange) {
     const manifest = await this.getManifest(signal);
+    const { firstLayer, lastLayer } = normalizeLayerRange(
+      range,
+      manifest.geometry.layers,
+    );
     const layers = await Promise.all(
-      Array.from({ length: manifest.geometry.layers }, (_, layer) =>
-        this.#source.getLayer(layer, signal),
+      Array.from({ length: lastLayer - firstLayer + 1 }, (_, offset) =>
+        this.#loadLayer(firstLayer + offset),
       ),
     );
     const generatedTokenCount =
@@ -100,7 +172,7 @@ export class LayerSummingContributionDataSource implements SummedContributionDat
       schemaVersion: manifest.schemaVersion,
       metric: manifest.metric,
       aggregation: 'sum' as const,
-      layerCount: manifest.geometry.layers,
+      layerCount: lastLayer - firstLayer + 1,
       targetTokenStart: manifest.promptTokenCount,
       rows,
     };

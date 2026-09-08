@@ -12,7 +12,10 @@ import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { HttpContributionDataSource } from '../data/contribution-data-source.ts';
-import { GENERATED_DATA_BASE_URL } from '../data/dataset-catalog.ts';
+import {
+  matchingLayeredDataset,
+  GENERATED_DATA_BASE_URL,
+} from '../data/dataset-catalog.ts';
 import {
   HttpSummedContributionDataSource,
   LayerSummingContributionDataSource,
@@ -59,13 +62,21 @@ export function VisualizationPage() {
         : null,
     [summedDataset],
   );
-  const textSource = useMemo(
+  // Layered data lets the contribution-text view re-sum a selected range of
+  // layers; a single instance backs both the full sum and the range control
+  // so layer downloads are shared.
+  const textLayerSource = useMemo(
     () =>
-      summedSource ??
-      (layeredSource
+      layeredSource &&
+      dataset &&
+      matchingLayeredDataset(dataset, catalog.datasets)
         ? new LayerSummingContributionDataSource(layeredSource)
-        : null),
-    [layeredSource, summedSource],
+        : null,
+    [catalog.datasets, dataset, layeredSource],
+  );
+  const textSource = useMemo(
+    () => summedSource ?? textLayerSource,
+    [summedSource, textLayerSource],
   );
   const source =
     visualization?.kind === 'contribution-grid' ? layeredSource : textSource;
@@ -162,6 +173,7 @@ export function VisualizationPage() {
           <ContributionText
             key={dataset.id}
             source={textSource!}
+            layerSource={textLayerSource ?? undefined}
             manifest={dataset.manifest}
           />
         )}

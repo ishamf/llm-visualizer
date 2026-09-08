@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { exampleDataset } from '../generation/test-fixtures.ts';
+import type { ContributionManifest } from '../generation/types.ts';
 import {
   DATASET_CATALOG_SCHEMA_VERSION,
   loadDatasetCatalog,
   matchesModelConfiguration,
+  matchingLayeredDataset,
   parseDatasetCatalog,
+  type RemoteDataset,
 } from './dataset-catalog.ts';
 
 describe('dataset discovery manifest', () => {
@@ -166,5 +169,64 @@ describe('dataset discovery manifest', () => {
     await expect(
       loadDatasetCatalog('https://data.example/release'),
     ).rejects.toThrow('does not match');
+  });
+});
+
+describe('matching layered dataset', () => {
+  const base = exampleDataset().manifest;
+
+  function remoteDataset(
+    format: 'layered' | 'summed',
+    overrides: Partial<ContributionManifest> = {},
+  ): RemoteDataset {
+    const manifest = { ...base, ...overrides };
+    return {
+      id: 'example',
+      modelKey: 'qwen3-0.6b',
+      modelVariant: manifest.model.dtype,
+      format,
+      path: 'example/',
+      manifest,
+      baseUrl: `https://data.example/${format}/example/`,
+    };
+  }
+
+  it('finds a layered dataset describing the same run', () => {
+    const summed = remoteDataset('summed');
+    const layered = remoteDataset('layered');
+    expect(matchingLayeredDataset(summed, [layered, summed])).toBe(layered);
+  });
+
+  it('matches a layered dataset to itself', () => {
+    const layered = remoteDataset('layered');
+    expect(matchingLayeredDataset(layered, [layered])).toBe(layered);
+  });
+
+  it('returns undefined without a layered counterpart', () => {
+    const summed = remoteDataset('summed');
+    expect(matchingLayeredDataset(summed, [summed])).toBeUndefined();
+    expect(matchingLayeredDataset(summed, [])).toBeUndefined();
+  });
+
+  it('rejects a counterpart with different tokens', () => {
+    const summed = remoteDataset('summed');
+    const divergent = remoteDataset('layered', {
+      tokens: [...base.tokens, { id: 3, text: '!' }],
+    });
+    expect(matchingLayeredDataset(summed, [divergent])).toBeUndefined();
+  });
+
+  it('rejects a counterpart with a different prompt boundary', () => {
+    const summed = remoteDataset('summed');
+    const divergent = remoteDataset('layered', { promptTokenCount: 2 });
+    expect(matchingLayeredDataset(summed, [divergent])).toBeUndefined();
+  });
+
+  it('rejects a counterpart with different layer geometry', () => {
+    const summed = remoteDataset('summed');
+    const divergent = remoteDataset('layered', {
+      geometry: { ...base.geometry, layers: base.geometry.layers + 1 },
+    });
+    expect(matchingLayeredDataset(summed, [divergent])).toBeUndefined();
   });
 });

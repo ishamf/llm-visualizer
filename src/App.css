@@ -266,6 +266,31 @@
     light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-6));
 }
 
+.text-visualization-body {
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+}
+
+.text-visualization-body .contribution-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.layer-range-control {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 6px;
+}
+
+.layer-range-slider {
+  flex: 1 1 auto;
+  min-height: 140px;
+}
+
 .contribution-text {
   font-family: var(--mantine-font-family-monospace);
   font-size: clamp(0.86rem, 1.15vw, 0.98rem);
@@ -799,6 +824,10 @@
 
   .mobile-prompt-popover {
     display: block;
+  }
+
+  .text-visualization-body {
+    gap: 12px;
   }
 
   .contribution-text {
