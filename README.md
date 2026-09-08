@@ -59,36 +59,78 @@ The app also ships smaller experiments, reachable from the dev-only picker at
   layered datasets. Its design is described in
   [the instrumentation plan](docs/plans/instrumentation-plan.md).
 
-## Development
+## Setup
+
+### 1. Install dependencies
 
 ```sh
 pnpm install
-pnpm dev
 ```
 
-During development, the browser model continues to load from `/models/`.
-Pre-generated data defaults to `/generated/`.
+### 2. Download the model
 
-## Regenerating datasets
-
-The data pipeline has three steps:
-
-1. Instrument a downloaded ONNX model — see
-   [Model instrumentation](docs/instrumentation.md).
-2. Export datasets from the instrumented model — see
-   [Contribution datasets](docs/contribution-datasets.md).
-3. Refresh the discovery catalogs with:
+The app is pinned to Qwen3-0.6B with `int8` weights (`MODEL_CONFIGURATION` in
+`src/generation/config.ts`) and, in development, loads the instrumented ONNX
+file at `models/Qwen3-0.6B-ONNX/onnx/instrumented_int8.onnx` plus the
+tokenizer and config files next to it. The visualizations read internal
+attention tensors that stock ONNX models do not expose, so the weights must be
+instrumented; any way of placing the files in `models/Qwen3-0.6B-ONNX` works.
+For example, with the Hugging Face CLI and the pre-instrumented
+[ishamf/Qwen3-0.6B-ONNX-Instrumented](https://huggingface.co/ishamf/Qwen3-0.6B-ONNX-Instrumented)
+repository (≈630 MB):
 
 ```sh
+hf download ishamf/Qwen3-0.6B-ONNX-Instrumented \
+  onnx/instrumented_int8.onnx \
+  config.json generation_config.json \
+  tokenizer.json tokenizer_config.json \
+  special_tokens_map.json added_tokens.json \
+  vocab.json merges.txt chat_template.jinja \
+  --local-dir models/Qwen3-0.6B-ONNX
+```
+
+Alternatively, download the original model from
+[onnx-community/Qwen3-0.6B-ONNX](https://huggingface.co/onnx-community/Qwen3-0.6B-ONNX)
+(same file list, with `onnx/model_int8.onnx` instead of
+`onnx/instrumented_int8.onnx`) and run the instrumentation script after
+installing its pip dependencies — see
+[Model instrumentation](docs/instrumentation.md).
+
+`models/` is gitignored, so this is a local, one-time setup step.
+
+### 3. Optional: generate the pre-generated prompts
+
+The contribution-text pre-generated prompts load from `generated/`
+(gitignored). The exporter runs the same model in Node for every configured
+prompt:
+
+```sh
+pnpm generate:summed-contributions
 pnpm generate:data-manifest
 ```
 
-## Verification
+Dataset formats and exporter options are described in
+[Contribution datasets](docs/contribution-datasets.md), and the discovery
+catalogs in [Generated data manifests](docs/generated-data-manifests.md).
+
+### 4. Start the dev server
 
 ```sh
-pnpm test
-pnpm lint
+pnpm dev
 ```
+
+Open <http://localhost:5173> and type a prompt. The model runs in a web worker
+in your browser, so the prompt never leaves your machine. The first generation
+fetches the ≈620 MB of weights from the dev server; the browser caches them,
+so later runs start faster.
+
+A fresh clone has no `generated/` data, so the pre-generated examples area
+shows an error message; in-browser generation is unaffected. Generate the
+prompts locally (previous step) or point `VITE_GENERATED_DATA_BASE_URL` at a
+deployed data origin.
+
+You can check the setup with `pnpm test` and `pnpm lint`; neither needs the
+model.
 
 ## Documentation
 
