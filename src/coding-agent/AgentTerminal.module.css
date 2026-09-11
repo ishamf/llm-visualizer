@@ -27,6 +27,7 @@
 }
 
 .scroll {
+  overflow-x: hidden;
   overflow-y: auto;
   min-height: 0;
   flex: 1;
@@ -44,7 +45,14 @@
   padding: 9px 16px;
   border-bottom: 1px solid
     light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-5));
-  background: inherit;
+  /* Mostly opaque (over the terminal background) with a blur, so streamed
+     content stays readable as it slides underneath. */
+  background: light-dark(
+    color-mix(in srgb, var(--mantine-color-gray-0) 88%, transparent),
+    color-mix(in srgb, var(--mantine-color-dark-9) 88%, transparent)
+  );
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   font-size: 0.72rem;
 }
 
@@ -63,6 +71,7 @@
 
 .transcript {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   padding: 14px 16px 22px;
 }
@@ -107,6 +116,7 @@
 
 .thinkingEntry {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
 }
 
@@ -148,6 +158,7 @@
 
 .toolEntry {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
 }
 
@@ -209,6 +220,7 @@
 
 .toolResultEntry {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
   margin-left: 18px;
 }

@@ -2,20 +2,31 @@ import { Loader, Text } from '@mantine/core';
 import { memo } from 'react';
 
 import { formatCost, formatTokens } from './format.ts';
-import type { RequestState } from './timeline.ts';
+import type { RequestState, RequestTimeline } from './timeline.ts';
 import { usePinnedAutoScroll } from './use-pinned-scroll.ts';
 import styles from './RequestList.module.css';
 
 type RequestCardProps = {
-  state: RequestState;
+  request: RequestTimeline;
+  status: RequestState['status'];
+  onRequestClick: (request: RequestTimeline) => void;
 };
 
-const RequestCard = memo(function RequestCard({ state }: RequestCardProps) {
-  const { request, status } = state;
+const RequestCard = memo(function RequestCard({
+  request,
+  status,
+  onRequestClick,
+}: RequestCardProps) {
   const usage = request.usage;
   return (
-    <div className={styles.requestCard} data-status={status}>
-      <div className={styles.requestHeader}>
+    <button
+      type="button"
+      className={styles.requestCard}
+      data-status={status}
+      onClick={() => onRequestClick(request)}
+      aria-label={`Pause and seek to when request ${request.index} completed`}
+    >
+      <span className={styles.requestHeader}>
         <span className={styles.requestIndex}>#{request.index}</span>
         <span className={styles.requestModel}>{request.model}</span>
         {status === 'streaming' ? (
@@ -25,9 +36,9 @@ const RequestCard = memo(function RequestCard({ state }: RequestCardProps) {
             ✓
           </span>
         )}
-      </div>
+      </span>
       {status === 'done' ? (
-        <div className={styles.requestUsage}>
+        <span className={styles.requestUsage}>
           <span className={styles.usageItem} title="Input tokens">
             ↑ {formatTokens(usage.input)}
           </span>
@@ -42,13 +53,13 @@ const RequestCard = memo(function RequestCard({ state }: RequestCardProps) {
           <span className={styles.requestCost}>
             {formatCost(usage.cost?.total ?? 0)}
           </span>
-        </div>
+        </span>
       ) : (
         <Text className={styles.requestPending} size="xs" c="dimmed">
           streaming…
         </Text>
       )}
-    </div>
+    </button>
   );
 });
 
@@ -56,12 +67,14 @@ type RequestListProps = {
   states: readonly RequestState[];
   totals: { input: number; output: number; cost: number };
   totalRequests: number;
+  onRequestClick: (request: RequestTimeline) => void;
 };
 
 export function RequestList({
   states,
   totals,
   totalRequests,
+  onRequestClick,
 }: RequestListProps) {
   const { containerRef, pinned, pin } = usePinnedAutoScroll(states);
   return (
@@ -77,7 +90,12 @@ export function RequestList({
       <div className={styles.scroll} ref={containerRef}>
         <div className={styles.cards}>
           {states.map((state) => (
-            <RequestCard key={state.request.id} state={state} />
+            <RequestCard
+              key={state.request.id}
+              request={state.request}
+              status={state.status}
+              onRequestClick={onRequestClick}
+            />
           ))}
         </div>
       </div>

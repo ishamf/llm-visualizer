@@ -6,7 +6,11 @@ import {
   type RefObject,
 } from 'react';
 
-/** Distance from the bottom within which the container counts as pinned. */
+/**
+ * Distance from the bottom within which the container re-attaches.
+ * Releasing works differently: any deliberate upward scroll detaches
+ * immediately, even a few pixels, so playback never fights the user.
+ */
 const PIN_THRESHOLD_PX = 40;
 
 /**
@@ -22,6 +26,7 @@ export function usePinnedAutoScroll(watchValue: unknown): {
 } {
   const containerRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
+  const lastScrollTopRef = useRef(0);
   const [pinned, setPinned] = useState(true);
 
   const updatePinned = useCallback((value: boolean) => {
@@ -32,9 +37,16 @@ export function usePinnedAutoScroll(watchValue: unknown): {
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    lastScrollTopRef.current = container.scrollTop;
     const handleScroll = () => {
-      const distance =
-        container.scrollHeight - container.scrollTop - container.clientHeight;
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const goingUp = scrollTop < lastScrollTopRef.current - 1;
+      lastScrollTopRef.current = scrollTop;
+      if (goingUp) {
+        updatePinned(false);
+        return;
+      }
+      const distance = scrollHeight - scrollTop - clientHeight;
       updatePinned(distance < PIN_THRESHOLD_PX);
     };
     container.addEventListener('scroll', handleScroll, { passive: true });

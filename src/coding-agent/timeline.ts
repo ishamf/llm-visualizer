@@ -316,6 +316,11 @@ export function tokensAt(timeSeconds: number): number {
   return timeSeconds * PLAYBACK_TOKENS_PER_SECOND;
 }
 
+/** Inverse of {@link tokensAt}. */
+export function timeAtTokens(tokens: number): number {
+  return tokens / PLAYBACK_TOKENS_PER_SECOND;
+}
+
 /** Snapshot of the transcript at a token position, for rendering. */
 export function entriesAt(timeline: Timeline, tokens: number): EntryState[] {
   const states: EntryState[] = [];

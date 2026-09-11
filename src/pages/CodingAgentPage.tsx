@@ -7,7 +7,7 @@ import {
   Text,
   Title,
 } from '@mantine/core';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 
 import { AgentTerminal } from '../coding-agent/AgentTerminal.tsx';
@@ -18,8 +18,10 @@ import {
   entriesAt,
   playbackDurationSeconds,
   requestsAt,
+  timeAtTokens,
   tokensAt,
   usageTotalsAt,
+  type RequestTimeline,
 } from '../coding-agent/timeline.ts';
 import { useAgentSession } from '../coding-agent/use-agent-session.ts';
 import { usePlayback } from '../coding-agent/use-playback.ts';
@@ -51,10 +53,13 @@ export function CodingAgentPage() {
   const duration =
     session.status === 'ready' ? playbackDurationSeconds(session.timeline) : 0;
   const playback = usePlayback(duration, { autoPlay: true });
+  // The individual functions are stable across renders; the hook result
+  // object is not, so destructure before using them in callbacks.
+  const { time, playing, toggle, pause, seek } = playback;
   const ready = session.status === 'ready';
   const timeline = ready ? session.timeline : null;
 
-  const tokens = tokensAt(playback.time);
+  const tokens = tokensAt(time);
   const entryStates = useMemo(
     () => (timeline ? entriesAt(timeline, tokens) : []),
     [timeline, tokens],
@@ -78,7 +83,15 @@ export function CodingAgentPage() {
     [timeline],
   );
 
-  useSpaceToggle(playback.toggle, ready);
+  useSpaceToggle(toggle, ready);
+
+  const handleRequestClick = useCallback(
+    (request: RequestTimeline) => {
+      pause();
+      seek(timeAtTokens(request.end));
+    },
+    [pause, seek],
+  );
 
   if (session.status === 'loading') {
     return (
@@ -146,15 +159,16 @@ export function CodingAgentPage() {
             states={requestStates}
             totals={totals}
             totalRequests={timeline.requests.length}
+            onRequestClick={handleRequestClick}
           />
         </div>
 
         <PlaybackBar
-          time={playback.time}
+          time={time}
           duration={duration}
-          playing={playback.playing}
-          onToggle={playback.toggle}
-          onSeek={playback.seek}
+          playing={playing}
+          onToggle={toggle}
+          onSeek={seek}
         />
       </Container>
     </main>

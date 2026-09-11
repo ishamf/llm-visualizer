@@ -6,6 +6,8 @@ import {
   entriesAt,
   playbackDurationSeconds,
   requestsAt,
+  timeAtTokens,
+  tokensAt,
   usageTotalsAt,
 } from './timeline.ts';
 import {
@@ -34,6 +36,11 @@ describe('buildTimeline', () => {
     expect(playbackDurationSeconds(timeline)).toBeCloseTo(
       150 / PLAYBACK_TOKENS_PER_SECOND,
     );
+  });
+
+  it('converts between seconds and tokens symmetrically', () => {
+    expect(timeAtTokens(150)).toBeCloseTo(150 / PLAYBACK_TOKENS_PER_SECOND);
+    expect(tokensAt(timeAtTokens(77))).toBeCloseTo(77);
   });
 
   it('splits a request’s tokens across blocks proportional to segment durations', () => {
