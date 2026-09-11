@@ -1,0 +1,4 @@
+.pageContainer {
+  display: grid;
+  gap: 26px;
+}

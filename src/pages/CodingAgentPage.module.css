@@ -1,0 +1,47 @@
+.pageContainer {
+  display: grid;
+  gap: 18px;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 28px;
+}
+
+.pageHeader h1 {
+  margin: 3px 0 10px;
+  font-size: clamp(1.9rem, 4vw, 3rem);
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+
+.workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 16px;
+  height: min(66vh, 760px);
+  min-height: 420px;
+}
+
+@media (max-width: 900px) {
+  .pageHeader {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .workbench {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .workbench > :first-child {
+    height: min(62vh, 620px);
+    min-height: 360px;
+  }
+
+  .workbench > :last-child {
+    height: 320px;
+  }
+}

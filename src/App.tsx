@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 
+import { CodingAgentPage } from './pages/CodingAgentPage.tsx';
+import { ContributionTextPage } from './pages/ContributionTextPage.tsx';
 import { DevVisualizationSelectorPage } from './pages/DevVisualizationSelectorPage.tsx';
 import { HomePage } from './pages/HomePage.tsx';
 import { VisualizationPage } from './pages/VisualizationPage.tsx';
@@ -8,6 +10,8 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
+      <Route path="/attention" element={<ContributionTextPage />} />
+      <Route path="/coding-agent" element={<CodingAgentPage />} />
       <Route path="/generate" element={<Navigate to="/" replace />} />
       <Route
         path="/dev/visualizations"
