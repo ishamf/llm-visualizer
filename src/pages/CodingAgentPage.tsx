@@ -18,8 +18,6 @@ import {
   entriesAt,
   playbackDurationSeconds,
   requestsAt,
-  timeAtTokens,
-  tokensAt,
   usageTotalsAt,
   type RequestTimeline,
 } from '../coding-agent/timeline.ts';
@@ -59,21 +57,20 @@ export function CodingAgentPage() {
   const ready = session.status === 'ready';
   const timeline = ready ? session.timeline : null;
 
-  const tokens = tokensAt(time);
   const entryStates = useMemo(
-    () => (timeline ? entriesAt(timeline, tokens) : []),
-    [timeline, tokens],
+    () => (timeline ? entriesAt(timeline, time) : []),
+    [timeline, time],
   );
   const requestStates = useMemo(
-    () => (timeline ? requestsAt(timeline, tokens) : []),
-    [timeline, tokens],
+    () => (timeline ? requestsAt(timeline, time) : []),
+    [timeline, time],
   );
   const totals = useMemo(
     () =>
       timeline
-        ? usageTotalsAt(timeline, tokens)
+        ? usageTotalsAt(timeline, time)
         : { input: 0, output: 0, cost: 0 },
-    [timeline, tokens],
+    [timeline, time],
   );
   const fullTotals = useMemo(
     () =>
@@ -88,7 +85,7 @@ export function CodingAgentPage() {
   const handleRequestClick = useCallback(
     (request: RequestTimeline) => {
       pause();
-      seek(timeAtTokens(request.end));
+      seek(request.endTime);
     },
     [pause, seek],
   );

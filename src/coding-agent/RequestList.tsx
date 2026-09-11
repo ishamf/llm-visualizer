@@ -29,7 +29,7 @@ const RequestCard = memo(function RequestCard({
       <span className={styles.requestHeader}>
         <span className={styles.requestIndex}>#{request.index}</span>
         <span className={styles.requestModel}>{request.model}</span>
-        {status === 'streaming' ? (
+        {status !== 'done' ? (
           <Loader className={styles.requestSpinner} size="xs" type="dots" />
         ) : (
           <span className={styles.requestDone} aria-hidden="true">
@@ -56,7 +56,7 @@ const RequestCard = memo(function RequestCard({
         </span>
       ) : (
         <Text className={styles.requestPending} size="xs" c="dimmed">
-          streaming…
+          {status === 'processing' ? 'processing input…' : 'streaming…'}
         </Text>
       )}
     </button>

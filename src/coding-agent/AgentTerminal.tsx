@@ -101,6 +101,9 @@ function ToolCallEntry({
   resultError: boolean | undefined;
 }) {
   const [expanded, setExpanded] = useState(false);
+  // The call keeps "running" until its result appears — covering both the
+  // streamed arguments and the tool execution phase after the response ends.
+  const running = streaming || resultError === undefined;
   return (
     <div className={styles.toolEntry} data-error={resultError || undefined}>
       <button
@@ -109,7 +112,7 @@ function ToolCallEntry({
         onClick={() => setExpanded((value) => !value)}
         aria-expanded={expanded}
       >
-        {streaming ? (
+        {running ? (
           <Loader className={styles.toolSpinner} size="xs" type="dots" />
         ) : (
           <span className={styles.toolStatus} aria-hidden="true">

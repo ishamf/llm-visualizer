@@ -71,7 +71,8 @@
   outline-offset: 2px;
 }
 
-.requestCard[data-status='streaming'] {
+.requestCard[data-status='streaming'],
+.requestCard[data-status='processing'] {
   border-color: var(--mantine-color-violet-4);
 }
 

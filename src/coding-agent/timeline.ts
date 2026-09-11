@@ -1,13 +1,27 @@
 import type { PackedSession, PackedUsage } from './packed-session.ts';
 
-/** Playback speed: timeline tokens are virtual output tokens. */
+/** Output streaming rate: the clock advances one token per tick. */
 export const PLAYBACK_TOKENS_PER_SECOND = 50;
+/**
+ * Input (prefill) processing rate, in tokens per second. Applied to a
+ * request's uncached input tokens (`input - cacheRead`) before its output
+ * starts streaming.
+ */
+export const INPUT_PROCESSING_TOKENS_PER_SECOND = 500;
+/** Wall-clock pause inserted after each streamed tool call while the agent runs it. */
+export const TOOL_EXECUTION_MS = 300;
+/**
+ * Minimum pause between one request settling (stream finished, tools done)
+ * and the next request appearing, so jumping to a completed request never
+ * reveals the following one.
+ */
+export const REQUEST_GAP_MS = 10;
 
 /**
  * A renderable transcript entry. Streaming entries (`thinking`, `text`,
  * `toolCall`) reveal content character-by-character between the `start` and
- * `end` token positions; instant entries (`user`, `toolResult`) appear
- * entirely at `appearAt`.
+ * `end` times; instant entries (`user`, `toolResult`) appear entirely at
+ * `appearAt`. All positions are seconds on the playback timeline.
  */
 export type TimelineEntry =
   | {
@@ -61,19 +75,24 @@ export type RequestTimeline = {
   index: number;
   provider: string;
   model: string;
-  /** Token position when the request was sent. */
-  start: number;
-  /** Token position when the response finished streaming. */
-  end: number;
+  /** When the request was sent; it shows as processing from here. */
+  sentTime: number;
+  /** When input processing finished and output starts streaming. */
+  streamStartTime: number;
+  /** When the response finished streaming. */
+  endTime: number;
   usage: PackedUsage;
   stopReason: string | undefined;
+  toolCallCount: number;
 };
 
 export type Timeline = {
   entries: TimelineEntry[];
   requests: RequestTimeline[];
-  /** Sum of every request's output tokens; the end of the timeline. */
+  /** Sum of every request's output tokens. */
   totalTokens: number;
+  /** End of the playback timeline, in seconds. */
+  durationSeconds: number;
   systemPrompt: string | undefined;
   cwd: string | undefined;
   model: string;
@@ -90,8 +109,56 @@ export type EntryState = {
 
 export type RequestState = {
   request: RequestTimeline;
-  status: 'streaming' | 'done';
+  status: 'processing' | 'streaming' | 'done';
 };
+
+/**
+ * Splits a request's streaming window across its response content blocks,
+ * proportional to each block's real streaming duration when segments are
+ * available. Works in integer milliseconds; returns half-open windows
+ * aligned with `content` indices.
+ */
+function allocateBlockWindowsMs(
+  startMs: number,
+  windowMs: number,
+  blockCount: number,
+  segments:
+    | readonly { contentIndex: number; startDtMs: number; endDtMs: number }[]
+    | undefined,
+): Array<{ start: number; end: number }> {
+  const rawWeights: number[] = Array.from(
+    { length: blockCount },
+    (_, index) => {
+      const segment = segments?.find(
+        (candidate) => candidate.contentIndex === index,
+      );
+      const duration =
+        segment === undefined
+          ? 0
+          : Math.max(0, segment.endDtMs - segment.startDtMs);
+      return Number.isFinite(duration) ? duration : 0;
+    },
+  );
+  const weights = rawWeights.some((weight) => weight > 0)
+    ? rawWeights
+    : rawWeights.map(() => 1);
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  const ranges: Array<{ start: number; end: number }> = [];
+  let elapsed = 0;
+  for (const weight of weights) {
+    elapsed += weight;
+    ranges.push({
+      start: 0,
+      end: startMs + (windowMs * elapsed) / totalWeight,
+    });
+  }
+  let previousBoundary = startMs;
+  for (const range of ranges) {
+    range.start = previousBoundary;
+    previousBoundary = range.end;
+  }
+  return ranges;
+}
 
 function toolCallSummary(
   name: string,
@@ -123,55 +190,18 @@ function toolResultText(parts: readonly { type: string; text?: string }[]) {
 }
 
 /**
- * Allocates a request's output tokens across its response content blocks,
- * proportional to each block's real streaming duration when segments are
- * available. Returns half-open token ranges aligned with `content` indices.
- */
-function allocateBlockTokens(
-  blockCount: number,
-  tokenBudget: number,
-  segments:
-    | readonly { contentIndex: number; startDtMs: number; endDtMs: number }[]
-    | undefined,
-  startIndex: number,
-): Array<{ start: number; end: number }> {
-  const rawWeights: number[] = Array.from(
-    { length: blockCount },
-    (_, index) => {
-      const segment = segments?.find(
-        (candidate) => candidate.contentIndex === index,
-      );
-      const duration =
-        segment === undefined
-          ? 0
-          : Math.max(0, segment.endDtMs - segment.startDtMs);
-      return Number.isFinite(duration) ? duration : 0;
-    },
-  );
-  const weights = rawWeights.some((weight) => weight > 0)
-    ? rawWeights
-    : rawWeights.map(() => 1);
-  const totalDuration = weights.reduce((sum, weight) => sum + weight, 0);
-  const ranges: Array<{ start: number; end: number }> = [];
-  let elapsed = 0;
-  for (const weight of weights) {
-    elapsed += weight;
-    const boundary = startIndex + (tokenBudget * elapsed) / totalDuration;
-    ranges.push({ start: 0, end: Math.round(boundary) });
-  }
-  let previousBoundary = startIndex;
-  for (const range of ranges) {
-    range.start = previousBoundary;
-    previousBoundary = range.end;
-  }
-  return ranges;
-}
-
-/**
- * Reconstructs the playback timeline from a packed session: a flat transcript
- * of entries with token positions, plus the per-request timeline. Requests
- * occupy contiguous token ranges sized by their output token counts; tool
- * results appear the moment their request completes.
+ * Reconstructs the playback timeline from a packed session. Each request
+ * occupies a sequence of wall-clock phases:
+ *
+ * 1. `sent` — the request appears and processes its uncached input tokens at
+ *    `INPUT_PROCESSING_TOKENS_PER_SECOND`.
+ * 2. `streaming` — output tokens stream at `PLAYBACK_TOKENS_PER_SECOND`,
+ *    spread across the response content blocks by their recorded segment
+ *    durations.
+ * 3. `tools` — `TOOL_EXECUTION_MS` per streamed tool call; tool results
+ *    appear when the phase ends.
+ *
+ * A small gap separates one request from the next.
  */
 export function buildTimeline(session: PackedSession): Timeline {
   const resultsByCallId = new Map<
@@ -191,23 +221,44 @@ export function buildTimeline(session: PackedSession): Timeline {
 
   const entries: TimelineEntry[] = [];
   const requests: RequestTimeline[] = [];
-  let tokens = 0;
+  // Phases are accumulated in integer milliseconds so that positions stay
+  // exact; the public timeline exposes seconds.
+  let requestTimeMs = 0;
+  let totalTokens = 0;
+  let durationSeconds = 0;
   let previousMessageCount = 0;
 
   session.requests.forEach((request, requestIndex) => {
-    const requestStart = tokens;
-    const outputTokens = request.data.response.usage.output;
-    const requestEnd = requestStart + outputTokens;
+    const usage = request.data.response.usage;
+    const sentTimeMs = requestTimeMs;
+    const uncachedInput = Math.max(0, usage.input - usage.cacheRead);
+    const streamStartTimeMs =
+      sentTimeMs +
+      Math.round((uncachedInput / INPUT_PROCESSING_TOKENS_PER_SECOND) * 1000);
+    const streamMs = Math.round(
+      (usage.output / PLAYBACK_TOKENS_PER_SECOND) * 1000,
+    );
+    const endTimeMs = streamStartTimeMs + streamMs;
+    const response = request.response;
+    const toolCallCount =
+      response?.content.filter((block) => block.type === 'toolCall').length ??
+      0;
+    const toolPhaseMs = toolCallCount * TOOL_EXECUTION_MS;
+    const settledTimeMs = endTimeMs + toolPhaseMs;
+
     requests.push({
       id: request.id,
       index: requestIndex + 1,
       provider: request.data.request.provider,
       model: request.data.request.model,
-      start: requestStart,
-      end: requestEnd,
-      usage: request.data.response.usage,
+      sentTime: sentTimeMs / 1000,
+      streamStartTime: streamStartTimeMs / 1000,
+      endTime: endTimeMs / 1000,
+      usage,
       stopReason: request.data.response.stopReason,
+      toolCallCount,
     });
+    totalTokens += usage.output;
 
     // User turns included in this request for the first time become visible
     // when the request is sent.
@@ -222,63 +273,63 @@ export function buildTimeline(session: PackedSession): Timeline {
         kind: 'user',
         id: `user-${message.index}`,
         text,
-        appearAt: requestStart,
+        appearAt: sentTimeMs / 1000,
       });
     }
     previousMessageCount = request.messageCount;
 
-    const response = request.response;
-    if (!response || response.content.length === 0) {
-      tokens = requestEnd;
-      return;
+    if (response && response.content.length > 0) {
+      const windowsMs = allocateBlockWindowsMs(
+        streamStartTimeMs,
+        streamMs,
+        response.content.length,
+        request.data.timing.segments,
+      );
+      response.content.forEach((block, blockIndex) => {
+        const { start, end } = {
+          start: windowsMs[blockIndex].start / 1000,
+          end: windowsMs[blockIndex].end / 1000,
+        };
+        if (block.type === 'thinking') {
+          entries.push({
+            kind: 'thinking',
+            id: `${request.id}-thinking-${blockIndex}`,
+            requestId: request.id,
+            text: block.thinking,
+            start,
+            end,
+          });
+        } else if (block.type === 'text') {
+          entries.push({
+            kind: 'text',
+            id: `${request.id}-text-${blockIndex}`,
+            requestId: request.id,
+            text: block.text,
+            start,
+            end,
+          });
+        } else {
+          const { summary, argsText } = toolCallSummary(
+            block.name,
+            block.arguments,
+          );
+          entries.push({
+            kind: 'toolCall',
+            id: `${request.id}-tool-${blockIndex}`,
+            requestId: request.id,
+            callId: block.id,
+            name: block.name,
+            summary,
+            argsText,
+            start,
+            end,
+          });
+        }
+      });
     }
-    const ranges = allocateBlockTokens(
-      response.content.length,
-      outputTokens,
-      request.data.timing.segments,
-      requestStart,
-    );
-    response.content.forEach((block, blockIndex) => {
-      const { start, end } = ranges[blockIndex];
-      if (block.type === 'thinking') {
-        entries.push({
-          kind: 'thinking',
-          id: `${request.id}-thinking-${blockIndex}`,
-          requestId: request.id,
-          text: block.thinking,
-          start,
-          end,
-        });
-      } else if (block.type === 'text') {
-        entries.push({
-          kind: 'text',
-          id: `${request.id}-text-${blockIndex}`,
-          requestId: request.id,
-          text: block.text,
-          start,
-          end,
-        });
-      } else {
-        const { summary, argsText } = toolCallSummary(
-          block.name,
-          block.arguments,
-        );
-        entries.push({
-          kind: 'toolCall',
-          id: `${request.id}-tool-${blockIndex}`,
-          requestId: request.id,
-          callId: block.id,
-          name: block.name,
-          summary,
-          argsText,
-          start,
-          end,
-        });
-      }
-    });
 
-    // Tool results become visible the moment the response finished streaming.
-    for (const block of response.content) {
+    // Tool results become visible once their tool execution phase ends.
+    for (const block of response?.content ?? []) {
       if (block.type !== 'toolCall') continue;
       const result = resultsByCallId.get(block.id);
       if (!result) continue;
@@ -289,17 +340,20 @@ export function buildTimeline(session: PackedSession): Timeline {
         toolName: result.toolName,
         isError: result.isError,
         text: result.text,
-        appearAt: requestEnd,
+        appearAt: settledTimeMs / 1000,
       });
     }
-    tokens = requestEnd;
+
+    durationSeconds = settledTimeMs / 1000;
+    requestTimeMs = settledTimeMs + REQUEST_GAP_MS;
   });
 
   const firstRequest = session.requests[0];
   return {
     entries,
     requests,
-    totalTokens: tokens,
+    totalTokens,
+    durationSeconds,
     systemPrompt: session.prompt.system,
     cwd: session.session.cwd,
     model: firstRequest?.data.request.model ?? 'unknown',
@@ -309,24 +363,18 @@ export function buildTimeline(session: PackedSession): Timeline {
 }
 
 export function playbackDurationSeconds(timeline: Timeline): number {
-  return timeline.totalTokens / PLAYBACK_TOKENS_PER_SECOND;
+  return timeline.durationSeconds;
 }
 
-export function tokensAt(timeSeconds: number): number {
-  return timeSeconds * PLAYBACK_TOKENS_PER_SECOND;
-}
-
-/** Inverse of {@link tokensAt}. */
-export function timeAtTokens(tokens: number): number {
-  return tokens / PLAYBACK_TOKENS_PER_SECOND;
-}
-
-/** Snapshot of the transcript at a token position, for rendering. */
-export function entriesAt(timeline: Timeline, tokens: number): EntryState[] {
+/** Snapshot of the transcript at a playback time, for rendering. */
+export function entriesAt(
+  timeline: Timeline,
+  timeSeconds: number,
+): EntryState[] {
   const states: EntryState[] = [];
   for (const entry of timeline.entries) {
     if (entry.kind === 'user' || entry.kind === 'toolResult') {
-      if (tokens < entry.appearAt) continue;
+      if (timeSeconds < entry.appearAt) continue;
       states.push({
         entry,
         revealed: entry.text.length,
@@ -334,16 +382,17 @@ export function entriesAt(timeline: Timeline, tokens: number): EntryState[] {
       });
       continue;
     }
-    if (tokens < entry.start) continue;
+    if (timeSeconds < entry.start) continue;
     const length = entry.kind === 'toolCall' ? 1 : entry.text.length;
-    const streaming = tokens < entry.end;
+    const streaming = timeSeconds < entry.end;
     const revealed =
       entry.end <= entry.start || !streaming
         ? length
         : Math.min(
             length,
             Math.floor(
-              ((tokens - entry.start) / (entry.end - entry.start)) * length,
+              ((timeSeconds - entry.start) / (entry.end - entry.start)) *
+                length,
             ),
           );
     states.push({ entry, revealed, streaming });
@@ -351,29 +400,37 @@ export function entriesAt(timeline: Timeline, tokens: number): EntryState[] {
   return states;
 }
 
-/** Snapshot of the provider request list at a token position. */
-export function requestsAt(timeline: Timeline, tokens: number): RequestState[] {
+/** Snapshot of the provider request list at a playback time. */
+export function requestsAt(
+  timeline: Timeline,
+  timeSeconds: number,
+): RequestState[] {
   const states: RequestState[] = [];
   for (const request of timeline.requests) {
-    if (tokens < request.start) continue;
+    if (timeSeconds < request.sentTime) continue;
     states.push({
       request,
-      status: tokens < request.end ? 'streaming' : 'done',
+      status:
+        timeSeconds < request.streamStartTime
+          ? 'processing'
+          : timeSeconds < request.endTime
+            ? 'streaming'
+            : 'done',
     });
   }
   return states;
 }
 
-/** Usage totals over the requests completed at a token position. */
+/** Usage totals over the requests completed at a playback time. */
 export function usageTotalsAt(
   timeline: Timeline,
-  tokens: number,
+  timeSeconds: number,
 ): { input: number; output: number; cost: number } {
   let input = 0;
   let output = 0;
   let cost = 0;
   for (const request of timeline.requests) {
-    if (tokens < request.end) continue;
+    if (timeSeconds < request.endTime) continue;
     input += request.usage.input;
     output += request.usage.output;
     cost += request.usage.cost?.total ?? 0;
