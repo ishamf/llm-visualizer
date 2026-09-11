@@ -27,6 +27,7 @@ export function usePinnedAutoScroll(watchValue: unknown): {
   const containerRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const lastScrollTopRef = useRef(0);
+  const lastScrollHeightRef = useRef(0);
   const [pinned, setPinned] = useState(true);
 
   const updatePinned = useCallback((value: boolean) => {
@@ -38,11 +39,17 @@ export function usePinnedAutoScroll(watchValue: unknown): {
     const container = containerRef.current;
     if (!container) return;
     lastScrollTopRef.current = container.scrollTop;
+    lastScrollHeightRef.current = container.scrollHeight;
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = container;
+      // Content shrinking (e.g. a thinking block collapsing) clamps
+      // scrollTop downwards and fires a scroll event; that is not the user
+      // scrolling, so only count upward movement on unchanged content.
       const goingUp = scrollTop < lastScrollTopRef.current - 1;
+      const contentShrank = scrollHeight < lastScrollHeightRef.current;
       lastScrollTopRef.current = scrollTop;
-      if (goingUp) {
+      lastScrollHeightRef.current = scrollHeight;
+      if (goingUp && !contentShrank) {
         updatePinned(false);
         return;
       }
