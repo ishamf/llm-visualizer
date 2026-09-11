@@ -88,10 +88,25 @@
   font-variant-numeric: tabular-nums;
 }
 
-.requestModel {
+.requestBytes {
   overflow: hidden;
   flex: 1;
   color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-gray-4));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.bytesSeparator {
+  padding-inline: 4px;
+  color: light-dark(var(--mantine-color-gray-5), var(--mantine-color-dark-4));
+}
+
+.requestPendingLabel {
+  overflow: hidden;
+  flex: 1;
+  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-3));
+  font-style: italic;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -105,10 +120,6 @@
   font-weight: 700;
 }
 
-.requestPending {
-  font-style: italic;
-}
-
 .requestUsage {
   display: flex;
   flex-wrap: wrap;
@@ -119,6 +130,12 @@
 .usageItem {
   color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-gray-4));
   font-variant-numeric: tabular-nums;
+}
+
+.usageLetter {
+  margin-right: 4px;
+  color: light-dark(var(--mantine-color-gray-5), var(--mantine-color-dark-3));
+  font-weight: 700;
 }
 
 .requestCost {
@@ -153,22 +170,51 @@
 }
 
 .listFooter {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  padding: 10px 16px;
+  display: grid;
+  gap: 3px;
+  padding: 10px 16px 12px;
   border-top: 1px solid
     light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-6));
-  font-size: 0.76rem;
+  font-size: 0.74rem;
+}
+
+.footerRow {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  column-gap: 14px;
   font-variant-numeric: tabular-nums;
 }
 
-.totalItem {
+.footerLabel {
   color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-gray-4));
 }
 
-.totalCost {
-  margin-left: auto;
+.footerTokens {
+  min-width: 56px;
+  text-align: right;
+  color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-gray-4));
+}
+
+.footerCost {
+  min-width: 64px;
+  text-align: right;
+  color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-gray-4));
+}
+
+.footerTotalRow {
+  margin-top: 4px;
+  border-top: 1px solid
+    light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-6));
+  padding-top: 6px;
+}
+
+.footerTotalRow .footerLabel {
+  color: light-dark(var(--mantine-color-dark-8), var(--mantine-color-gray-2));
+  font-weight: 700;
+}
+
+.footerTotalRow .footerCost {
   color: var(--mantine-color-violet-6);
   font-weight: 700;
 }

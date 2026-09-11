@@ -18,7 +18,7 @@ import {
   entriesAt,
   playbackDurationSeconds,
   requestsAt,
-  usageTotalsAt,
+  usageBreakdownAt,
   type RequestTimeline,
 } from '../coding-agent/timeline.ts';
 import { useAgentSession } from '../coding-agent/use-agent-session.ts';
@@ -68,15 +68,27 @@ export function CodingAgentPage() {
   const totals = useMemo(
     () =>
       timeline
-        ? usageTotalsAt(timeline, time)
-        : { input: 0, output: 0, cost: 0 },
+        ? usageBreakdownAt(timeline, time)
+        : {
+            cached: { tokens: 0, cost: 0 },
+            cacheWrite: { tokens: 0, cost: 0 },
+            input: { tokens: 0, cost: 0 },
+            output: { tokens: 0, cost: 0 },
+            total: { tokens: 0, cost: 0 },
+          },
     [timeline, time],
   );
   const fullTotals = useMemo(
     () =>
       timeline
-        ? usageTotalsAt(timeline, Number.POSITIVE_INFINITY)
-        : { input: 0, output: 0, cost: 0 },
+        ? usageBreakdownAt(timeline, Number.POSITIVE_INFINITY)
+        : {
+            cached: { tokens: 0, cost: 0 },
+            cacheWrite: { tokens: 0, cost: 0 },
+            input: { tokens: 0, cost: 0 },
+            output: { tokens: 0, cost: 0 },
+            total: { tokens: 0, cost: 0 },
+          },
     [timeline],
   );
 
@@ -144,9 +156,9 @@ export function CodingAgentPage() {
             <Badge variant="light">{timeline.model}</Badge>
             <Badge variant="outline">{timeline.requests.length} requests</Badge>
             <Badge variant="outline">
-              {formatTokens(fullTotals.output)} output tokens
+              {formatTokens(fullTotals.output.tokens)} output tokens
             </Badge>
-            <Badge variant="outline">{formatCost(fullTotals.cost)}</Badge>
+            <Badge variant="outline">{formatCost(fullTotals.total.cost)}</Badge>
           </Group>
         </header>
 
@@ -154,7 +166,7 @@ export function CodingAgentPage() {
           <AgentTerminal timeline={timeline} states={entryStates} />
           <RequestList
             states={requestStates}
-            totals={totals}
+            breakdown={totals}
             totalRequests={timeline.requests.length}
             onRequestClick={handleRequestClick}
           />

@@ -18,15 +18,22 @@ function Caret() {
 
 function UserEntry({
   entry,
+  revealed,
+  streaming,
 }: {
   entry: Extract<TimelineEntry, { kind: 'user' }>;
+  revealed: number;
+  streaming: boolean;
 }) {
   return (
     <div className={styles.userEntry}>
       <span className={styles.userMark} aria-hidden="true">
         ❯
       </span>
-      <p className={styles.userText}>{entry.text}</p>
+      <p className={styles.userText}>
+        {entry.text.slice(0, revealed)}
+        {streaming && <Caret />}
+      </p>
     </div>
   );
 }
@@ -175,7 +182,9 @@ const TerminalEntry = memo(function TerminalEntry({
 }: TerminalEntryProps) {
   switch (entry.kind) {
     case 'user':
-      return <UserEntry entry={entry} />;
+      return (
+        <UserEntry entry={entry} revealed={revealed} streaming={streaming} />
+      );
     case 'thinking':
       return (
         <ThinkingEntry

@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  INPUT_PROCESSING_TOKENS_PER_SECOND,
+  MAX_INPUT_PROCESSING_MS,
+  PLAYBACK_TOKENS_PER_SECOND,
+  REQUEST_GAP_MS,
+  TOOL_EXECUTION_MS,
+  USER_TYPING_DELAY_MS,
+  USER_TYPING_WORDS_PER_MINUTE,
   buildTimeline,
   entriesAt,
   playbackDurationSeconds,
   requestsAt,
-  usageTotalsAt,
+  usageBreakdownAt,
 } from './timeline.ts';
 import {
   TEST_ASSISTANT_TEXT,
@@ -16,51 +23,56 @@ import {
   makeTestSession,
 } from './test-fixtures.ts';
 
-/**
- * Fixture timeline, derived from the fixture constants:
- *
- * - Request 1: sent 0s, prefill (10 − 5 cached) / 500 tps = 0.01s, streams
- *   100 output tokens / 50 tps = 2s → ends 2.01s; 1 tool call → settles at
- *   2.31s.
- * - Request 2: sent 2.32s (10ms gap), prefill 20 / 500 = 0.04s, streams 50
- *   tokens / 50 tps = 1s → ends 3.36s; no tools → timeline ends 3.36s.
- */
+const TYPING_CHARS_PER_SECOND = (USER_TYPING_WORDS_PER_MINUTE * 5) / 60;
+const typingMs = (characterCount: number) =>
+  Math.round((characterCount / TYPING_CHARS_PER_SECOND) * 1000);
+const inputProcessingMs = (uncachedTokens: number, capped = false) => {
+  const raw = Math.round(
+    (uncachedTokens / INPUT_PROCESSING_TOKENS_PER_SECOND) * 1000,
+  );
+  return capped ? Math.min(raw, MAX_INPUT_PROCESSING_MS) : raw;
+};
+const streamMs = (outputTokens: number) =>
+  Math.round((outputTokens / PLAYBACK_TOKENS_PER_SECOND) * 1000);
+
+const s = (ms: number) => ms / 1000;
+
+// Fixture timeline: the first prompt appears instantly and the first
+// request's prefill is capped; request 1 (input 10, cached 5, output 100,
+// 1 tool call) then runs its stream + tools, request 2 (input 20, output 50,
+// no tools) is preceded by the 30-char second prompt being typed.
+const R1_SENT_MS = 0;
+const R1_STREAM_START_MS = R1_SENT_MS + inputProcessingMs(5, true);
+const R1_END_MS = R1_STREAM_START_MS + streamMs(100);
+const R1_SETTLED_MS = R1_END_MS + TOOL_EXECUTION_MS;
+const R2_TYPING_START_MS =
+  R1_SETTLED_MS + REQUEST_GAP_MS + USER_TYPING_DELAY_MS;
+const R2_SENT_MS = R2_TYPING_START_MS + typingMs(TEST_SECOND_USER_TEXT.length);
+const R2_STREAM_START_MS = R2_SENT_MS + inputProcessingMs(20);
+const R2_END_MS = R2_STREAM_START_MS + streamMs(50);
+
 describe('buildTimeline', () => {
-  it('places requests in sequential processing/streaming/tool phases', () => {
+  it('places requests in sequential typing/processing/streaming/tool phases', () => {
     const timeline = buildTimeline(makeTestSession());
     expect(timeline.totalTokens).toBe(150);
     expect(timeline.requests[0]).toMatchObject({
       id: '0001',
-      sentTime: 0,
-      streamStartTime: 0.01,
-      endTime: 2.01,
+      sentTime: s(R1_SENT_MS),
+      streamStartTime: s(R1_STREAM_START_MS),
+      endTime: s(R1_END_MS),
       toolCallCount: 1,
     });
     expect(timeline.requests[1]).toMatchObject({
       id: '0002',
-      sentTime: 2.32,
-      streamStartTime: 2.36,
-      endTime: 3.36,
+      sentTime: s(R2_SENT_MS),
+      streamStartTime: s(R2_STREAM_START_MS),
+      endTime: s(R2_END_MS),
       toolCallCount: 0,
     });
-    expect(playbackDurationSeconds(timeline)).toBeCloseTo(3.36);
+    expect(playbackDurationSeconds(timeline)).toBeCloseTo(s(R2_END_MS));
   });
 
-  it('splits a request’s streaming window across blocks by segment duration', () => {
-    const timeline = buildTimeline(makeTestSession());
-    // Segments: thinking 50ms, toolCall 200ms → 1:4 split of the 2s window
-    // starting at 0.01s.
-    const thinking = timeline.entries.find(
-      (entry) => entry.kind === 'thinking',
-    );
-    const toolCall = timeline.entries.find(
-      (entry) => entry.kind === 'toolCall',
-    );
-    expect(thinking).toMatchObject({ start: 0.01, end: 0.41 });
-    expect(toolCall).toMatchObject({ start: 0.41, end: 2.01 });
-  });
-
-  it('shows user turns when their request is sent and results after tool execution', () => {
+  it('opens with the first prompt and types later prompts after a delay', () => {
     const timeline = buildTimeline(makeTestSession());
     const firstUser = timeline.entries.find(
       (entry) => entry.kind === 'user' && entry.text === TEST_USER_TEXT,
@@ -68,17 +80,69 @@ describe('buildTimeline', () => {
     const secondUser = timeline.entries.find(
       (entry) => entry.kind === 'user' && entry.text === TEST_SECOND_USER_TEXT,
     );
+    // The session opens with the first prompt already written.
+    expect(firstUser).toMatchObject({ start: 0, end: 0 });
+    expect(secondUser).toMatchObject({
+      start: s(R2_TYPING_START_MS),
+      end: s(R2_SENT_MS),
+    });
+  });
+
+  it('splits a request’s streaming window across blocks by segment duration', () => {
+    const timeline = buildTimeline(makeTestSession());
+    // Segments: thinking 50ms, toolCall 200ms → 1:4 split of the 2s window.
+    const thinkingWindowMs = (streamMs(100) * 50) / 250;
+    const thinking = timeline.entries.find(
+      (entry) => entry.kind === 'thinking',
+    );
+    const toolCall = timeline.entries.find(
+      (entry) => entry.kind === 'toolCall',
+    );
+    expect(thinking).toMatchObject({
+      start: s(R1_STREAM_START_MS),
+      end: s(R1_STREAM_START_MS + thinkingWindowMs),
+    });
+    expect(toolCall).toMatchObject({
+      start: s(R1_STREAM_START_MS + thinkingWindowMs),
+      end: s(R1_END_MS),
+    });
+  });
+
+  it('shows tool results once the tool execution phase ends', () => {
+    const timeline = buildTimeline(makeTestSession());
     const toolResult = timeline.entries.find(
       (entry) => entry.kind === 'toolResult',
     );
-    expect(firstUser).toMatchObject({ appearAt: 0 });
-    expect(secondUser).toMatchObject({ appearAt: 2.32 });
     expect(toolResult).toMatchObject({
       callId: 'call_1',
-      appearAt: 2.31,
+      appearAt: s(R1_SETTLED_MS),
       text: TEST_TOOL_RESULT_TEXT,
       isError: false,
     });
+  });
+
+  it('measures UTF-8 JSON payload sizes once per request', () => {
+    const session = makeTestSession();
+    const timeline = buildTimeline(session);
+    const encoder = new TextEncoder();
+    const expectedSent = (messageCount: number) =>
+      encoder.encode(
+        JSON.stringify({
+          system: session.prompt.system,
+          tools: session.prompt.tools,
+          messages: session.prompt.messages.slice(0, messageCount),
+        }),
+      ).length;
+    expect(timeline.requests[0].sentBytes).toBe(expectedSent(1));
+    expect(timeline.requests[1].sentBytes).toBe(expectedSent(4));
+    // Append-only prompts never shrink.
+    expect(timeline.requests[1].sentBytes).toBeGreaterThanOrEqual(
+      timeline.requests[0].sentBytes,
+    );
+    expect(timeline.requests[0].receivedBytes).toBe(
+      encoder.encode(JSON.stringify(session.requests[0].response)).length,
+    );
+    expect(timeline.requests[0].receivedBytes).toBeGreaterThan(0);
   });
 
   it('keeps the session model and provider', () => {
@@ -92,46 +156,82 @@ describe('buildTimeline', () => {
 describe('entriesAt', () => {
   const timeline = buildTimeline(makeTestSession());
 
-  it('hides future entries', () => {
-    // At t=0 only the first user turn is visible; the request is still
-    // processing its input.
+  it('shows the first prompt immediately and types later prompts progressively', () => {
+    const timeline = buildTimeline(makeTestSession());
+    // First prompt: fully visible from the start, no typing.
     const atStart = entriesAt(timeline, 0);
-    expect(atStart.map(({ entry }) => entry.kind)).toEqual(['user']);
-    expect(atStart[0]).toMatchObject({ revealed: TEST_USER_TEXT.length });
-  });
-
-  it('reveals streaming text proportionally', () => {
-    // Thinking: 1 char over [0.01, 0.41).
-    expect(entriesAt(timeline, 0.2)[1]).toMatchObject({
-      revealed: 0,
-      streaming: true,
-    });
-    expect(entriesAt(timeline, 0.41)[1]).toMatchObject({
-      revealed: TEST_THINKING_TEXT.length,
+    expect(atStart).toHaveLength(1);
+    expect(atStart[0].entry.kind).toBe('user');
+    expect(atStart[0]).toMatchObject({
+      revealed: TEST_USER_TEXT.length,
       streaming: false,
     });
-    // Final text: 8 chars over [2.36, 3.36) → half at 2.86.
-    const atHalf = entriesAt(timeline, 2.86);
-    const finalText = atHalf.find(({ entry }) => entry.kind === 'text');
-    expect(finalText).toMatchObject({
-      revealed: Math.floor(TEST_ASSISTANT_TEXT.length / 2),
+    // Second prompt types progressively, finishing when its request is sent.
+    const midTyping = entriesAt(
+      timeline,
+      (R2_TYPING_START_MS + R2_SENT_MS) / 2000,
+    );
+    const typingState = midTyping.find(
+      ({ entry }) =>
+        entry.kind === 'user' && entry.text === TEST_SECOND_USER_TEXT,
+    );
+    expect(typingState).toMatchObject({ streaming: true });
+    expect(typingState?.revealed ?? 0).toBeGreaterThanOrEqual(1);
+    expect(typingState?.revealed ?? 0).toBeLessThan(
+      TEST_SECOND_USER_TEXT.length,
+    );
+    const done = entriesAt(timeline, s(R2_SENT_MS));
+    expect(
+      done.find(
+        ({ entry }) =>
+          entry.kind === 'user' && entry.text === TEST_SECOND_USER_TEXT,
+      ),
+    ).toMatchObject({
+      revealed: TEST_SECOND_USER_TEXT.length,
+      streaming: false,
+    });
+  });
+
+  it('reveals streamed text proportionally', () => {
+    // Thinking: 1 char over its window.
+    const thinking = timeline.entries.find(
+      (entry) => entry.kind === 'thinking',
+    );
+    if (!thinking || thinking.kind !== 'thinking') throw new Error('missing');
+    const midThinking = entriesAt(
+      timeline,
+      (thinking.start + thinking.end) / 2,
+    );
+    expect(
+      midThinking.find(({ entry }) => entry.kind === 'thinking'),
+    ).toMatchObject({ revealed: 0, streaming: true });
+    expect(
+      entriesAt(timeline, thinking.end).find(
+        ({ entry }) => entry.kind === 'thinking',
+      ),
+    ).toMatchObject({ revealed: TEST_THINKING_TEXT.length, streaming: false });
+    // Final text: 8 chars over [streamStart, end] → 90% in reveals 7.
+    const finalText = timeline.entries.find((entry) => entry.kind === 'text');
+    if (!finalText || finalText.kind !== 'text') throw new Error('missing');
+    const at90 = entriesAt(
+      timeline,
+      finalText.start + (finalText.end - finalText.start) * 0.9,
+    );
+    expect(at90.find(({ entry }) => entry.kind === 'text')).toMatchObject({
+      revealed: Math.floor(TEST_ASSISTANT_TEXT.length * 0.9),
       streaming: true,
     });
   });
 
   it('hides tool results until the tool execution phase ends', () => {
-    const beforeResults = entriesAt(timeline, 2.2);
-    expect(beforeResults.some(({ entry }) => entry.kind === 'toolResult')).toBe(
-      false,
-    );
-    const afterResults = entriesAt(timeline, 2.31);
-    expect(afterResults.some(({ entry }) => entry.kind === 'toolResult')).toBe(
-      true,
-    );
+    const before = entriesAt(timeline, s(R1_SETTLED_MS - 50));
+    expect(before.some(({ entry }) => entry.kind === 'toolResult')).toBe(false);
+    const after = entriesAt(timeline, s(R1_SETTLED_MS));
+    expect(after.some(({ entry }) => entry.kind === 'toolResult')).toBe(true);
   });
 
   it('reveals everything at the end of the timeline', () => {
-    const states = entriesAt(timeline, 3.36);
+    const states = entriesAt(timeline, s(R2_END_MS));
     expect(states).toHaveLength(6);
     for (const state of states) {
       expect(state.streaming).toBe(false);
@@ -142,51 +242,64 @@ describe('entriesAt', () => {
 describe('requestsAt', () => {
   const timeline = buildTimeline(makeTestSession());
 
-  it('marks the in-flight request as streaming and hides future ones', () => {
-    expect(requestsAt(timeline, 1)).toEqual([
-      { request: timeline.requests[0], status: 'streaming' },
-    ]);
-  });
-
-  it('shows input processing before streaming', () => {
+  it('shows the first request processing input from the start', () => {
     expect(requestsAt(timeline, 0)).toEqual([
       { request: timeline.requests[0], status: 'processing' },
     ]);
-    expect(requestsAt(timeline, 2.33)).toEqual([
+  });
+
+  it('marks input processing before streaming', () => {
+    expect(requestsAt(timeline, s(R1_SENT_MS + 5))).toEqual([
+      { request: timeline.requests[0], status: 'processing' },
+    ]);
+    expect(requestsAt(timeline, s(R1_STREAM_START_MS + 500))).toEqual([
+      { request: timeline.requests[0], status: 'streaming' },
+    ]);
+    expect(requestsAt(timeline, s(R2_SENT_MS + 5))).toEqual([
       { request: timeline.requests[0], status: 'done' },
       { request: timeline.requests[1], status: 'processing' },
     ]);
   });
 
   it('marks completed requests as done at the boundary', () => {
-    expect(requestsAt(timeline, 2.01)).toEqual([
+    expect(requestsAt(timeline, s(R1_END_MS))).toEqual([
       { request: timeline.requests[0], status: 'done' },
     ]);
-    expect(requestsAt(timeline, 3.36)).toEqual([
+    expect(requestsAt(timeline, s(R2_END_MS))).toEqual([
       { request: timeline.requests[0], status: 'done' },
       { request: timeline.requests[1], status: 'done' },
     ]);
   });
 });
 
-describe('usageTotalsAt', () => {
+describe('usageBreakdownAt', () => {
   const timeline = buildTimeline(makeTestSession());
 
-  it('accrues usage only from completed requests', () => {
-    expect(usageTotalsAt(timeline, 2)).toEqual({
-      input: 0,
-      output: 0,
-      cost: 0,
+  it('accrues per-category usage only from completed requests', () => {
+    expect(usageBreakdownAt(timeline, s(R1_END_MS - 50))).toEqual({
+      cached: { tokens: 0, cost: 0 },
+      cacheWrite: { tokens: 0, cost: 0 },
+      input: { tokens: 0, cost: 0 },
+      output: { tokens: 0, cost: 0 },
+      total: { tokens: 0, cost: 0 },
     });
-    expect(usageTotalsAt(timeline, 2.01)).toEqual({
-      input: 10,
-      output: 100,
-      cost: 0.01,
+    expect(usageBreakdownAt(timeline, s(R1_END_MS))).toEqual({
+      cached: { tokens: 5, cost: 0.001 },
+      cacheWrite: { tokens: 0, cost: 0 },
+      input: { tokens: 10, cost: 0.006 },
+      output: { tokens: 100, cost: 0.003 },
+      total: { tokens: 115, cost: 0.01 },
     });
-    expect(usageTotalsAt(timeline, 3.36)).toEqual({
-      input: 30,
-      output: 150,
-      cost: 0.03,
-    });
+    const breakdown = usageBreakdownAt(timeline, s(R2_END_MS));
+    expect(breakdown.cached.tokens).toBe(5);
+    expect(breakdown.cached.cost).toBeCloseTo(0.001, 12);
+    expect(breakdown.cacheWrite.tokens).toBe(0);
+    expect(breakdown.cacheWrite.cost).toBe(0);
+    expect(breakdown.input.tokens).toBe(30);
+    expect(breakdown.input.cost).toBeCloseTo(0.018, 12);
+    expect(breakdown.output.tokens).toBe(150);
+    expect(breakdown.output.cost).toBeCloseTo(0.011, 12);
+    expect(breakdown.total.tokens).toBe(185);
+    expect(breakdown.total.cost).toBeCloseTo(0.03, 12);
   });
 });

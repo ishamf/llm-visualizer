@@ -5,9 +5,11 @@ export const PLAYBACK_TOKENS_PER_SECOND = 50;
 /**
  * Input (prefill) processing rate, in tokens per second. Applied to a
  * request's uncached input tokens (`input - cacheRead`) before its output
- * starts streaming.
+ * starts streaming, bounded by {@link MAX_INPUT_PROCESSING_MS}.
  */
 export const INPUT_PROCESSING_TOKENS_PER_SECOND = 500;
+/** Upper bound on the first request's input (prefill) processing time. */
+export const MAX_INPUT_PROCESSING_MS = 2000;
 /** Wall-clock pause inserted after each streamed tool call while the agent runs it. */
 export const TOOL_EXECUTION_MS = 300;
 /**
@@ -16,11 +18,31 @@ export const TOOL_EXECUTION_MS = 300;
  * reveals the following one.
  */
 export const REQUEST_GAP_MS = 10;
+/** Pause before the user starts typing a prompt. */
+export const USER_TYPING_DELAY_MS = 2000;
+/** Average typing speed for user prompts, in words per minute. */
+export const USER_TYPING_WORDS_PER_MINUTE = 45;
+/** Assumed characters per word when converting the typing speed. */
+const TYPING_CHARACTERS_PER_WORD = 5;
+
+const textEncoder = new TextEncoder();
+
+/** Exact UTF-8 byte length of a value's JSON serialization. */
+function utf8JsonBytes(value: unknown): number {
+  return textEncoder.encode(JSON.stringify(value)).length;
+}
+
+/** Typing duration for a prompt of `characterCount`, in milliseconds. */
+function typingDurationMs(characterCount: number): number {
+  const charactersPerSecond =
+    (USER_TYPING_WORDS_PER_MINUTE * TYPING_CHARACTERS_PER_WORD) / 60;
+  return Math.round((characterCount / charactersPerSecond) * 1000);
+}
 
 /**
- * A renderable transcript entry. Streaming entries (`thinking`, `text`,
- * `toolCall`) reveal content character-by-character between the `start` and
- * `end` times; instant entries (`user`, `toolResult`) appear entirely at
+ * A renderable transcript entry. Streaming entries (`user`, `thinking`,
+ * `text`, `toolCall`) reveal content character-by-character between the
+ * `start` and `end` times; instant entries (`toolResult`) appear entirely at
  * `appearAt`. All positions are seconds on the playback timeline.
  */
 export type TimelineEntry =
@@ -28,7 +50,9 @@ export type TimelineEntry =
       kind: 'user';
       id: string;
       text: string;
-      appearAt: number;
+      /** Typing window: the prompt is revealed character-by-character. */
+      start: number;
+      end: number;
     }
   | {
       kind: 'thinking';
@@ -84,6 +108,10 @@ export type RequestTimeline = {
   usage: PackedUsage;
   stopReason: string | undefined;
   toolCallCount: number;
+  /** UTF-8 JSON byte length of the request prompt. */
+  sentBytes: number;
+  /** UTF-8 JSON byte length of the parsed response. */
+  receivedBytes: number;
 };
 
 export type Timeline = {
@@ -190,18 +218,24 @@ function toolResultText(parts: readonly { type: string; text?: string }[]) {
 }
 
 /**
- * Reconstructs the playback timeline from a packed session. Each request
+ * Reconstructs the playback timeline from a packed session. Each turn
  * occupies a sequence of wall-clock phases:
  *
- * 1. `sent` — the request appears and processes its uncached input tokens at
- *    `INPUT_PROCESSING_TOKENS_PER_SECOND`.
- * 2. `streaming` — output tokens stream at `PLAYBACK_TOKENS_PER_SECOND`,
+ * 1. `typing` — user prompts newly included in the request pause for
+ *    `USER_TYPING_DELAY_MS`, then type out at an average speed; the request
+ *    is sent once typing finishes. The first prompt is the exception: the
+ *    session opens with it already written.
+ * 2. `input processing` — the request's uncached input tokens process at
+ *    `INPUT_PROCESSING_TOKENS_PER_SECOND`; the first request is bounded by
+ *    `MAX_INPUT_PROCESSING_MS`.
+ * 3. `streaming` — output tokens stream at `PLAYBACK_TOKENS_PER_SECOND`,
  *    spread across the response content blocks by their recorded segment
  *    durations.
- * 3. `tools` — `TOOL_EXECUTION_MS` per streamed tool call; tool results
+ * 4. `tools` — `TOOL_EXECUTION_MS` per streamed tool call; tool results
  *    appear when the phase ends.
  *
- * A small gap separates one request from the next.
+ * A small gap separates one request from the next. Request and response
+ * payload sizes (UTF-8 JSON byte lengths) are computed once per request.
  */
 export function buildTimeline(session: PackedSession): Timeline {
   const resultsByCallId = new Map<
@@ -230,16 +264,56 @@ export function buildTimeline(session: PackedSession): Timeline {
 
   session.requests.forEach((request, requestIndex) => {
     const usage = request.data.response.usage;
-    const sentTimeMs = requestTimeMs;
+    const response = request.response;
+
+    // New user prompts are typed: a pause, then characters at an average
+    // typing speed. The request is sent once typing finishes. The first
+    // prompt is the exception — the session opens with it already written.
+    let sentTimeMs = requestTimeMs;
+    const newUserMessages = session.prompt.messages
+      .slice(previousMessageCount, request.messageCount)
+      .filter(
+        (message) =>
+          message.role === 'user' && toolResultText(message.parts).length > 0,
+      );
+    for (const message of newUserMessages) {
+      const text = toolResultText(message.parts);
+      const id = `user-${message.index}`;
+      if (requestIndex === 0) {
+        entries.push({
+          kind: 'user',
+          id,
+          text,
+          start: sentTimeMs / 1000,
+          end: sentTimeMs / 1000,
+        });
+        continue;
+      }
+      const typingStartMs = sentTimeMs + USER_TYPING_DELAY_MS;
+      const typingEndMs = typingStartMs + typingDurationMs(text.length);
+      entries.push({
+        kind: 'user',
+        id,
+        text,
+        start: typingStartMs / 1000,
+        end: typingEndMs / 1000,
+      });
+      sentTimeMs = typingEndMs;
+    }
+
     const uncachedInput = Math.max(0, usage.input - usage.cacheRead);
+    const rawInputProcessingMs = Math.round(
+      (uncachedInput / INPUT_PROCESSING_TOKENS_PER_SECOND) * 1000,
+    );
     const streamStartTimeMs =
       sentTimeMs +
-      Math.round((uncachedInput / INPUT_PROCESSING_TOKENS_PER_SECOND) * 1000);
+      (requestIndex === 0
+        ? Math.min(rawInputProcessingMs, MAX_INPUT_PROCESSING_MS)
+        : rawInputProcessingMs);
     const streamMs = Math.round(
       (usage.output / PLAYBACK_TOKENS_PER_SECOND) * 1000,
     );
     const endTimeMs = streamStartTimeMs + streamMs;
-    const response = request.response;
     const toolCallCount =
       response?.content.filter((block) => block.type === 'toolCall').length ??
       0;
@@ -257,25 +331,14 @@ export function buildTimeline(session: PackedSession): Timeline {
       usage,
       stopReason: request.data.response.stopReason,
       toolCallCount,
+      sentBytes: utf8JsonBytes({
+        system: session.prompt.system,
+        tools: session.prompt.tools,
+        messages: session.prompt.messages.slice(0, request.messageCount),
+      }),
+      receivedBytes: response ? utf8JsonBytes(response) : 0,
     });
     totalTokens += usage.output;
-
-    // User turns included in this request for the first time become visible
-    // when the request is sent.
-    for (const message of session.prompt.messages.slice(
-      previousMessageCount,
-      request.messageCount,
-    )) {
-      if (message.role !== 'user') continue;
-      const text = toolResultText(message.parts);
-      if (text.length === 0) continue;
-      entries.push({
-        kind: 'user',
-        id: `user-${message.index}`,
-        text,
-        appearAt: sentTimeMs / 1000,
-      });
-    }
     previousMessageCount = request.messageCount;
 
     if (response && response.content.length > 0) {
@@ -373,13 +436,9 @@ export function entriesAt(
 ): EntryState[] {
   const states: EntryState[] = [];
   for (const entry of timeline.entries) {
-    if (entry.kind === 'user' || entry.kind === 'toolResult') {
+    if (entry.kind === 'toolResult') {
       if (timeSeconds < entry.appearAt) continue;
-      states.push({
-        entry,
-        revealed: entry.text.length,
-        streaming: false,
-      });
+      states.push({ entry, revealed: entry.text.length, streaming: false });
       continue;
     }
     if (timeSeconds < entry.start) continue;
@@ -421,19 +480,44 @@ export function requestsAt(
   return states;
 }
 
-/** Usage totals over the requests completed at a playback time. */
-export function usageTotalsAt(
+export type UsageCategory = { tokens: number; cost: number };
+
+export type UsageBreakdown = {
+  cached: UsageCategory;
+  cacheWrite: UsageCategory;
+  input: UsageCategory;
+  output: UsageCategory;
+  total: UsageCategory;
+};
+
+/** Per-category token and cost totals over the completed requests. */
+export function usageBreakdownAt(
   timeline: Timeline,
   timeSeconds: number,
-): { input: number; output: number; cost: number } {
-  let input = 0;
-  let output = 0;
-  let cost = 0;
+): UsageBreakdown {
+  const empty = (): UsageCategory => ({ tokens: 0, cost: 0 });
+  const breakdown: UsageBreakdown = {
+    cached: empty(),
+    cacheWrite: empty(),
+    input: empty(),
+    output: empty(),
+    total: empty(),
+  };
   for (const request of timeline.requests) {
     if (timeSeconds < request.endTime) continue;
-    input += request.usage.input;
-    output += request.usage.output;
-    cost += request.usage.cost?.total ?? 0;
+    const usage = request.usage;
+    const cost = usage.cost;
+    breakdown.cached.tokens += usage.cacheRead;
+    breakdown.cached.cost += cost?.cacheRead ?? 0;
+    breakdown.cacheWrite.tokens += usage.cacheWrite;
+    breakdown.cacheWrite.cost += cost?.cacheWrite ?? 0;
+    breakdown.input.tokens += usage.input;
+    breakdown.input.cost += cost?.input ?? 0;
+    breakdown.output.tokens += usage.output;
+    breakdown.output.cost += cost?.output ?? 0;
+    breakdown.total.tokens +=
+      usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
+    breakdown.total.cost += cost?.total ?? 0;
   }
-  return { input, output, cost };
+  return breakdown;
 }
