@@ -1,9 +1,11 @@
 import {
   ActionIcon,
   Alert,
+  Button,
   Loader,
   NumberInput,
   Paper,
+  Popover,
   Progress,
   RangeSlider,
   Select,
@@ -351,10 +353,10 @@ export function ContributionText(props: ContributionTextProps) {
   const layerSliderMarks = Array.from({ length: layerCount }, (_, layer) => ({
     value: highestSliderValue - layer,
   }));
-  const layerRangeSummary =
+  const layerRangeExplanation =
     layerRange.firstLayer === layerRange.lastLayer
-      ? `Layer ${layerRange.firstLayer}`
-      : `Layers ${layerRange.firstLayer}–${layerRange.lastLayer}`;
+      ? `Only layer ${layerRange.firstLayer} is summed.`
+      : `Summed from layer ${layerRange.firstLayer} to layer ${layerRange.lastLayer}.`;
 
   const measureTokenRectangles = () => {
     const rectangles = manifest.tokens.map((_, index) =>
@@ -439,14 +441,64 @@ export function ContributionText(props: ContributionTextProps) {
       </div>
 
       <div className="text-visualization-legend">
-        <span className="legend-swatch prompt-swatch" />
-        <Text size="xs" c="dimmed">
-          Prompt
-        </Text>
-        <span className="legend-swatch generated-swatch" />
-        <Text size="xs" c="dimmed">
-          Generated
-        </Text>
+        <div className="text-visualization-legend-items">
+          <span className="legend-swatch prompt-swatch" />
+          <Text size="xs" c="dimmed">
+            Prompt
+          </Text>
+          <span className="legend-swatch generated-swatch" />
+          <Text size="xs" c="dimmed">
+            Generated
+          </Text>
+        </div>
+        {layerRangeEnabled && (
+          <Popover
+            position="bottom-end"
+            shadow="md"
+            portalProps={{ target: portalTarget }}
+          >
+            <Popover.Target>
+              <Button
+                className="layer-options-button"
+                variant="default"
+                size="compact-sm"
+              >
+                Layer options
+              </Button>
+            </Popover.Target>
+            <Popover.Dropdown className="layer-settings-popover">
+              <div className="layer-range-control">
+                <RangeSlider
+                  className="layer-range-slider"
+                  orientation="vertical"
+                  min={0}
+                  max={highestSliderValue}
+                  step={1}
+                  minRange={0}
+                  pushOnOverlap={false}
+                  value={layerSliderValue}
+                  onChange={handleLayerSliderChange}
+                  label={(value) => String(highestSliderValue - value)}
+                  thumbValueText={(value) =>
+                    `Layer ${highestSliderValue - value}`
+                  }
+                  thumbFromLabel="Highest summed layer"
+                  thumbToLabel="Lowest summed layer"
+                  marks={layerSliderMarks}
+                />
+                <Text size="xs" c="dimmed" className="layer-range-summary">
+                  {layerRangeExplanation}
+                </Text>
+                {rangedPending && <Loader size="xs" type="dots" />}
+                {rangedError && aggregate.status === 'ready' && (
+                  <Text size="xs" c="red">
+                    {rangedError.message}
+                  </Text>
+                )}
+              </div>
+            </Popover.Dropdown>
+          </Popover>
+        )}
       </div>
 
       <div className="text-visualization-body">
@@ -540,39 +592,6 @@ export function ContributionText(props: ContributionTextProps) {
             );
           })}
         </div>
-
-        {layerRangeEnabled && (
-          <aside className="layer-range-control">
-            <Text size="xs" fw={600} c="dimmed">
-              Layers
-            </Text>
-            <RangeSlider
-              className="layer-range-slider"
-              orientation="vertical"
-              min={0}
-              max={highestSliderValue}
-              step={1}
-              minRange={0}
-              pushOnOverlap={false}
-              value={layerSliderValue}
-              onChange={handleLayerSliderChange}
-              label={(value) => String(highestSliderValue - value)}
-              thumbValueText={(value) => `Layer ${highestSliderValue - value}`}
-              thumbFromLabel="Highest summed layer"
-              thumbToLabel="Lowest summed layer"
-              marks={layerSliderMarks}
-            />
-            <Text size="xs" c="dimmed" className="layer-range-summary">
-              {layerRangeSummary}
-            </Text>
-            {rangedPending && <Loader size="xs" type="dots" />}
-            {rangedError && aggregate.status === 'ready' && (
-              <Text size="xs" c="red">
-                {rangedError.message}
-              </Text>
-            )}
-          </aside>
-        )}
       </div>
     </Paper>
   );

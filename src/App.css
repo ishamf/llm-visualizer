@@ -286,6 +286,15 @@
   padding: 2px 6px;
 }
 
+.layer-settings-popover .layer-range-control {
+  min-width: 140px;
+}
+
+.layer-range-summary {
+  max-width: 160px;
+  text-align: center;
+}
+
 .layer-range-slider {
   flex: 1 1 auto;
   min-height: 140px;
@@ -368,11 +377,22 @@
 .text-visualization-legend {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 7px;
   margin-bottom: 20px;
   padding-bottom: 14px;
   border-bottom: 1px solid
     light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-6));
+}
+
+.text-visualization-legend-items {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.layer-options-button {
+  flex: 0 0 auto;
 }
 
 .legend-swatch {
