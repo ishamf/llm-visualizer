@@ -1,7 +1,17 @@
 import mantineCss from '@mantine/core/styles.css?inline';
 
-import appCss from '../App.css?inline';
 import indexCss from '../index.css?inline';
+
+// Collects every co-located component stylesheet (e.g. ContributionText.module.css)
+// for injection into the shadow root. `query: '?inline'` yields the raw CSS string
+// for each module; the hashed classnames inside match the ones the components
+// import from the same files at runtime.
+const moduleCss = import.meta.glob<string>('../**/*.module.css', {
+  query: '?inline',
+  import: 'default',
+  eager: true,
+});
+const appCss = Object.values(moduleCss).join('\n');
 
 const hostCss = `
   :host {

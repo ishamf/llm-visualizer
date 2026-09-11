@@ -20,6 +20,7 @@ import {
 import type { SummedContributionDataSource } from '../data/summed-contribution-data-source.ts';
 import type { ContributionManifest } from '../generation/types.ts';
 import type { SummedContributions } from '../generation/types.ts';
+import shared from '../shared.module.css';
 import { usePortalTarget } from '../web-component/portal-target-context.ts';
 import {
   contributionOpacity,
@@ -32,6 +33,7 @@ import {
   predictionContributionRow,
   type TokenRectangle,
 } from './text-contributions.ts';
+import styles from './ContributionText.module.css';
 
 type AggregateState =
   | { status: 'loading' }
@@ -179,7 +181,12 @@ export function ContributionText(props: ContributionTextProps) {
 
   if (aggregate.status === 'loading') {
     return (
-      <Paper className="text-visualization-state" withBorder radius="lg" p="xl">
+      <Paper
+        className={shared.textVisualizationState}
+        withBorder
+        radius="lg"
+        p="xl"
+      >
         <Loader size="sm" />
         <Text size="sm" c="dimmed">
           Loading attention data for {manifest.geometry.layers} layers…
@@ -264,9 +271,9 @@ export function ContributionText(props: ContributionTextProps) {
   };
 
   return (
-    <Paper className="text-visualization" withBorder radius="lg" p="xl">
+    <Paper className={styles.textVisualization} withBorder radius="lg" p="xl">
       {showOpacityControls && (
-        <div className="text-visualization-controls">
+        <div className={styles.textVisualizationControls}>
           <Select
             comboboxProps={{ portalProps: { target: portalTarget } }}
             label="Opacity scale"
@@ -302,7 +309,7 @@ export function ContributionText(props: ContributionTextProps) {
         </div>
       )}
 
-      <div className="text-visualization-playback">
+      <div className={styles.textVisualizationPlayback}>
         <ActionIcon
           variant="light"
           size="lg"
@@ -314,7 +321,7 @@ export function ContributionText(props: ContributionTextProps) {
           <span aria-hidden="true">{playing ? '❚❚' : '▶'}</span>
         </ActionIcon>
         <Progress
-          className="text-visualization-progress"
+          className={styles.textVisualizationProgress}
           value={
             !playing ||
             animationSuppressed ||
@@ -327,12 +334,12 @@ export function ContributionText(props: ContributionTextProps) {
         />
       </div>
 
-      <div className="text-visualization-legend">
-        <span className="legend-swatch prompt-swatch" />
+      <div className={styles.textVisualizationLegend}>
+        <span className={`${styles.legendSwatch} ${styles.promptSwatch}`} />
         <Text size="xs" c="dimmed">
           Prompt
         </Text>
-        <span className="legend-swatch generated-swatch" />
+        <span className={`${styles.legendSwatch} ${styles.generatedSwatch}`} />
         <Text size="xs" c="dimmed">
           Generated
         </Text>
@@ -340,7 +347,7 @@ export function ContributionText(props: ContributionTextProps) {
 
       <div
         ref={contributionText}
-        className={`contribution-text ${animationVisible ? 'animating-contribution-text' : ''}`}
+        className={`${styles.contributionText} ${animationVisible ? styles.animatingContributionText : ''}`}
         aria-label="Prompt and generated text by token"
         onPointerEnter={(event) => {
           if (event.pointerType !== 'mouse' && event.pointerType !== 'pen') {
@@ -407,7 +414,7 @@ export function ContributionText(props: ContributionTextProps) {
                 tokenElements.current[index] = element;
               }}
               key={`${index}-${token.id}`}
-              className={`contribution-text-token ${active ? 'active-contribution-text-token' : ''} ${animatedFocus > 0 ? 'animated-contribution-text-token' : ''} ${generated ? 'generated-text-token' : 'prompt-text-token'} ${index === manifest.promptTokenCount ? 'generation-start-token' : ''}`}
+              className={`${styles.contributionTextToken} ${active ? styles.activeContributionTextToken : ''} ${animatedFocus > 0 ? styles.animatedContributionTextToken : ''} ${generated ? styles.generatedTextToken : ''} ${index === manifest.promptTokenCount ? styles.generationStartToken : ''}`}
               style={
                 {
                   '--token-opacity': opacity,

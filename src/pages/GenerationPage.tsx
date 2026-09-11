@@ -38,6 +38,8 @@ import type {
   ContributionManifest,
   SummedContributions,
 } from '../generation/types.ts';
+import shared from '../shared.module.css';
+import styles from './GenerationPage.module.css';
 
 type RunStatus =
   | 'idle'
@@ -64,6 +66,8 @@ type BrowserGenerationPanelProps = {
   createWorker: () => Worker;
   modelSource: BrowserModelSource;
   crossOriginIsolationWarning?: boolean;
+  /** Lifts the form/status max-width cap when embedded in a wide layout. */
+  fullWidth?: boolean;
   onGenerationStarted: () => void;
   onResultChange: (result: GenerationResult | undefined) => void;
   onGenerationActiveChange: (active: boolean) => void;
@@ -94,6 +98,7 @@ export function BrowserGenerationPanel({
   createWorker,
   modelSource,
   crossOriginIsolationWarning = false,
+  fullWidth = false,
   onGenerationStarted,
   onResultChange,
   onGenerationActiveChange,
@@ -293,10 +298,13 @@ export function BrowserGenerationPanel({
   };
 
   return (
-    <section className="browser-generation" aria-labelledby="generate-title">
-      <header className="browser-generation-header">
+    <section
+      className={styles.browserGeneration}
+      aria-labelledby="generate-title"
+    >
+      <header className={styles.browserGenerationHeader}>
         <div>
-          <Text className="eyebrow">Or try your own prompt</Text>
+          <Text className={shared.eyebrow}>Or try your own prompt</Text>
           <Title order={2} id="generate-title">
             Generate in your browser
           </Title>
@@ -309,7 +317,7 @@ export function BrowserGenerationPanel({
 
       {modelCached === false && (
         <Alert
-          className="model-download-note"
+          className={styles.modelDownloadNote}
           color="violet"
           title="First run downloads the model"
         >
@@ -321,7 +329,7 @@ export function BrowserGenerationPanel({
 
       {crossOriginIsolationWarning && (
         <Alert
-          className="cross-origin-isolation-warning"
+          className={styles.crossOriginIsolationWarning}
           color="yellow"
           title="Reduced generation performance"
         >
@@ -340,7 +348,9 @@ export function BrowserGenerationPanel({
       )}
 
       <Paper
-        className="selector-card generation-form"
+        className={`${shared.selectorCard} ${styles.generationForm} ${
+          fullWidth ? styles.fullWidth : ''
+        }`}
         withBorder
         radius="lg"
         p="xl"
@@ -367,7 +377,7 @@ export function BrowserGenerationPanel({
             <Button
               type="button"
               variant="subtle"
-              className="advanced-options-toggle"
+              className={styles.advancedOptionsToggle}
               onClick={() => setAdvancedOpen((open) => !open)}
               aria-expanded={advancedOpen}
             >
@@ -375,7 +385,7 @@ export function BrowserGenerationPanel({
             </Button>
 
             <Collapse expanded={advancedOpen}>
-              <div className="generation-advanced-options">
+              <div className={styles.generationAdvancedOptions}>
                 <Textarea
                   label="System prompt"
                   placeholder="You are a helpful assistant."
@@ -394,7 +404,7 @@ export function BrowserGenerationPanel({
                   }
                   minRows={2}
                 />
-                <div className="generation-number-grid">
+                <div className={styles.generationNumberGrid}>
                   <NumberInput
                     label="Max new tokens"
                     value={maxNewTokens}
@@ -512,7 +522,14 @@ export function BrowserGenerationPanel({
       </Paper>
 
       {status !== 'idle' && (
-        <Paper className="generation-status" withBorder radius="lg" p="lg">
+        <Paper
+          className={`${styles.generationStatus} ${
+            fullWidth ? styles.fullWidth : ''
+          }`}
+          withBorder
+          radius="lg"
+          p="lg"
+        >
           <Group justify="space-between" align="flex-start" mb="xs">
             <div>
               <Text fw={700}>

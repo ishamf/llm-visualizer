@@ -19,9 +19,11 @@ import {
 } from '../data/summed-contribution-data-source.ts';
 import { useDatasetCatalog } from '../data/use-dataset-catalog.ts';
 import { getConfiguredPromptTitle } from '../generation/prompts.ts';
+import shared from '../shared.module.css';
 import { ContributionGrid } from '../visualization/ContributionGrid.tsx';
 import { ContributionText } from '../visualization/ContributionText.tsx';
 import { getVisualization } from '../visualization/registry.ts';
+import styles from './VisualizationPage.module.css';
 
 export function VisualizationPage() {
   const { visualizationId = '', datasetId = '' } = useParams();
@@ -72,8 +74,8 @@ export function VisualizationPage() {
 
   if (catalog.status === 'loading') {
     return (
-      <main className="app-shell">
-        <Container size="sm" className="page-state">
+      <main className={shared.appShell}>
+        <Container size="sm" className={shared.pageState}>
           <Text c="dimmed">Loading generated datasets…</Text>
         </Container>
       </main>
@@ -82,8 +84,8 @@ export function VisualizationPage() {
 
   if (!visualization || !dataset || !source) {
     return (
-      <main className="app-shell">
-        <Container size="sm" className="page-state">
+      <main className={shared.appShell}>
+        <Container size="sm" className={shared.pageState}>
           <Alert color="red" title="Visualization not found">
             {catalog.status === 'error'
               ? catalog.error.message
@@ -102,21 +104,21 @@ export function VisualizationPage() {
   }
 
   return (
-    <main className="app-shell">
-      <Container size="xl" className="page-container">
+    <main className={shared.appShell}>
+      <Container size="xl" className={styles.pageContainer}>
         <Button
           component={Link}
           to={import.meta.env.DEV ? '/dev/visualizations' : '/'}
           variant="subtle"
           size="compact-sm"
-          className="back-link"
+          className={shared.backLink}
         >
           ← Choose another view
         </Button>
 
-        <header className="page-header">
+        <header className={styles.pageHeader}>
           <div>
-            <Text className="eyebrow">
+            <Text className={shared.eyebrow}>
               {dataset.manifest.model.id} · {dataset.manifest.geometry.layers}{' '}
               layers
             </Text>
@@ -125,7 +127,7 @@ export function VisualizationPage() {
               {visualization.description}
             </Text>
           </div>
-          <Group gap="xs" className="header-badges">
+          <Group gap="xs" className={styles.headerBadges}>
             <Badge variant="light">
               {dataset.manifest.generation.method === 'sampling'
                 ? `Sampled · seed ${dataset.manifest.generation.seed}`
@@ -135,7 +137,7 @@ export function VisualizationPage() {
           </Group>
         </header>
 
-        <Paper className="dataset-note" radius="md" p="sm">
+        <Paper className={shared.datasetNote} radius="md" p="sm">
           <Text size="xs" c="dimmed">
             Generated data
           </Text>
@@ -148,7 +150,7 @@ export function VisualizationPage() {
 
         {visualization.kind === 'contribution-grid' ? (
           <>
-            <Paper className="metric-note" radius="md" p="sm">
+            <Paper className={styles.metricNote} radius="md" p="sm">
               <Text size="sm">
                 Circles are token positions. Hover a circle to reveal its
                 strongest causal source contributions; line width shows relative

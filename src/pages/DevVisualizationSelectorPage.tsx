@@ -16,7 +16,9 @@ import {
 } from '../data/dataset-catalog.ts';
 import { useDatasetCatalog } from '../data/use-dataset-catalog.ts';
 import { getConfiguredPromptTitle } from '../generation/prompts.ts';
+import shared from '../shared.module.css';
 import { VISUALIZATIONS } from '../visualization/registry.ts';
+import styles from './DevVisualizationSelectorPage.module.css';
 
 function datasetsForVisualization(
   visualizationId: string | null,
@@ -77,19 +79,19 @@ export function DevVisualizationSelectorPage() {
   };
 
   return (
-    <main className="app-shell home-shell">
-      <Container size="sm" className="home-container">
+    <main className={`${shared.appShell} ${styles.homeShell}`}>
+      <Container size="sm" className={styles.homeContainer}>
         <Button
           component={Link}
           to="/"
           variant="subtle"
           size="compact-sm"
-          className="back-link"
+          className={shared.backLink}
         >
           ← Back to homepage
         </Button>
-        <header className="home-header">
-          <Text className="eyebrow">Developer tools</Text>
+        <header className={styles.homeHeader}>
+          <Text className={shared.eyebrow}>Developer tools</Text>
           <Title order={1}>Choose what to explore</Title>
           <Text c="dimmed" maw={620}>
             Pair a visualization with one of the generated model runs bundled
@@ -97,7 +99,7 @@ export function DevVisualizationSelectorPage() {
           </Text>
         </header>
 
-        <Paper className="selector-card" withBorder radius="lg" p="xl">
+        <Paper className={shared.selectorCard} withBorder radius="lg" p="xl">
           <Stack gap="lg">
             {catalog.status === 'error' && (
               <Text c="red" size="sm">

@@ -1,0 +1,156 @@
+.contributionTextExperience {
+  display: grid;
+  gap: 34px;
+  min-width: 0;
+  container: contribution-experience / inline-size;
+}
+
+.experiencePrimary {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.62fr) minmax(0, 1.38fr);
+  align-items: start;
+  gap: 24px;
+}
+
+.promptPicker {
+  display: grid;
+  gap: 16px;
+}
+
+.promptPicker h2 {
+  margin: 2px 0 4px;
+  letter-spacing: -0.035em;
+}
+
+.promptList {
+  display: grid;
+  min-height: 526px;
+  gap: 8px;
+  padding: 4px;
+}
+
+.promptOption {
+  display: grid;
+  gap: 3px;
+  min-height: 62px;
+  padding: 11px 13px;
+  border: 1px solid
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-5));
+  border-radius: var(--mantine-radius-md);
+  background: light-dark(
+    color-mix(in srgb, var(--mantine-color-white) 82%, transparent),
+    color-mix(in srgb, var(--mantine-color-dark-8) 82%, transparent)
+  );
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    transform 120ms ease;
+}
+
+.promptOption:hover {
+  border-color: var(--mantine-color-violet-4);
+  transform: translateY(-1px);
+}
+
+.promptOption:focus-visible {
+  outline: 2px solid var(--mantine-color-violet-5);
+  outline-offset: 2px;
+}
+
+.selectedPromptOption {
+  border-color: var(--mantine-color-violet-5);
+  background: light-dark(
+    var(--mantine-color-violet-0),
+    color-mix(in srgb, var(--mantine-color-violet-9) 38%, transparent)
+  );
+  box-shadow: inset 3px 0 0 var(--mantine-color-violet-5);
+}
+
+.generationColumn {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.homepageVisualization {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.homepageVisualization h2 {
+  margin: 2px 0 4px;
+  letter-spacing: -0.035em;
+}
+
+.mobilePromptSelector {
+  display: none;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: var(--mantine-spacing-sm);
+  text-align: left;
+}
+
+.mobilePromptSelector > span:first-child {
+  min-width: 0;
+}
+
+.mobilePromptSelector > span:last-child {
+  flex: 0 0 auto;
+  color: var(--mantine-color-violet-6);
+  font-size: 1.25rem;
+}
+
+.mobilePromptPopover {
+  display: none;
+  padding: 6px;
+}
+
+.mobilePromptPopover .promptList {
+  min-height: 0;
+  max-height: min(60svh, 420px);
+  padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.generationResultHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.generationResultHeader h2 {
+  margin: 4px 0 0;
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+  letter-spacing: -0.035em;
+}
+
+@media (max-width: 760px) {
+  .generationResultHeader {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+@container contribution-experience (max-width: 760px) {
+  .experiencePrimary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .experiencePrimary .promptPicker {
+    display: none;
+  }
+
+  .mobilePromptSelector {
+    display: flex;
+  }
+
+  .mobilePromptPopover {
+    display: block;
+  }
+}

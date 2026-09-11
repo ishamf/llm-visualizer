@@ -4,6 +4,7 @@ import { useMemo, useState, type CSSProperties } from 'react';
 import type { ContributionDataSource } from '../data/contribution-data-source.ts';
 import { useContributionData } from '../data/use-contribution-data.ts';
 import type { ContributionManifest } from '../generation/types.ts';
+import shared from '../shared.module.css';
 import {
   contributionPath,
   displayToken,
@@ -14,6 +15,7 @@ import {
   TOKEN_COLUMN_WIDTH,
   TOKEN_HEADER_HEIGHT,
 } from './contributions.ts';
+import styles from './ContributionGrid.module.css';
 
 type Selection = {
   layer: number;
@@ -43,7 +45,7 @@ function SelectionDetails({
 }) {
   if (!selection) {
     return (
-      <Paper className="selection-panel" withBorder radius="md" p="md">
+      <Paper className={styles.selectionPanel} withBorder radius="md" p="md">
         <Text fw={600}>Inspect a node</Text>
         <Text size="sm" c="dimmed">
           Hover to preview contributions, or click a node to pin it.
@@ -57,8 +59,8 @@ function SelectionDetails({
   const selfContribution = row?.[selection.token];
 
   return (
-    <Paper className="selection-panel" withBorder radius="md" p="md">
-      <div className="selection-heading">
+    <Paper className={styles.selectionPanel} withBorder radius="md" p="md">
+      <div className={styles.selectionHeading}>
         <div>
           <Text fw={650}>{displayToken(token.text)}</Text>
           <Text size="xs" c="dimmed">
@@ -71,7 +73,7 @@ function SelectionDetails({
       </div>
 
       {loading && (
-        <div className="selection-loading">
+        <div className={styles.selectionLoading}>
           <Loader size="xs" />
           <Text size="sm" c="dimmed">
             Loading layer {selection.layer}
@@ -84,8 +86,8 @@ function SelectionDetails({
         </Alert>
       )}
       {row && (
-        <div className="contribution-summary">
-          <div className="self-contribution">
+        <div className={styles.contributionSummary}>
+          <div className={styles.selfContribution}>
             <Text size="xs" c="dimmed">
               Self contribution
             </Text>
@@ -93,15 +95,18 @@ function SelectionDetails({
               {selfContribution?.toPrecision(5) ?? '0'}
             </Text>
           </div>
-          <div className="ranked-contributions">
+          <div className={styles.rankedContributions}>
             {ranked.map((contribution) => (
-              <div className="ranked-contribution" key={contribution.source}>
-                <Text size="xs" className="ranked-token">
+              <div
+                className={styles.rankedContribution}
+                key={contribution.source}
+              >
+                <Text size="xs" className={styles.rankedToken}>
                   {displayToken(manifest.tokens[contribution.source].text)}
                 </Text>
-                <div className="ranked-bar-track" aria-hidden="true">
+                <div className={styles.rankedBarTrack} aria-hidden="true">
                   <div
-                    className="ranked-bar"
+                    className={styles.rankedBar}
                     style={{ width: `${contribution.strength * 100}%` }}
                   />
                 </div>
@@ -162,10 +167,10 @@ function LoadedGrid({
 
   return (
     <>
-      <Paper className="grid-frame" withBorder radius="lg">
-        <div className="grid-scroll" tabIndex={0}>
+      <Paper className={styles.gridFrame} withBorder radius="lg">
+        <div className={styles.gridScroll} tabIndex={0}>
           <div
-            className="contribution-grid"
+            className={styles.contributionGrid}
             role="grid"
             aria-label="Token contributions by transformer layer"
             style={{
@@ -181,7 +186,7 @@ function LoadedGrid({
               }
             }}
           >
-            <div className="grid-corner">Layer</div>
+            <div className={styles.gridCorner}>Layer</div>
             {manifest.tokens.map((token, tokenIndex) => (
               <Tooltip
                 key={`${tokenIndex}-${token.id}`}
@@ -189,7 +194,7 @@ function LoadedGrid({
                 openDelay={350}
               >
                 <div
-                  className={`token-heading ${tokenIndex >= manifest.promptTokenCount ? 'generated-token' : ''}`}
+                  className={`${styles.tokenHeading} ${tokenIndex >= manifest.promptTokenCount ? styles.generatedToken : ''}`}
                   style={{ gridColumn: tokenIndex + 2, gridRow: 1 }}
                 >
                   <span>{displayToken(token.text)}</span>
@@ -199,13 +204,13 @@ function LoadedGrid({
             ))}
 
             {Array.from({ length: manifest.geometry.layers }, (_, layer) => (
-              <div key={`row-${layer}`} className="layer-row-contents">
+              <div key={`row-${layer}`} className={styles.layerRowContents}>
                 <div
-                  className="layer-track"
+                  className={styles.layerTrack}
                   style={{ gridColumn: '2 / -1', gridRow: layer + 2 }}
                 />
                 <div
-                  className="layer-label"
+                  className={styles.layerLabel}
                   style={{ gridColumn: 1, gridRow: layer + 2 }}
                 >
                   {layer}
@@ -226,7 +231,7 @@ function LoadedGrid({
                     type="button"
                     role="gridcell"
                     key={`${layer}-${tokenIndex}`}
-                    className={`token-node ${active ? 'active' : ''} ${sourceActive ? 'source-active' : ''} ${tokenIndex >= manifest.promptTokenCount ? 'generated-node' : ''}`}
+                    className={`${styles.tokenNode} ${active ? styles.active : ''} ${sourceActive ? styles.sourceActive : ''} ${tokenIndex >= manifest.promptTokenCount ? styles.generatedNode : ''}`}
                     style={
                       {
                         gridColumn: tokenIndex + 2,
@@ -251,7 +256,7 @@ function LoadedGrid({
             )}
 
             <div
-              className="generation-boundary"
+              className={styles.generationBoundary}
               aria-hidden="true"
               style={{
                 left:
@@ -262,7 +267,7 @@ function LoadedGrid({
             />
 
             <svg
-              className="contribution-overlay"
+              className={styles.contributionOverlay}
               width={width}
               height={height}
               viewBox={`0 0 ${width} ${height}`}
@@ -285,7 +290,7 @@ function LoadedGrid({
                 edges.map((edge) => (
                   <path
                     key={edge.source}
-                    className="contribution-arrow"
+                    className={styles.contributionArrow}
                     d={contributionPath(
                       selection.layer,
                       edge.source,
@@ -300,7 +305,7 @@ function LoadedGrid({
                 ))}
               {selection && selectedRow && (
                 <circle
-                  className="self-contribution-ring"
+                  className={styles.selfContributionRing}
                   {...nodeCenter(selection.layer, selection.token)}
                   r={18}
                 />
@@ -328,7 +333,7 @@ function ContributionGridSession({ source }: ContributionGridProps) {
 
   if (manifestState.status === 'loading') {
     return (
-      <div className="page-state">
+      <div className={shared.pageState}>
         <Loader />
         <Text c="dimmed">Loading contribution manifest</Text>
       </div>

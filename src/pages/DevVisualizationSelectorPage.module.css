@@ -1,0 +1,22 @@
+.homeShell {
+  display: grid;
+  place-items: center;
+}
+
+.homeContainer {
+  display: grid;
+  width: 100%;
+  gap: 28px;
+}
+
+.homeHeader {
+  display: grid;
+  gap: 8px;
+}
+
+.homeHeader h1 {
+  margin: 0;
+  font-size: clamp(2.4rem, 7vw, 4.5rem);
+  line-height: 1;
+  letter-spacing: -0.05em;
+}

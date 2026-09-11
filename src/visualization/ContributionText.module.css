@@ -1,0 +1,131 @@
+.textVisualization {
+  overflow: hidden;
+  background: light-dark(
+    var(--mantine-color-white),
+    var(--mantine-color-dark-8)
+  );
+  box-shadow: var(--mantine-shadow-sm);
+}
+
+.textVisualizationControls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 220px));
+  gap: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid
+    light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-6));
+}
+
+.contributionText {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: clamp(0.86rem, 1.15vw, 0.98rem);
+  line-height: 1.9;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.contributionTextToken {
+  border-radius: 3px;
+  opacity: var(--token-opacity);
+  transition:
+    opacity 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.animatingContributionText .contributionTextToken {
+  transition: none;
+}
+
+.activeContributionTextToken,
+.contributionTextToken:focus-visible {
+  background: light-dark(
+    var(--mantine-color-violet-1),
+    var(--mantine-color-violet-9)
+  );
+  box-shadow: 0 0 0 2px
+    light-dark(var(--mantine-color-violet-1), var(--mantine-color-violet-9));
+  outline: none;
+}
+
+.animatedContributionTextToken {
+  background: color-mix(
+    in srgb,
+    light-dark(var(--mantine-color-violet-1), var(--mantine-color-violet-9))
+      var(--token-focus-percent),
+    transparent
+  );
+  box-shadow: 0 0 0 2px
+    color-mix(
+      in srgb,
+      light-dark(var(--mantine-color-violet-1), var(--mantine-color-violet-9))
+        var(--token-focus-percent),
+      transparent
+    );
+}
+
+.generatedTextToken {
+  color: light-dark(var(--mantine-color-cyan-9), var(--mantine-color-cyan-2));
+}
+
+.generationStartToken {
+  border-left: 2px solid var(--mantine-color-cyan-6);
+  margin-left: 0.18em;
+  padding-left: 0.18em;
+}
+
+.textVisualizationPlayback {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.textVisualizationPlayback button {
+  font-size: 0.78rem;
+}
+
+.textVisualizationProgress {
+  width: 100%;
+}
+
+.textVisualizationLegend {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid
+    light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-6));
+}
+
+.legendSwatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.promptSwatch {
+  background: var(--mantine-color-gray-6);
+}
+
+.generatedSwatch {
+  margin-left: 8px;
+  background: var(--mantine-color-cyan-6);
+}
+
+@media (max-width: 760px) {
+  .textVisualizationControls {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Targets the `contribution-experience` container declared in
+   ContributionTextExperience.module.css; container names are not hashed. */
+@container contribution-experience (max-width: 760px) {
+  .contributionText {
+    font-size: 0.88rem;
+  }
+}

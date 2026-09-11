@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom';
 import { ContributionTextExperience } from '../ContributionTextExperience.tsx';
 import { GENERATED_DATA_BASE_URL } from '../data/dataset-catalog.ts';
 import { BROWSER_MODEL_SOURCE } from '../generation/browser-config.ts';
+import shared from '../shared.module.css';
+import styles from './HomePage.module.css';
 
 function createStandaloneWorker() {
   return new Worker(
@@ -14,11 +16,11 @@ function createStandaloneWorker() {
 
 export function HomePage() {
   return (
-    <main className="app-shell homepage-shell">
-      <Container size="xl" className="homepage-container">
-        <header className="homepage-header">
+    <main className={`${shared.appShell} ${styles.homepageShell}`}>
+      <Container size="xl" className={styles.homepageContainer}>
+        <header className={styles.homepageHeader}>
           <div>
-            <Text className="eyebrow">LLM Visualizer</Text>
+            <Text className={shared.eyebrow}>LLM Visualizer</Text>
             <Title order={1}>Attention by token</Title>
             <Text c="dimmed" maw={720}>
               Choose an example or generate a response privately in your

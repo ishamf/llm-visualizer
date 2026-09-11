@@ -12,7 +12,9 @@ import {
   type GenerationResult,
 } from './pages/GenerationPage.tsx';
 import { selectDefaultPromptId } from './pages/homepage-state.ts';
+import shared from './shared.module.css';
 import { ContributionText } from './visualization/ContributionText.tsx';
+import styles from './ContributionTextExperience.module.css';
 
 type ContributionTextExperienceProps = {
   createWorker: () => Worker;
@@ -93,7 +95,7 @@ export function ContributionTextExperience({
     return (
       <UnstyledButton
         key={id}
-        className={`prompt-option ${selected ? 'selected-prompt-option' : ''}`}
+        className={`${styles.promptOption} ${selected ? styles.selectedPromptOption : ''}`}
         role="listitem"
         aria-pressed={selected}
         onClick={() => selectDataset(id)}
@@ -109,14 +111,14 @@ export function ContributionTextExperience({
   });
 
   return (
-    <div className="contribution-text-experience">
-      <div className="experience-primary">
+    <div className={styles.contributionTextExperience}>
+      <div className={styles.experiencePrimary}>
         <section
-          className="prompt-picker"
+          className={styles.promptPicker}
           aria-labelledby="prompt-picker-title"
         >
           <div>
-            <Text className="eyebrow">Pre-generated examples</Text>
+            <Text className={shared.eyebrow}>Pre-generated examples</Text>
             <Title order={2} id="prompt-picker-title">
               Pick a prompt
             </Title>
@@ -124,15 +126,15 @@ export function ContributionTextExperience({
               These examples are ready immediately.
             </Text>
           </div>
-          <div className="prompt-list" role="list">
+          <div className={styles.promptList} role="list">
             {promptOptions}
           </div>
         </section>
 
-        <section className="homepage-visualization" aria-live="polite">
-          <header className="generation-result-header">
+        <section className={styles.homepageVisualization} aria-live="polite">
+          <header className={styles.generationResultHeader}>
             <div>
-              <Text className="eyebrow">Pre-generated attention</Text>
+              <Text className={shared.eyebrow}>Pre-generated attention</Text>
               <Title order={2}>Attention by token</Title>
             </div>
             <Text size="sm" c="dimmed">
@@ -144,7 +146,7 @@ export function ContributionTextExperience({
 
           {catalog.status === 'error' ? (
             <Paper
-              className="text-visualization-state"
+              className={shared.textVisualizationState}
               withBorder
               radius="lg"
               p="xl"
@@ -165,7 +167,7 @@ export function ContributionTextExperience({
               >
                 <Popover.Target>
                   <UnstyledButton
-                    className="dataset-note mobile-prompt-selector"
+                    className={`${shared.datasetNote} ${styles.mobilePromptSelector}`}
                     aria-label="Select a pre-generated prompt"
                     aria-expanded={promptSelectorOpen}
                     aria-haspopup="dialog"
@@ -185,11 +187,11 @@ export function ContributionTextExperience({
                   </UnstyledButton>
                 </Popover.Target>
                 <Popover.Dropdown
-                  className="mobile-prompt-popover"
+                  className={styles.mobilePromptPopover}
                   role="dialog"
                   aria-label="Choose a pre-generated prompt"
                 >
-                  <div className="prompt-list" role="list">
+                  <div className={styles.promptList} role="list">
                     {promptOptions}
                   </div>
                 </Popover.Dropdown>
@@ -203,7 +205,7 @@ export function ContributionTextExperience({
             </>
           ) : (
             <Paper
-              className="text-visualization-state"
+              className={shared.textVisualizationState}
               withBorder
               radius="lg"
               p="xl"
@@ -218,10 +220,11 @@ export function ContributionTextExperience({
         </section>
       </div>
 
-      <div className="generation-column">
+      <div className={styles.generationColumn}>
         <BrowserGenerationPanel
           createWorker={createWorker}
           crossOriginIsolationWarning={embedded && !isCrossOriginIsolated()}
+          fullWidth
           modelSource={modelSource}
           onGenerationStarted={handleGenerationStarted}
           onResultChange={handleResultChange}
@@ -230,13 +233,10 @@ export function ContributionTextExperience({
       </div>
 
       {generationStarted && (
-        <section
-          className="homepage-visualization custom-prompt-visualization"
-          aria-live="polite"
-        >
-          <header className="generation-result-header">
+        <section className={styles.homepageVisualization} aria-live="polite">
+          <header className={styles.generationResultHeader}>
             <div>
-              <Text className="eyebrow">Live attention</Text>
+              <Text className={shared.eyebrow}>Live attention</Text>
               <Title order={2}>What your prompt generated</Title>
             </div>
             {generationResult && (
@@ -260,7 +260,7 @@ export function ContributionTextExperience({
             />
           ) : (
             <Paper
-              className="text-visualization-state"
+              className={shared.textVisualizationState}
               withBorder
               radius="lg"
               p="xl"

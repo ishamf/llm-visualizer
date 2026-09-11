@@ -1,0 +1,56 @@
+.appShell {
+  min-height: 100svh;
+  padding: 42px 0;
+}
+
+.eyebrow {
+  color: var(--mantine-color-violet-6);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.pageState {
+  display: grid;
+  min-height: 360px;
+  place-content: center;
+  place-items: center;
+  gap: 12px;
+}
+
+.backLink {
+  width: max-content;
+  padding-inline: 0;
+}
+
+.selectorCard {
+  background: light-dark(
+    color-mix(in srgb, var(--mantine-color-white) 92%, transparent),
+    color-mix(in srgb, var(--mantine-color-dark-8) 92%, transparent)
+  );
+  box-shadow: var(--mantine-shadow-md);
+}
+
+.datasetNote {
+  border: 1px solid
+    light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-6));
+  background: light-dark(
+    var(--mantine-color-white),
+    var(--mantine-color-dark-8)
+  );
+}
+
+.textVisualizationState {
+  display: flex;
+  min-height: 240px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+@media (max-width: 760px) {
+  .appShell {
+    padding: 24px 0;
+  }
+}

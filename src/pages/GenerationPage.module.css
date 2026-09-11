@@ -1,0 +1,69 @@
+.browserGeneration {
+  display: grid;
+  gap: 16px;
+}
+
+.browserGeneration h2 {
+  margin: 2px 0 4px;
+  letter-spacing: -0.035em;
+}
+
+.browserGenerationHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.modelDownloadNote,
+.crossOriginIsolationWarning {
+  line-height: 1.55;
+}
+
+.generationForm {
+  max-width: 920px;
+}
+
+.generationStatus {
+  max-width: 920px;
+  background: light-dark(
+    color-mix(in srgb, var(--mantine-color-white) 90%, transparent),
+    color-mix(in srgb, var(--mantine-color-dark-8) 90%, transparent)
+  );
+}
+
+/* Overrides .generationForm/.generationStatus inside the embedded experience
+   (replaces the old `.generation-column .generation-form` rule). */
+.fullWidth {
+  max-width: none;
+}
+
+.advancedOptionsToggle {
+  width: max-content;
+  padding-inline: 0;
+  color: var(--mantine-color-violet-6);
+}
+
+.generationAdvancedOptions {
+  display: grid;
+  gap: 16px;
+  padding-top: 4px;
+}
+
+.generationNumberGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(110px, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 760px) {
+  .browserGenerationHeader {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .generationNumberGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

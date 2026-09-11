@@ -1,0 +1,45 @@
+.pageContainer {
+  display: grid;
+  gap: 18px;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 28px;
+}
+
+.pageHeader h1 {
+  margin: 3px 0 8px;
+  color: var(--mantine-color-text);
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  line-height: 1.04;
+  letter-spacing: -0.045em;
+}
+
+.headerBadges {
+  justify-content: flex-end;
+  padding-bottom: 4px;
+}
+
+.metricNote {
+  border: 1px solid
+    light-dark(var(--mantine-color-violet-1), var(--mantine-color-violet-9));
+  background: light-dark(
+    var(--mantine-color-violet-0),
+    color-mix(in srgb, var(--mantine-color-violet-9) 35%, transparent)
+  );
+}
+
+@media (max-width: 760px) {
+  .pageHeader {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .headerBadges {
+    justify-content: flex-start;
+  }
+}
