@@ -9,11 +9,93 @@ type TerminalEntryProps = {
   entry: TimelineEntry;
   revealed: number;
   streaming: boolean;
+  /** Thinking entries only: auto-collapsed by a later streaming block. */
+  autoCollapsed: boolean;
   resultError: boolean | undefined;
 };
 
 function Caret() {
   return <span className={styles.caret} aria-hidden="true" />;
+}
+
+/** Adds `ids` to `set`; returns `set` itself when nothing is added. */
+function addAllIds(
+  set: ReadonlySet<string>,
+  ids: ReadonlySet<string>,
+): ReadonlySet<string> {
+  let changed = false;
+  const next = new Set(set);
+  for (const id of ids) {
+    if (!next.has(id)) {
+      next.add(id);
+      changed = true;
+    }
+  }
+  return changed ? next : set;
+}
+
+/** Ids of thinking entries a later streaming thinking block supersedes. */
+function supersededThinkingIds(
+  states: readonly EntryState[],
+): ReadonlySet<string> {
+  // Entries arrive in transcript order, so everything before the last
+  // streaming thinking entry is superseded right now.
+  let lastStreamingIndex = -1;
+  states.forEach(({ entry, streaming }, index) => {
+    if (entry.kind === 'thinking' && streaming) lastStreamingIndex = index;
+  });
+  const ids = new Set<string>();
+  if (lastStreamingIndex < 0) return ids;
+  states.forEach(({ entry }, index) => {
+    if (index < lastStreamingIndex && entry.kind === 'thinking') {
+      ids.add(entry.id);
+    }
+  });
+  return ids;
+}
+
+/**
+ * Auto-collapse ledger for thinking blocks. `collapsed` is sticky: a block
+ * folds when a later thinking block streams and stays folded. Collapses are
+ * deferred while the user is scrolled away — `deferred` tracks the blocks
+ * that would have folded, and they fold once the user is back on the latest.
+ */
+type CollapseLedger = {
+  collapsed: ReadonlySet<string>;
+  deferred: ReadonlySet<string>;
+  /** Snapshot the ledger last absorbed. */
+  states: readonly EntryState[];
+  pinned: boolean;
+};
+
+/** Applies pending collapse events to the ledger; pure and idempotent. */
+function absorbCollapseEvents(
+  ledger: CollapseLedger,
+  states: readonly EntryState[],
+  pinned: boolean,
+): CollapseLedger {
+  const superseded = supersededThinkingIds(states);
+  let collapsed = ledger.collapsed;
+  let deferred = ledger.deferred;
+  if (pinned) {
+    collapsed = addAllIds(collapsed, superseded);
+    if (!ledger.pinned && deferred.size > 0) {
+      // Back on the latest: fold in everything deferred while scrolled away.
+      collapsed = addAllIds(collapsed, deferred);
+      deferred = new Set<string>();
+    }
+  } else {
+    deferred = addAllIds(deferred, superseded);
+  }
+  if (
+    collapsed === ledger.collapsed &&
+    deferred === ledger.deferred &&
+    states === ledger.states &&
+    pinned === ledger.pinned
+  ) {
+    return ledger;
+  }
+  return { collapsed, deferred, states, pinned };
 }
 
 function UserEntry({
@@ -42,17 +124,22 @@ function ThinkingEntry({
   entry,
   revealed,
   streaming,
+  autoCollapsed,
 }: {
   entry: Extract<TimelineEntry, { kind: 'thinking' }>;
   revealed: number;
   streaming: boolean;
+  autoCollapsed: boolean;
 }) {
-  // Expanded by default while streaming, collapsed once complete; an explicit
-  // user toggle wins over the default.
+  // Expanded by default: while streaming, and it stays expanded once
+  // complete. Auto-collapse happens when a later thinking block starts
+  // streaming — immediately while pinned to the bottom, deferred while the
+  // user is scrolled away (`autoCollapsed`). An explicit user toggle wins
+  // over the default.
   const [expandedOverride, setExpandedOverride] = useState<boolean | null>(
     null,
   );
-  const expanded = expandedOverride ?? streaming;
+  const expanded = expandedOverride ?? (streaming || !autoCollapsed);
   return (
     <div className={styles.thinkingEntry}>
       <button
@@ -178,6 +265,7 @@ const TerminalEntry = memo(function TerminalEntry({
   entry,
   revealed,
   streaming,
+  autoCollapsed,
   resultError,
 }: TerminalEntryProps) {
   switch (entry.kind) {
@@ -191,6 +279,7 @@ const TerminalEntry = memo(function TerminalEntry({
           entry={entry}
           revealed={revealed}
           streaming={streaming}
+          autoCollapsed={autoCollapsed}
         />
       );
     case 'text':
@@ -224,6 +313,21 @@ export function AgentTerminal({ timeline, states }: AgentTerminalProps) {
     }
     return map;
   }, [states]);
+  // Auto-collapse ledger, adjusted during render whenever the snapshot or
+  // pin state changes — the React-documented alternative to syncing state in
+  // an effect. While the user is scrolled away, collapses are deferred and
+  // tracked in the ledger; they apply once they return to the latest.
+  const [ledger, setLedger] = useState<CollapseLedger>(() => ({
+    collapsed: new Set<string>(),
+    deferred: new Set<string>(),
+    states,
+    pinned,
+  }));
+  if (ledger.states !== states || ledger.pinned !== pinned) {
+    setLedger((prev) => absorbCollapseEvents(prev, states, pinned));
+  }
+  const isAutoCollapsed = (entry: TimelineEntry): boolean =>
+    entry.kind === 'thinking' && ledger.collapsed.has(entry.id);
 
   return (
     <div className={styles.terminal}>
@@ -243,6 +347,7 @@ export function AgentTerminal({ timeline, states }: AgentTerminalProps) {
               entry={entry}
               revealed={revealed}
               streaming={streaming}
+              autoCollapsed={isAutoCollapsed(entry)}
               resultError={
                 entry.kind === 'toolCall'
                   ? resultErrorByCallId.get(entry.callId)
