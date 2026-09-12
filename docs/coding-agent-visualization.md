@@ -165,6 +165,15 @@ response finished streaming. A minimum gap between requests guarantees the
 following request is not revealed at that point. The panel shares the same
 pin-to-bottom scroll behavior as the terminal.
 
+Normally only requests that have been sent at the current playback time are
+listed. Clicking an earlier card keeps the later requests visible in a dimmed
+`future` state — a temporary "peek" mode that ends as soon as the user plays
+or seeks the slider. The **Show future requests** checkbox in the panel
+header pins them permanently instead; it renders in the indeterminate state
+while a peek is active. `requestsAt` produces the `future` status only when
+asked for it via its `includeFuture` option, so the default snapshot logic is
+unchanged.
+
 ### Playback bar
 
 Play/pause, a seek slider, and a `m:ss` clock; space toggles playback unless

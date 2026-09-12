@@ -9,7 +9,7 @@ import {
   Title,
   UnstyledButton,
 } from '@mantine/core';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import { AgentTerminal } from '../coding-agent/AgentTerminal.tsx';
@@ -19,7 +19,10 @@ import {
   formatTokens,
 } from '../coding-agent/format.ts';
 import { PlaybackBar } from '../coding-agent/PlaybackBar.tsx';
-import { RequestList } from '../coding-agent/RequestList.tsx';
+import {
+  RequestList,
+  type FutureRequestsMode,
+} from '../coding-agent/RequestList.tsx';
 import type { SessionIndexEntry } from '../coding-agent/session-index.ts';
 import { sessionUrl } from '../coding-agent/session-urls.ts';
 import {
@@ -165,13 +168,21 @@ function SessionReplay({
   const ready = session.status === 'ready';
   const timeline = ready ? session.timeline : null;
 
+  // Future requests are normally hidden. Clicking a request shows them in a
+  // temporary "peek" mode (the checkbox renders indeterminate) until the user
+  // plays or seeks; the checkbox flips into a permanent "shown" mode.
+  const [futureMode, setFutureMode] = useState<FutureRequestsMode>('hidden');
+
   const entryStates = useMemo(
     () => (timeline ? entriesAt(timeline, time) : []),
     [timeline, time],
   );
   const requestStates = useMemo(
-    () => (timeline ? requestsAt(timeline, time) : []),
-    [timeline, time],
+    () =>
+      timeline
+        ? requestsAt(timeline, time, { includeFuture: futureMode !== 'hidden' })
+        : [],
+    [timeline, time, futureMode],
   );
   const totals = useMemo(
     () => (timeline ? usageBreakdownAt(timeline, time) : EMPTY_BREAKDOWN),
@@ -185,12 +196,31 @@ function SessionReplay({
     [timeline],
   );
 
-  useSpaceToggle(toggle, ready);
+  const clearPeek = useCallback(
+    () => setFutureMode((mode) => (mode === 'peek' ? 'hidden' : mode)),
+    [],
+  );
+
+  const handleToggle = useCallback(() => {
+    toggle();
+    clearPeek();
+  }, [toggle, clearPeek]);
+
+  const handleSeek = useCallback(
+    (value: number) => {
+      seek(value);
+      clearPeek();
+    },
+    [seek, clearPeek],
+  );
+
+  useSpaceToggle(handleToggle, ready);
 
   const handleRequestClick = useCallback(
     (request: RequestTimeline) => {
       pause();
       seek(request.endTime);
+      setFutureMode((mode) => (mode === 'shown' ? mode : 'peek'));
     },
     [pause, seek],
   );
@@ -296,6 +326,8 @@ function SessionReplay({
             states={requestStates}
             breakdown={totals}
             totalRequests={timeline.requests.length}
+            futureMode={futureMode}
+            onFutureModeChange={setFutureMode}
             onRequestClick={handleRequestClick}
           />
         </div>
@@ -305,9 +337,9 @@ function SessionReplay({
           duration={duration}
           playing={playing}
           speed={speed}
-          onToggle={toggle}
+          onToggle={handleToggle}
           onSpeedChange={setSpeed}
-          onSeek={seek}
+          onSeek={handleSeek}
         />
       </Container>
     </main>

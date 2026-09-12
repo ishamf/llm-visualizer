@@ -268,6 +268,31 @@ describe('requestsAt', () => {
     ]);
   });
 
+  it('omits future requests by default and includes them on request', () => {
+    expect(requestsAt(timeline, s(R1_END_MS))).toEqual([
+      { request: timeline.requests[0], status: 'done' },
+    ]);
+    expect(requestsAt(timeline, s(R1_END_MS), { includeFuture: true })).toEqual(
+      [
+        { request: timeline.requests[0], status: 'done' },
+        { request: timeline.requests[1], status: 'future' },
+      ],
+    );
+  });
+
+  it('keeps active statuses when future requests are included', () => {
+    expect(requestsAt(timeline, 0, { includeFuture: true })).toEqual([
+      { request: timeline.requests[0], status: 'processing' },
+      { request: timeline.requests[1], status: 'future' },
+    ]);
+    expect(
+      requestsAt(timeline, s(R2_SENT_MS + 5), { includeFuture: true }),
+    ).toEqual([
+      { request: timeline.requests[0], status: 'done' },
+      { request: timeline.requests[1], status: 'processing' },
+    ]);
+  });
+
   it('marks completed requests as done at the boundary', () => {
     expect(requestsAt(timeline, s(R1_END_MS))).toEqual([
       { request: timeline.requests[0], status: 'done' },

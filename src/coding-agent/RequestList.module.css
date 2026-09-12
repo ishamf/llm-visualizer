@@ -14,13 +14,18 @@
 }
 
 .listHeader {
+  display: grid;
+  gap: 6px;
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid
+    light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-6));
+}
+
+.listHeaderRow {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 16px 10px;
-  border-bottom: 1px solid
-    light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-6));
 }
 
 .listTitle {
@@ -74,6 +79,10 @@
 .requestCard[data-status='streaming'],
 .requestCard[data-status='processing'] {
   border-color: var(--mantine-color-violet-4);
+}
+
+.requestCard[data-status='future'] {
+  opacity: 0.5;
 }
 
 .requestHeader {

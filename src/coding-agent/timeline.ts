@@ -141,7 +141,11 @@ export type EntryState = {
 
 export type RequestState = {
   request: RequestTimeline;
-  status: 'processing' | 'streaming' | 'done';
+  /**
+   * `future` is only produced by {@link requestsAt} when asked to include
+   * future requests; it marks requests not yet sent at the snapshot time.
+   */
+  status: 'processing' | 'streaming' | 'done' | 'future';
 };
 
 /** UTF-8 byte length of a string. */
@@ -461,14 +465,23 @@ export function entriesAt(
   return states;
 }
 
-/** Snapshot of the provider request list at a playback time. */
+/**
+ * Snapshot of the provider request list at a playback time. With
+ * `includeFuture`, requests not yet sent are kept in the list with the
+ * `future` status instead of being omitted, so the UI can show the whole
+ * session (e.g. after jumping back to an earlier request).
+ */
 export function requestsAt(
   timeline: Timeline,
   timeSeconds: number,
+  { includeFuture = false }: { includeFuture?: boolean } = {},
 ): RequestState[] {
   const states: RequestState[] = [];
   for (const request of timeline.requests) {
-    if (timeSeconds < request.sentTime) continue;
+    if (timeSeconds < request.sentTime) {
+      if (includeFuture) states.push({ request, status: 'future' });
+      continue;
+    }
     states.push({
       request,
       status:

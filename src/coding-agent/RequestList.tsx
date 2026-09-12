@@ -1,4 +1,4 @@
-import { Loader, Text } from '@mantine/core';
+import { Checkbox, Loader, Text } from '@mantine/core';
 import { memo } from 'react';
 
 import {
@@ -14,6 +14,13 @@ import {
 } from './timeline.ts';
 import { usePinnedAutoScroll } from './use-pinned-scroll.ts';
 import styles from './RequestList.module.css';
+
+/**
+ * How future (not yet sent) requests are presented: `hidden` omits them,
+ * `peek` shows them temporarily after jumping to an earlier request, and
+ * `shown` keeps them visible permanently.
+ */
+export type FutureRequestsMode = 'hidden' | 'peek' | 'shown';
 
 type RequestCardProps = {
   request: RequestTimeline;
@@ -37,7 +44,7 @@ const RequestCard = memo(function RequestCard({
     >
       <span className={styles.requestHeader}>
         <span className={styles.requestIndex}>#{request.index}</span>
-        {status === 'done' ? (
+        {status === 'done' || status === 'future' ? (
           <span className={styles.requestBytes} title="UTF-8 JSON payload size">
             ↑ {formatBytes(request.sentBytes)}
             <span className={styles.bytesSeparator} aria-hidden="true">
@@ -50,15 +57,15 @@ const RequestCard = memo(function RequestCard({
             {status === 'processing' ? 'processing input…' : 'streaming…'}
           </span>
         )}
-        {status !== 'done' ? (
-          <Loader className={styles.requestSpinner} size="xs" type="dots" />
-        ) : (
+        {status === 'done' ? (
           <span className={styles.requestDone} aria-hidden="true">
             ✓
           </span>
+        ) : status === 'future' ? null : (
+          <Loader className={styles.requestSpinner} size="xs" type="dots" />
         )}
       </span>
-      {status === 'done' && (
+      {(status === 'done' || status === 'future') && (
         <span className={styles.requestUsage}>
           <span className={styles.usageItem} title="Cached input tokens">
             <span className={styles.usageLetter}>C</span>
@@ -92,6 +99,8 @@ type RequestListProps = {
   states: readonly RequestState[];
   breakdown: UsageBreakdown;
   totalRequests: number;
+  futureMode: FutureRequestsMode;
+  onFutureModeChange: (mode: FutureRequestsMode) => void;
   onRequestClick: (request: RequestTimeline) => void;
 };
 
@@ -99,6 +108,8 @@ export function RequestList({
   states,
   breakdown,
   totalRequests,
+  futureMode,
+  onFutureModeChange,
   onRequestClick,
 }: RequestListProps) {
   const { containerRef, pinned, pin } = usePinnedAutoScroll(states);
@@ -109,12 +120,33 @@ export function RequestList({
   return (
     <aside className={styles.requestList} aria-label="Provider requests">
       <header className={styles.listHeader}>
-        <Text className={styles.listTitle} size="sm" fw={650}>
-          Provider requests
-        </Text>
-        <Text size="xs" c="dimmed">
-          {states.length} / {totalRequests} sent
-        </Text>
+        <div className={styles.listHeaderRow}>
+          <Text className={styles.listTitle} size="sm" fw={650}>
+            Provider requests
+          </Text>
+          <Text size="xs" c="dimmed">
+            {states.filter(({ status }) => status !== 'future').length} /
+            {totalRequests} sent
+          </Text>
+        </div>
+        <div className={styles.listHeaderRow}>
+          <Checkbox
+            size="xs"
+            color={futureMode === 'peek' ? 'gray' : 'violet'}
+            label="Show future requests"
+            checked={futureMode === 'shown'}
+            indeterminate={futureMode === 'peek'}
+            onChange={(event) =>
+              // From the indeterminate peek state, clicking clears the mode
+              // rather than turning it into a permanent one.
+              onFutureModeChange(
+                futureMode !== 'peek' && event.currentTarget.checked
+                  ? 'shown'
+                  : 'hidden',
+              )
+            }
+          />
+        </div>
       </header>
       <div className={styles.scroll} ref={containerRef}>
         <div className={styles.cards}>
