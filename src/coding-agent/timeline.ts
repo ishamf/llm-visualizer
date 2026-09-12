@@ -5,7 +5,7 @@ import type {
 } from './packed-session.ts';
 
 /** Output streaming rate: the clock advances one token per tick. */
-export const PLAYBACK_TOKENS_PER_SECOND = 50;
+export const PLAYBACK_TOKENS_PER_SECOND = 100;
 /**
  * Input (prefill) processing rate, in tokens per second. Applied to a
  * request's uncached input tokens (`input - cacheRead`) before its output
@@ -25,7 +25,7 @@ export const REQUEST_GAP_MS = 10;
 /** Pause before the user starts typing a prompt. */
 export const USER_TYPING_DELAY_MS = 2000;
 /** Average typing speed for user prompts, in words per minute. */
-export const USER_TYPING_WORDS_PER_MINUTE = 45;
+export const USER_TYPING_WORDS_PER_MINUTE = 45 * 4;
 /** Assumed characters per word when converting the typing speed. */
 const TYPING_CHARACTERS_PER_WORD = 5;
 
