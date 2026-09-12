@@ -172,9 +172,12 @@ listed. Clicking an earlier card keeps the later requests visible in a dimmed
 `future` state — a temporary "peek" mode that ends as soon as the user plays
 or seeks the slider. The **Show all requests** checkbox in the panel
 header pins them permanently instead; it renders in the indeterminate state
-while a peek is active. `requestsAt` produces the `future` status only when
-asked for it via its `includeFuture` option, so the default snapshot logic is
-unchanged.
+while a peek is active. While future requests are visible, an in-flight
+request keeps the settled card — payload bytes, usage, and the spinner where
+the checkmark would be — instead of the live labels, so seeking across it
+does not flip the card's layout. `requestsAt` produces the `future` status
+only when asked for it via its `includeFuture` option, so the default
+snapshot logic is unchanged.
 
 ### Playback bar
 

@@ -25,15 +25,24 @@ export type FutureRequestsMode = 'hidden' | 'peek' | 'shown';
 type RequestCardProps = {
   request: RequestTimeline;
   status: RequestState['status'];
+  /**
+   * Presents an in-flight request (`processing`/`streaming`) in the settled
+   * style: payload bytes and usage with the spinner in the checkmark's
+   * place. Used while future requests are visible, so seeking across a
+   * request's window does not flip its card between presentations.
+   */
+  settledPending: boolean;
   onRequestClick: (request: RequestTimeline) => void;
 };
 
 const RequestCard = memo(function RequestCard({
   request,
   status,
+  settledPending,
   onRequestClick,
 }: RequestCardProps) {
   const usage = request.usage;
+  const settled = status === 'done' || status === 'future' || settledPending;
   return (
     <button
       type="button"
@@ -44,7 +53,7 @@ const RequestCard = memo(function RequestCard({
     >
       <span className={styles.requestHeader}>
         <span className={styles.requestIndex}>#{request.index}</span>
-        {status === 'done' || status === 'future' ? (
+        {settled ? (
           <span className={styles.requestBytes} title="UTF-8 JSON payload size">
             ↑ {formatBytes(request.sentBytes)}
             <span className={styles.bytesSeparator} aria-hidden="true">
@@ -65,7 +74,7 @@ const RequestCard = memo(function RequestCard({
           <Loader className={styles.requestSpinner} size="xs" type="dots" />
         )}
       </span>
-      {(status === 'done' || status === 'future') && (
+      {settled && (
         <span className={styles.requestUsage}>
           <span className={styles.usageItem} title="Cached input tokens">
             <span className={styles.usageLetter}>C</span>
@@ -119,6 +128,9 @@ export function RequestList({
   onRequestClick,
 }: RequestListProps) {
   const { containerRef, pinned, pin } = usePinnedAutoScroll(pinWatch);
+  // While future requests are visible, in-flight requests use the settled
+  // presentation (see RequestCard); otherwise they show the live labels.
+  const settledPending = futureMode !== 'hidden';
   const footerRows = FOOTER_CATEGORY_ROWS.map(([label, category]) => ({
     label,
     category: breakdown[category],
@@ -162,6 +174,7 @@ export function RequestList({
                 key={state.request.id}
                 request={state.request}
                 status={state.status}
+                settledPending={settledPending}
                 onRequestClick={onRequestClick}
               />
             ))}
