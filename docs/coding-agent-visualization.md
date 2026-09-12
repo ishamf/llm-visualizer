@@ -111,8 +111,10 @@ light and dark:
   stays expanded and is only auto-collapsed when a later thinking block starts
   streaming (so it remains visible through tool calls and text). While the
   user is scrolled up, auto-collapses are deferred — the blocks stay expanded
-  and fold in once the user returns to the latest. An explicit toggle always
-  wins over the automatic behavior.
+  and fold in once the user returns to the latest. Seeking replays the same
+  fold pattern: everything but the most recent thinking block appears
+  collapsed, as continuous playback would have left it. An explicit toggle
+  always wins over the automatic behavior.
 - Assistant text.
 - Tool calls as `● <tool> <summary>` lines (command for `bash`, path for
   file tools), spinner while running, ✓/✕ based on the result, click to

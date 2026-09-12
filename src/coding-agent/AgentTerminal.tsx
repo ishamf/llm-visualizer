@@ -18,36 +18,24 @@ function Caret() {
   return <span className={styles.caret} aria-hidden="true" />;
 }
 
-/** Adds `ids` to `set`; returns `set` itself when nothing is added. */
-function addAllIds(
-  set: ReadonlySet<string>,
-  ids: ReadonlySet<string>,
-): ReadonlySet<string> {
-  let changed = false;
-  const next = new Set(set);
-  for (const id of ids) {
-    if (!next.has(id)) {
-      next.add(id);
-      changed = true;
-    }
-  }
-  return changed ? next : set;
-}
-
-/** Ids of thinking entries a later streaming thinking block supersedes. */
+/**
+ * Ids of thinking entries already superseded at this playback position —
+ * every thinking entry in the snapshot except the most recent one. A block
+ * folds when the next one starts streaming and stays folded, so this is
+ * exactly the collapse state continuous playback would have produced.
+ */
 function supersededThinkingIds(
   states: readonly EntryState[],
 ): ReadonlySet<string> {
-  // Entries arrive in transcript order, so everything before the last
-  // streaming thinking entry is superseded right now.
-  let lastStreamingIndex = -1;
-  states.forEach(({ entry, streaming }, index) => {
-    if (entry.kind === 'thinking' && streaming) lastStreamingIndex = index;
+  // Entries arrive in transcript order, so the last thinking entry in the
+  // snapshot is the most recent one.
+  let lastThinkingIndex = -1;
+  states.forEach(({ entry }, index) => {
+    if (entry.kind === 'thinking') lastThinkingIndex = index;
   });
   const ids = new Set<string>();
-  if (lastStreamingIndex < 0) return ids;
   states.forEach(({ entry }, index) => {
-    if (index < lastStreamingIndex && entry.kind === 'thinking') {
+    if (index < lastThinkingIndex && entry.kind === 'thinking') {
       ids.add(entry.id);
     }
   });
@@ -55,48 +43,16 @@ function supersededThinkingIds(
 }
 
 /**
- * Auto-collapse ledger for thinking blocks. `collapsed` is sticky: a block
- * folds when a later thinking block streams and stays folded. Collapses are
- * deferred while the user is scrolled away — `deferred` tracks the blocks
- * that would have folded, and they fold once the user is back on the latest.
+ * Collapse state frozen while the user is scrolled away. While pinned, the
+ * collapse state follows the current snapshot directly; the freeze keeps the
+ * blocks the user is reading expanded, and is discarded when they return to
+ * the latest.
  */
-type CollapseLedger = {
+type AwayCollapse = {
   collapsed: ReadonlySet<string>;
-  deferred: ReadonlySet<string>;
-  /** Snapshot the ledger last absorbed. */
-  states: readonly EntryState[];
-  pinned: boolean;
+  /** True while the user is scrolled away and `collapsed` is authoritative. */
+  frozen: boolean;
 };
-
-/** Applies pending collapse events to the ledger; pure and idempotent. */
-function absorbCollapseEvents(
-  ledger: CollapseLedger,
-  states: readonly EntryState[],
-  pinned: boolean,
-): CollapseLedger {
-  const superseded = supersededThinkingIds(states);
-  let collapsed = ledger.collapsed;
-  let deferred = ledger.deferred;
-  if (pinned) {
-    collapsed = addAllIds(collapsed, superseded);
-    if (!ledger.pinned && deferred.size > 0) {
-      // Back on the latest: fold in everything deferred while scrolled away.
-      collapsed = addAllIds(collapsed, deferred);
-      deferred = new Set<string>();
-    }
-  } else {
-    deferred = addAllIds(deferred, superseded);
-  }
-  if (
-    collapsed === ledger.collapsed &&
-    deferred === ledger.deferred &&
-    states === ledger.states &&
-    pinned === ledger.pinned
-  ) {
-    return ledger;
-  }
-  return { collapsed, deferred, states, pinned };
-}
 
 function UserEntry({
   entry,
@@ -313,21 +269,25 @@ export function AgentTerminal({ timeline, states }: AgentTerminalProps) {
     }
     return map;
   }, [states]);
-  // Auto-collapse ledger, adjusted during render whenever the snapshot or
-  // pin state changes — the React-documented alternative to syncing state in
-  // an effect. While the user is scrolled away, collapses are deferred and
-  // tracked in the ledger; they apply once they return to the latest.
-  const [ledger, setLedger] = useState<CollapseLedger>(() => ({
-    collapsed: new Set<string>(),
-    deferred: new Set<string>(),
-    states,
-    pinned,
+  // While pinned, thinking blocks fold exactly as continuous playback would
+  // have folded them — everything but the most recent. Scrolling away freezes
+  // that state: blocks the user is reading stay expanded, and the fold catches
+  // up (including anything missed while away) when they return to the latest.
+  // Seeking runs through the same derivation, so scrubbing replays the same
+  // fold pattern.
+  const [away, setAway] = useState<AwayCollapse>(() => ({
+    collapsed: supersededThinkingIds(states),
+    frozen: !pinned,
   }));
-  if (ledger.states !== states || ledger.pinned !== pinned) {
-    setLedger((prev) => absorbCollapseEvents(prev, states, pinned));
+  const currentSuperseded = supersededThinkingIds(states);
+  if (away.frozen !== !pinned) {
+    setAway({ collapsed: currentSuperseded, frozen: !pinned });
   }
   const isAutoCollapsed = (entry: TimelineEntry): boolean =>
-    entry.kind === 'thinking' && ledger.collapsed.has(entry.id);
+    entry.kind === 'thinking' &&
+    (away.frozen
+      ? away.collapsed.has(entry.id)
+      : currentSuperseded.has(entry.id));
 
   return (
     <div className={styles.terminal}>
