@@ -61,13 +61,22 @@ export function VisualizationPage() {
         : null,
     [summedDataset],
   );
+  // The range control sums a selected span of layers. Summed datasets ship
+  // their own per-layer generated-token matrices; layered-only datasets fall
+  // back to summing the full layer matrices.
+  const textLayerSource = useMemo(() => {
+    if (summedSource) {
+      return summedDataset?.manifest.layeredGeneratedContributions
+        ? summedSource
+        : null;
+    }
+    return layeredSource
+      ? new LayerSummingContributionDataSource(layeredSource)
+      : null;
+  }, [summedSource, summedDataset, layeredSource]);
   const textSource = useMemo(
-    () =>
-      summedSource ??
-      (layeredSource
-        ? new LayerSummingContributionDataSource(layeredSource)
-        : null),
-    [layeredSource, summedSource],
+    () => summedSource ?? textLayerSource,
+    [summedSource, textLayerSource],
   );
   const source =
     visualization?.kind === 'contribution-grid' ? layeredSource : textSource;
@@ -164,6 +173,7 @@ export function VisualizationPage() {
           <ContributionText
             key={dataset.id}
             source={textSource!}
+            layerSource={textLayerSource ?? undefined}
             manifest={dataset.manifest}
           />
         )}

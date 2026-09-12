@@ -23,7 +23,6 @@ export const prompts: PromptConfiguration[] = [
 
 The Riverside team has worked from its current building for nearly six years, and many employees helped choose the furniture for the new space. Next month, the office is moving to 18 King Street. Employees should work from home on November 2 and 3 while computers and other equipment are transferred. The new office will open on November 4. Existing employee access cards will work at the new entrance, and all company phone numbers will stay the same. The kitchen will not have a coffee machine during the first week, but several cafes are located nearby.`,
     maxNewTokens: 128,
-    contributionFormats: ['summed'],
   },
   {
     id: 'extract-contact',
@@ -41,7 +40,6 @@ Northstar Labs
 maya.chen@example.com`,
     assistantPrefix: 'Full name:',
     maxNewTokens: 64,
-    contributionFormats: ['summed'],
   },
   {
     id: 'extract-event',
@@ -50,7 +48,6 @@ maya.chen@example.com`,
 
 Several activities are planned at the community center next month. The photography club meets on Mondays, and a book exchange will run throughout the first week. The monthly engineering meetup is scheduled for September 12. It will begin at 6:30 PM in Room 204. Attendees are welcome to bring a laptop, although one is not required. Drinks will be available near the entrance, and the organizers recommend arriving a few minutes early.`,
     maxNewTokens: 64,
-    contributionFormats: ['summed'],
   },
   {
     id: 'extract-order',
@@ -59,7 +56,6 @@ Several activities are planned at the community center next month. The photograp
 
 Thanks for visiting our store last weekend. We have finished processing your purchase, and no further payment is required. Order A-1842 contains three blue desk lamps from the Harbor collection. The matching bulbs were purchased separately and are already available for pickup. The lamps are scheduled for delivery on October 5. Our driver will send a message before arriving. Packaging can be returned to the store for recycling.`,
     maxNewTokens: 80,
-    contributionFormats: ['summed'],
   },
   {
     id: 'summarize-library-notice',
@@ -68,7 +64,6 @@ Thanks for visiting our store last weekend. We have finished processing your pur
 
 The city library is preparing for its annual autumn reading program, and registration forms are available beside the main desk. This Friday, the building will close at 5 PM so electricians can perform scheduled maintenance. It will reopen at 9 AM on Saturday. The book-return slot outside the entrance will remain open while the building is closed, and online services such as ebook borrowing and account renewals will continue to work. Saturday's children's story session will take place at its usual time. Visitors with questions can speak to a librarian before Friday afternoon.`,
     maxNewTokens: 64,
-    contributionFormats: ['summed'],
   },
 
   {
@@ -78,7 +73,6 @@ The city library is preparing for its annual autumn reading program, and registr
 
 I have been using the monthly plan since January and normally receive a single receipt on the first day of each month. This morning I noticed that my card was charged twice for invoice 7812. Both payments have completed, rather than appearing as pending transactions. I still use the service every day and do not want my account closed or my current subscription changed. Please refund the duplicate payment but leave the subscription active. I have kept copies of both card notifications in case you need them.`,
     maxNewTokens: 96,
-    contributionFormats: ['summed'],
   },
   {
     id: 'multiplication-place-values',
@@ -109,7 +103,6 @@ console.log(arrayAverage([2, 4, 6]));
 `,
     assistantPrefix: `The bug is a simple naming mismatch: the function parameter is called numbers, but the body references array`,
     maxNewTokens: 1000,
-    contributionFormats: ['summed'],
   },
 ];
 

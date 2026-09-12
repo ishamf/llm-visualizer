@@ -17,6 +17,40 @@
     light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-6));
 }
 
+.textVisualizationBody {
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+}
+
+.textVisualizationBody .contributionText {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.layerRangeControl {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 6px;
+}
+
+.layerSettingsPopover .layerRangeControl {
+  min-width: 140px;
+}
+
+.layerRangeSummary {
+  max-width: 160px;
+  text-align: center;
+}
+
+.layerRangeSlider {
+  flex: 1 1 auto;
+  min-height: 140px;
+}
+
 .contributionText {
   font-family: var(--mantine-font-family-monospace);
   font-size: clamp(0.86rem, 1.15vw, 0.98rem);
@@ -94,11 +128,22 @@
 .textVisualizationLegend {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 7px;
   margin-bottom: 20px;
   padding-bottom: 14px;
   border-bottom: 1px solid
     light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-6));
+}
+
+.textVisualizationLegendItems {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.layerOptionsButton {
+  flex: 0 0 auto;
 }
 
 .legendSwatch {
@@ -125,6 +170,10 @@
 /* Targets the `contribution-experience` container declared in
    ContributionTextExperience.module.css; container names are not hashed. */
 @container contribution-experience (max-width: 760px) {
+  .textVisualizationBody {
+    gap: 12px;
+  }
+
   .contributionText {
     font-size: 0.88rem;
   }

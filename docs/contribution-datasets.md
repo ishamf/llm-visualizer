@@ -11,16 +11,32 @@ future metric cannot be mistaken for this one.
 
 ## Formats
 
-There are two formats, each written by its own exporter:
+There are two exporters:
 
 - **Layered** (`pnpm generate:contributions`) stores one triangular
-  contribution matrix per transformer layer. It backs the experimental
-  contribution-grid visualization.
-- **Summed** (`pnpm generate:summed-contributions`) stores the sum of all
-  layer matrices, which is what the contribution-text visualization shows. It
-  retains only the rows for generated tokens, so it stores approximately
-  `G × P + G² / 2` values instead of `layers × (P + G)² / 2` for `P` prompt
-  tokens and `G` generated tokens.
+  contribution matrix per transformer layer, covering every destination token.
+  It backs the experimental contribution-grid visualization. Because the text
+  view only explains generated tokens, most of these rows go unused there.
+- **Summed** (`pnpm generate:summed-contributions`) runs the model once and
+  writes two consistent outputs into the same dataset folder:
+  - `contributions.json`, the sum of all layer matrices, which is what the
+    contribution-text visualization shows. It retains only the rows for
+    generated tokens, so it stores approximately `G × P + G² / 2` values
+    instead of `layers × (P + G)² / 2` for `P` prompt tokens and `G` generated
+    tokens.
+  - `layer-00.json` … `layer-NN.json`, per-layer matrices for the generated
+    destinations only (`G × P + G² / 2` values per layer). They let the
+    contribution-text visualization re-sum any range of layers with its layer
+    control, including a single layer.
+
+Both outputs come from the same generation run, and the exporter rejects a
+dataset whose per-layer matrices do not sum exactly to `contributions.json`,
+so the two representations can never drift apart. The visualization renders
+the summed file first and downloads the per-layer files only when a layer
+range other than "all layers" is selected; downloads are cached per session.
+Datasets declare the extra files with `layeredGeneratedContributions: true` in
+their manifest, so older datasets without them simply render without the
+layer control.
 
 ## Layout
 
@@ -36,11 +52,16 @@ generated/
   summed-contributions/<model-key>/<model-variant>/manifest.json
   summed-contributions/<model-key>/<model-variant>/<dataset-id>/manifest.json
   summed-contributions/<model-key>/<model-variant>/<dataset-id>/contributions.json
+  summed-contributions/<model-key>/<model-variant>/<dataset-id>/layer-00.json
+  summed-contributions/<model-key>/<model-variant>/<dataset-id>/layer-01.json
+  ...
 ```
 
 The `manifest.json` at the model-variant root is a discovery catalog. See
 [Generated data manifests](./generated-data-manifests.md) for the catalog
-format and runtime discovery.
+format and runtime discovery. Layered and summed layer files share the
+`layer-XX.json` name but live in separate format folders and carry different
+row sets, described below.
 
 ## Dataset manifest
 
@@ -91,6 +112,10 @@ Each dataset folder contains a `manifest.json` describing the generation:
 - `title`, `systemPrompt`, `assistantPrefix`, and `validation` are optional.
   The prompt list in `src/generation/prompts.ts` controls them, and
   `validation` is only present when the exporter ran with `--validate`.
+- `layeredGeneratedContributions` is optional and only written by the summed
+  exporter; it marks the dataset as shipping the per-layer generated-token
+  matrices described below. Older datasets omit it, and clients render them
+  without the layer range control.
 - `promptTokenCount` counts the chat-template and prompt tokens; the remaining
   entries of `tokens` are the generated tokens.
 - Token IDs are JSON numbers, never `bigint`.
@@ -137,6 +162,34 @@ Row `r` therefore has `targetTokenStart + r` source values. The row for the
 token that stopped generation (EOS or the configured limit) is not produced,
 because that token never needs a forward pass.
 
+## Layered generated-token layer files
+
+When the manifest sets `layeredGeneratedContributions: true`, the summed
+dataset folder also contains `layer-XX.json` files with one matrix per layer,
+restricted to generated destinations:
+
+```json
+{
+  "schemaVersion": 1,
+  "layer": 27,
+  "metric": "unprojected-attention-contribution-rss",
+  "targetTokenStart": 104,
+  "rows": [
+    [1.2, 4.7],
+    [0.3, 2.9, 8.5]
+  ]
+}
+```
+
+Rows use the same indexing as the summed file: row `r` holds the
+contributions of the query position that predicted the token at
+`targetTokenStart + r`, with `targetTokenStart + r` source values, and the
+file has exactly `tokens.length - targetTokenStart` rows. Summing these rows
+across all layers reproduces `contributions.json` exactly, and the exporter
+verifies that before publishing. Unlike the layered format above, these files
+never store prompt-destination rows, keeping each file proportional to the
+generated tokens.
+
 ## Generating datasets
 
 Instrument the downloaded model first (see
@@ -178,9 +231,11 @@ For each dataset the exporter:
    leaving a mixture of old and new files.
 
 Validation covers tensor shapes, unchanged logits, reconstructed attention
-contexts (with `--validate`), finite non-negative contribution values, and
-complete causal triangles consistent with the manifest token count. A failed
-dataset never produces a completed output directory.
+contexts (with `--validate`), finite non-negative contribution values,
+complete causal triangles consistent with the manifest token count, and — for
+summed datasets with per-layer matrices — an exact check that the layer
+matrices sum to `contributions.json`. A failed dataset never produces a
+completed output directory.
 
 Generation is seeded and deterministic, so re-running an exporter reproduces
 the same dataset.

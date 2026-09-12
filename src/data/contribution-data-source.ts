@@ -4,6 +4,11 @@ import type {
   ContributionManifest,
 } from '../generation/types.ts';
 
+/** Layer matrix file name, shared by every dataset format. */
+export function layerFileName(layer: number) {
+  return `layer-${layer.toString().padStart(2, '0')}.json`;
+}
+
 export interface ContributionDataSource {
   readonly id: string;
   getManifest(signal?: AbortSignal): Promise<ContributionManifest>;
@@ -28,6 +33,8 @@ export function parseContributionManifest(
     (value.title !== undefined &&
       (typeof value.title !== 'string' || value.title.trim().length === 0)) ||
     typeof value.prompt !== 'string' ||
+    (value.layeredGeneratedContributions !== undefined &&
+      typeof value.layeredGeneratedContributions !== 'boolean') ||
     !Array.isArray(value.tokens) ||
     !isRecord(value.geometry) ||
     !Number.isSafeInteger(value.geometry.layers) ||
@@ -147,8 +154,7 @@ export class HttpContributionDataSource implements ContributionDataSource {
     ) {
       throw new Error(`Layer ${layer} is outside the dataset`);
     }
-    const file = `layer-${layer.toString().padStart(2, '0')}.json`;
-    const value = await this.#fetchJson(file, signal);
+    const value = await this.#fetchJson(layerFileName(layer), signal);
     return parseContributionLayer(value, manifest, layer);
   }
 

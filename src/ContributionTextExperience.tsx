@@ -45,9 +45,16 @@ function RemoteContributionText({
         dataset.manifest,
       ),
   );
+  // Datasets that ship per-layer generated-token matrices can re-sum any
+  // layer range; the pre-summed file still renders first and stays
+  // authoritative for the full range.
+  const layerSource = dataset.manifest.layeredGeneratedContributions
+    ? source
+    : undefined;
   return (
     <ContributionText
       source={source}
+      layerSource={layerSource}
       manifest={dataset.manifest}
       showOpacityControls={false}
       playing={playing}

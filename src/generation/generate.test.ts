@@ -73,28 +73,20 @@ describe('prompt tokenization', () => {
 });
 
 describe('summed contribution collection', () => {
-  it('adds corresponding causal rows without retaining layers', () => {
-    const totals: number[][] = [];
-    addSummedContributionRows(totals, 0, [[1], [2, 3]]);
-    addSummedContributionRows(totals, 0, [[0.5], [4, 5]]);
-    addSummedContributionRows(totals, 2, [[6, 7, 8]]);
+  const tokenizer = {
+    eos_token_id: null,
+    apply_chat_template: () => '<prompt>',
+    encode: () => [10],
+    decode: (tokens: Array<number | bigint>) => {
+      if (tokens.length === 0) {
+        throw new Error('token_ids must be a non-empty array of integers');
+      }
+      return Number(tokens[0]) === 10 ? 'prompt' : ' answer';
+    },
+  } as unknown as Tokenizer;
 
-    expect(totals).toEqual([[1.5], [6, 8], [6, 7, 8]]);
-  });
-
-  it('streams each completed summed destination row', async () => {
-    const tokenizer = {
-      eos_token_id: null,
-      apply_chat_template: () => '<prompt>',
-      encode: () => [10],
-      decode: (tokens: Array<number | bigint>) => {
-        if (tokens.length === 0) {
-          throw new Error('token_ids must be a non-empty array of integers');
-        }
-        return Number(tokens[0]) === 10 ? 'prompt' : ' answer';
-      },
-    } as unknown as Tokenizer;
-    const model = {
+  function constantModel() {
+    return {
       forward: vi.fn(async () => {
         const outputs = {
           logits: {
@@ -127,6 +119,19 @@ describe('summed contribution collection', () => {
       }),
       dispose: vi.fn(async () => undefined),
     };
+  }
+
+  it('adds corresponding causal rows without retaining layers', () => {
+    const totals: number[][] = [];
+    addSummedContributionRows(totals, 0, [[1], [2, 3]]);
+    addSummedContributionRows(totals, 0, [[0.5], [4, 5]]);
+    addSummedContributionRows(totals, 2, [[6, 7, 8]]);
+
+    expect(totals).toEqual([[1.5], [6, 8], [6, 7, 8]]);
+  });
+
+  it('streams each completed summed destination row', async () => {
+    const model = constantModel();
     const prompt: ValidatedPromptConfiguration = {
       id: 'stream',
       title: 'Streaming Example',
@@ -177,6 +182,56 @@ describe('summed contribution collection', () => {
       dtype: 'int8',
       instrumentation: 'instrumented',
     });
+    // Layer matrices are only collected when the export asks for them.
+    expect(dataset.layers).toBeUndefined();
+    expect(dataset.manifest.layeredGeneratedContributions).toBeUndefined();
+  });
+
+  it('collects per-layer generated-token rows from the same run', async () => {
+    const model = constantModel();
+    const prompt: ValidatedPromptConfiguration = {
+      id: 'collect',
+      prompt: 'Prompt',
+      maxNewTokens: 2,
+      contributionFormats: ['summed'],
+      enableThinking: false,
+      seed: 42,
+      temperature: 0.6,
+      topK: 20,
+      topP: 0.95,
+    };
+
+    const dataset = await generateSummedContributionDataset({
+      modelProfile: UI_MODEL_PROFILE,
+      model,
+      tokenizer,
+      prompt,
+      collectLayerRows: true,
+    });
+
+    const generatedTokenCount =
+      dataset.manifest.tokens.length - dataset.manifest.promptTokenCount;
+    expect(generatedTokenCount).toBe(2);
+    expect(dataset.manifest.layeredGeneratedContributions).toBe(true);
+    expect(dataset.layers).toHaveLength(LAYER_COUNT);
+    for (const [layerIndex, layer] of dataset.layers!.entries()) {
+      expect(layer.layer).toBe(layerIndex);
+      expect(layer.targetTokenStart).toBe(dataset.manifest.promptTokenCount);
+      expect(layer.rows).toHaveLength(generatedTokenCount);
+      // Each layer row describes the same destination as the summed row.
+      for (const [rowIndex, row] of layer.rows.entries()) {
+        expect(row).toHaveLength(dataset.contributions.rows[rowIndex].length);
+      }
+    }
+    // One run backs both outputs: the layers sum exactly to the summed rows.
+    for (const [rowIndex, summedRow] of dataset.contributions.rows.entries()) {
+      for (const [source, summedValue] of summedRow.entries()) {
+        let total = 0;
+        for (const layer of dataset.layers!)
+          total += layer.rows[rowIndex][source];
+        expect(total).toBe(summedValue);
+      }
+    }
   });
 
   it('throws a cooperative abort error before running the model', () => {
