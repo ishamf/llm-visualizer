@@ -80,8 +80,8 @@ typing → input processing → streaming → tools → (gap) → next turn
 2. **Input processing** — the request's uncached input tokens
    (`input − cacheRead`) process at a fixed rate before output starts. The
    request shows as _processing_ in the request list during this phase. The
-   first request's processing time is capped, since its full uncached prompt
-   would otherwise dominate the opening.
+   processing time is capped, so an unusually large uncached prompt (for
+   example, a retry that lost its cache hit) cannot stall the playback.
 3. **Streaming** — output tokens (including reasoning and tool-call tokens)
    advance the clock at a fixed rate. Within a request, the window is split
    across the response content blocks (thinking / text / toolCall)
@@ -108,7 +108,7 @@ All tunables are exported from `src/coding-agent/timeline.ts`:
 | ------------------------------------ | ------- | --------------------------------------------- |
 | `PLAYBACK_TOKENS_PER_SECOND`         | 50      | Output tokens advanced per second of playback |
 | `INPUT_PROCESSING_TOKENS_PER_SECOND` | 500     | Prefill rate for uncached input tokens        |
-| `MAX_INPUT_PROCESSING_MS`            | 2000    | Cap on the _first_ request's prefill time     |
+| `MAX_INPUT_PROCESSING_MS`            | 2000    | Cap on each request's prefill time            |
 | `TOOL_EXECUTION_MS`                  | 300     | Pause per streamed tool call                  |
 | `REQUEST_GAP_MS`                     | 10      | Minimum pause before the next request appears |
 | `USER_TYPING_DELAY_MS`               | 2000    | Pause before the user starts typing           |

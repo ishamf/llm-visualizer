@@ -26,23 +26,22 @@ import {
 const TYPING_CHARS_PER_SECOND = (USER_TYPING_WORDS_PER_MINUTE * 5) / 60;
 const typingMs = (characterCount: number) =>
   Math.round((characterCount / TYPING_CHARS_PER_SECOND) * 1000);
-const inputProcessingMs = (uncachedTokens: number, capped = false) => {
-  const raw = Math.round(
-    (uncachedTokens / INPUT_PROCESSING_TOKENS_PER_SECOND) * 1000,
+const inputProcessingMs = (uncachedTokens: number) =>
+  Math.min(
+    Math.round((uncachedTokens / INPUT_PROCESSING_TOKENS_PER_SECOND) * 1000),
+    MAX_INPUT_PROCESSING_MS,
   );
-  return capped ? Math.min(raw, MAX_INPUT_PROCESSING_MS) : raw;
-};
 const streamMs = (outputTokens: number) =>
   Math.round((outputTokens / PLAYBACK_TOKENS_PER_SECOND) * 1000);
 
 const s = (ms: number) => ms / 1000;
 
-// Fixture timeline: the first prompt appears instantly and the first
-// request's prefill is capped; request 1 (input 10, cached 5, output 100,
-// 1 tool call) then runs its stream + tools, request 2 (input 20, output 50,
-// no tools) is preceded by the 30-char second prompt being typed.
+// Fixture timeline: the first prompt appears instantly; request 1 (input 10,
+// cached 5, output 100, 1 tool call) then runs its stream + tools, request 2
+// (input 20, output 50, no tools) is preceded by the 30-char second prompt
+// being typed.
 const R1_SENT_MS = 0;
-const R1_STREAM_START_MS = R1_SENT_MS + inputProcessingMs(5, true);
+const R1_STREAM_START_MS = R1_SENT_MS + inputProcessingMs(5);
 const R1_END_MS = R1_STREAM_START_MS + streamMs(100);
 const R1_SETTLED_MS = R1_END_MS + TOOL_EXECUTION_MS;
 const R2_TYPING_START_MS =
@@ -70,6 +69,27 @@ describe('buildTimeline', () => {
       toolCallCount: 0,
     });
     expect(playbackDurationSeconds(timeline)).toBeCloseTo(s(R2_END_MS));
+  });
+
+  it('caps input processing for every request, not just the first', () => {
+    // A retry after a provider error can lose its cache hit and report the
+    // whole prompt as uncached input (e.g. 76k tokens → 153 s unbounded).
+    const session = makeTestSession();
+    for (const request of session.requests) {
+      request.data.response.usage = {
+        input: 4000,
+        output: request.data.response.usage.output,
+        cacheRead: 0,
+        cacheWrite: 0,
+      };
+    }
+    const timeline = buildTimeline(session);
+    for (const request of timeline.requests) {
+      // 4000 uncached tokens would need 8 s at the modeled prefill rate.
+      expect(request.streamStartTime - request.sentTime).toBeCloseTo(
+        s(MAX_INPUT_PROCESSING_MS),
+      );
+    }
   });
 
   it('opens with the first prompt and types later prompts after a delay', () => {

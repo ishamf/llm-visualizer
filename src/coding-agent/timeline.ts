@@ -12,7 +12,7 @@ export const PLAYBACK_TOKENS_PER_SECOND = 100;
  * starts streaming, bounded by {@link MAX_INPUT_PROCESSING_MS}.
  */
 export const INPUT_PROCESSING_TOKENS_PER_SECOND = 500;
-/** Upper bound on the first request's input (prefill) processing time. */
+/** Upper bound on a request's input (prefill) processing time. */
 export const MAX_INPUT_PROCESSING_MS = 2000;
 /** Wall-clock pause inserted after each streamed tool call while the agent runs it. */
 export const TOOL_EXECUTION_MS = 300;
@@ -233,7 +233,7 @@ function toolResultText(parts: readonly { type: string; text?: string }[]) {
  *    is sent once typing finishes. The first prompt is the exception: the
  *    session opens with it already written.
  * 2. `input processing` — the request's uncached input tokens process at
- *    `INPUT_PROCESSING_TOKENS_PER_SECOND`; the first request is bounded by
+ *    `INPUT_PROCESSING_TOKENS_PER_SECOND`, bounded by
  *    `MAX_INPUT_PROCESSING_MS`.
  * 3. `streaming` — output tokens stream at `PLAYBACK_TOKENS_PER_SECOND`,
  *    spread across the response content blocks proportionally to each
@@ -313,10 +313,7 @@ export function buildTimeline(session: PackedSession): Timeline {
       (uncachedInput / INPUT_PROCESSING_TOKENS_PER_SECOND) * 1000,
     );
     const streamStartTimeMs =
-      sentTimeMs +
-      (requestIndex === 0
-        ? Math.min(rawInputProcessingMs, MAX_INPUT_PROCESSING_MS)
-        : rawInputProcessingMs);
+      sentTimeMs + Math.min(rawInputProcessingMs, MAX_INPUT_PROCESSING_MS);
     const streamMs = Math.round(
       (usage.output / PLAYBACK_TOKENS_PER_SECOND) * 1000,
     );
