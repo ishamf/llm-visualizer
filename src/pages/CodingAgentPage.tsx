@@ -53,7 +53,7 @@ export function CodingAgentPage() {
   const playback = usePlayback(duration, { autoPlay: true });
   // The individual functions are stable across renders; the hook result
   // object is not, so destructure before using them in callbacks.
-  const { time, playing, toggle, pause, seek } = playback;
+  const { time, playing, speed, setSpeed, toggle, pause, seek } = playback;
   const ready = session.status === 'ready';
   const timeline = ready ? session.timeline : null;
 
@@ -176,7 +176,9 @@ export function CodingAgentPage() {
           time={time}
           duration={duration}
           playing={playing}
+          speed={speed}
           onToggle={toggle}
+          onSpeedChange={setSpeed}
           onSeek={seek}
         />
       </Container>

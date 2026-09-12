@@ -12,6 +12,9 @@ export type Playback = {
   /** Current playback position in seconds, clamped to `[0, duration]`. */
   time: number;
   playing: boolean;
+  /** Playback rate multiplier: 1 is real time, 2 is twice as fast, etc. */
+  speed: number;
+  setSpeed: (speed: number) => void;
   play: () => void;
   pause: () => void;
   /** Resumes from the start when already at the end, otherwise toggles. */
@@ -25,13 +28,20 @@ export function usePlayback(
 ): Playback {
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState(1);
   const timeRef = useRef(0);
   const durationRef = useRef(0);
+  const speedRef = useRef(1);
   const autoPlayPending = useRef(autoPlay);
 
   useEffect(() => {
     durationRef.current = durationSeconds;
   }, [durationSeconds]);
+
+  const changeSpeed = useCallback((value: number) => {
+    speedRef.current = value;
+    setSpeed(value);
+  }, []);
 
   const clamp = useCallback(
     (value: number) =>
@@ -83,7 +93,7 @@ export function usePlayback(
           (now - previous) / 1000,
           MAX_FRAME_DELTA_SECONDS,
         );
-        const next = timeRef.current + delta;
+        const next = timeRef.current + delta * speedRef.current;
         if (next >= durationRef.current) {
           timeRef.current = durationRef.current;
           setTime(durationRef.current);
@@ -100,5 +110,5 @@ export function usePlayback(
     return () => cancelAnimationFrame(frame);
   }, [playing]);
 
-  return { time, playing, play, pause, toggle, seek };
+  return { time, playing, speed, setSpeed: changeSpeed, play, pause, toggle, seek };
 }

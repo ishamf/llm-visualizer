@@ -1,13 +1,17 @@
-import { ActionIcon, Slider, Text } from '@mantine/core';
+import { ActionIcon, SegmentedControl, Slider, Text } from '@mantine/core';
 
 import { formatClock } from './format.ts';
 import styles from './PlaybackBar.module.css';
+
+export const PLAYBACK_SPEEDS = [0.5, 1, 2, 3, 4] as const;
 
 type PlaybackBarProps = {
   time: number;
   duration: number;
   playing: boolean;
+  speed: number;
   onToggle: () => void;
+  onSpeedChange: (speed: number) => void;
   onSeek: (time: number) => void;
 };
 
@@ -15,7 +19,9 @@ export function PlaybackBar({
   time,
   duration,
   playing,
+  speed,
   onToggle,
+  onSpeedChange,
   onSeek,
 }: PlaybackBarProps) {
   return (
@@ -48,6 +54,18 @@ export function PlaybackBar({
       <Text className={styles.clock} size="sm" c="dimmed">
         {formatClock(duration)}
       </Text>
+      <SegmentedControl
+        className={styles.speedControl}
+        size="xs"
+        color="violet"
+        value={String(speed)}
+        onChange={(value) => onSpeedChange(Number(value))}
+        data={PLAYBACK_SPEEDS.map((value) => ({
+          value: String(value),
+          label: `${value}×`,
+        }))}
+        aria-label="Playback speed"
+      />
     </div>
   );
 }

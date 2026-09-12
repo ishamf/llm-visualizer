@@ -50,3 +50,7 @@
 .seekSlider {
   flex: 1;
 }
+
+.speedControl {
+  flex-shrink: 0;
+}
