@@ -12,6 +12,7 @@
     "generate:contributions": "tsx src/scripts/generate-contributions.ts",
     "generate:summed-contributions": "tsx src/scripts/generate-summed-contributions.ts",
     "generate:data-manifest": "tsx src/scripts/compile-dataset-manifest.ts",
+    "generate:session-index": "tsx src/scripts/compile-session-index.ts",
     "instrument:model": ".venv/bin/python tools/onnx/instrument_model.py",
     "instrument:test": ".venv/bin/python -m unittest discover -s tools/onnx/tests -v",
     "format": "prettier --write .",

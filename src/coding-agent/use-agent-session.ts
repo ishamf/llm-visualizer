@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 
-import { GENERATED_DATA_BASE_URL } from '../data/dataset-catalog.ts';
 import { parsePackedSession, type PackedSession } from './packed-session.ts';
 import { buildTimeline, type Timeline } from './timeline.ts';
 
@@ -9,14 +8,14 @@ export type AgentSessionState =
   | { status: 'ready'; session: PackedSession; timeline: Timeline }
   | { status: 'error'; error: Error };
 
-const SESSION_URL = `${GENERATED_DATA_BASE_URL}coding-agent/session.json`;
-
-export function useAgentSession(): AgentSessionState {
+export function useAgentSession(url: string): AgentSessionState {
   const [state, setState] = useState<AgentSessionState>({ status: 'loading' });
 
   useEffect(() => {
+    // The caller remounts on session change, so a new hook instance always
+    // starts from the loading state.
     const controller = new AbortController();
-    fetch(SESSION_URL, { signal: controller.signal })
+    fetch(url, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) {
           throw new Error(
@@ -42,7 +41,7 @@ export function useAgentSession(): AgentSessionState {
         },
       );
     return () => controller.abort();
-  }, []);
+  }, [url]);
 
   return state;
 }

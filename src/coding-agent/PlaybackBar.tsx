@@ -3,7 +3,7 @@ import { ActionIcon, SegmentedControl, Slider, Text } from '@mantine/core';
 import { formatClock } from './format.ts';
 import styles from './PlaybackBar.module.css';
 
-export const PLAYBACK_SPEEDS = [0.5, 1, 2, 3, 4] as const;
+const PLAYBACK_SPEEDS = [0.5, 1, 2, 3, 4] as const;
 
 type PlaybackBarProps = {
   time: number;

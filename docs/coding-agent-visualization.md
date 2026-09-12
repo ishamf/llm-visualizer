@@ -12,9 +12,25 @@ generated, what it did, and what it cost.
 
 ## Data source
 
-The session is served as static JSON from
-`${GENERATED_DATA_BASE_URL}coding-agent/session.json` (`/generated/` by
-default, overridable with `VITE_GENERATED_DATA_BASE_URL`). The file uses the
+Sessions are served as static JSON from
+`${GENERATED_DATA_BASE_URL}coding-agent/` (`/generated/` by default,
+overridable with `VITE_GENERATED_DATA_BASE_URL`). Each session lives in its
+own folder:
+
+```text
+generated/coding-agent/
+  index.json                       # generated session catalog
+  <session-id>/
+    info.json                      # hand-written: { title, description? }
+    session.json                   # packed session
+```
+
+`index.json` is compiled by `pnpm generate:session-index`
+(`src/scripts/compile-session-index.ts`), which scans the session folders,
+reads each `info.json`, and derives playback statistics from the packed
+session — model, provider, request count, output tokens, total cost, and
+duration — so the in-app selector can show them without downloading every
+session. The session files use the
 **packed session format** (`pi-recorder-packed-session`, schema version 1)
 produced by the pi-visualization-recorder extension for the pi coding agent;
 its structure is specified in that project's `docs/extension.md` §17.
@@ -35,8 +51,16 @@ transcript is all prompt messages plus the final response. Tool results are
 matched to tool calls by `toolCallId`.
 
 `src/coding-agent/packed-session.ts` parses and validates the document
-(unsupported formats, out-of-range message counts, and malformed parts throw).
-`generated/` is not committed; place the session file there manually.
+(unsupported formats, out-of-range message counts, and malformed parts throw);
+`src/coding-agent/session-index.ts` does the same for the session catalog and
+the per-session `info.json`. `generated/` is not committed; place session
+folders there manually and re-run `pnpm generate:session-index`.
+
+The page loads the index, then renders the session named by the `session`
+query parameter (falling back to the first entry): `/coding-agent?session=id`.
+When more than one session is available, the page header title becomes a
+dropdown listing every session with its model, request count, duration, and
+cost; switching remounts the replay so playback restarts from the beginning.
 
 ## Timeline model
 

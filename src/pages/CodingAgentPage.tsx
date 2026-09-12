@@ -4,16 +4,24 @@ import {
   Button,
   Container,
   Group,
+  Menu,
   Text,
   Title,
+  UnstyledButton,
 } from '@mantine/core';
 import { useCallback, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import { AgentTerminal } from '../coding-agent/AgentTerminal.tsx';
-import { formatCost, formatTokens } from '../coding-agent/format.ts';
+import {
+  formatClock,
+  formatCost,
+  formatTokens,
+} from '../coding-agent/format.ts';
 import { PlaybackBar } from '../coding-agent/PlaybackBar.tsx';
 import { RequestList } from '../coding-agent/RequestList.tsx';
+import type { SessionIndexEntry } from '../coding-agent/session-index.ts';
+import { sessionUrl } from '../coding-agent/session-urls.ts';
 import {
   entriesAt,
   playbackDurationSeconds,
@@ -23,8 +31,20 @@ import {
 } from '../coding-agent/timeline.ts';
 import { useAgentSession } from '../coding-agent/use-agent-session.ts';
 import { usePlayback } from '../coding-agent/use-playback.ts';
+import { useSessionIndex } from '../coding-agent/use-session-index.ts';
 import shared from '../shared.module.css';
 import styles from './CodingAgentPage.module.css';
+
+const DEFAULT_DESCRIPTION =
+  'A recorded coding agent run, replayed token by token: thinking, tool calls, and edits on the left; the provider requests that produced them, with token counts and prices, on the right.';
+
+const EMPTY_BREAKDOWN = {
+  cached: { tokens: 0, cost: 0 },
+  cacheWrite: { tokens: 0, cost: 0 },
+  input: { tokens: 0, cost: 0 },
+  output: { tokens: 0, cost: 0 },
+  total: { tokens: 0, cost: 0 },
+};
 
 function useSpaceToggle(onToggle: () => void, enabled: boolean) {
   useEffect(() => {
@@ -46,8 +66,96 @@ function useSpaceToggle(onToggle: () => void, enabled: boolean) {
   }, [onToggle, enabled]);
 }
 
+function SessionMenuLabel({ session }: { session: SessionIndexEntry }) {
+  return (
+    <span className={styles.sessionMenuItem}>
+      <span className={styles.sessionMenuTitle}>{session.info.title}</span>
+      <span className={styles.sessionMenuMeta}>
+        {session.model}
+        {' · '}
+        {session.requestCount} requests
+        {' · '}
+        {formatClock(session.durationSeconds)}
+        {' · '}
+        {formatCost(session.totalCost)}
+      </span>
+    </span>
+  );
+}
+
 export function CodingAgentPage() {
-  const session = useAgentSession();
+  const indexState = useSessionIndex();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  if (indexState.status === 'loading') {
+    return (
+      <main className={shared.appShell}>
+        <Container size="sm" className={shared.pageState}>
+          <Text c="dimmed">Loading the coding agent sessions…</Text>
+        </Container>
+      </main>
+    );
+  }
+
+  if (indexState.status === 'error') {
+    return (
+      <main className={shared.appShell}>
+        <Container size="sm" className={shared.pageState}>
+          <Alert color="red" title="Sessions unavailable">
+            {indexState.error.message}
+          </Alert>
+          <Button component={Link} to="/" variant="light">
+            Back to homepage
+          </Button>
+        </Container>
+      </main>
+    );
+  }
+
+  const sessions = indexState.index.sessions;
+  if (sessions.length === 0) {
+    return (
+      <main className={shared.appShell}>
+        <Container size="sm" className={shared.pageState}>
+          <Alert color="red" title="Sessions unavailable">
+            No coding agent sessions were found in the session index.
+          </Alert>
+          <Button component={Link} to="/" variant="light">
+            Back to homepage
+          </Button>
+        </Container>
+      </main>
+    );
+  }
+
+  const requestedId = searchParams.get('session');
+  const selected =
+    sessions.find((session) => session.id === requestedId) ?? sessions[0];
+
+  const selectSession = (id: string) => {
+    setSearchParams(id === sessions[0].id ? {} : { session: id });
+  };
+
+  return (
+    <SessionReplay
+      key={selected.id}
+      sessions={sessions}
+      selected={selected}
+      onSelect={selectSession}
+    />
+  );
+}
+
+function SessionReplay({
+  sessions,
+  selected,
+  onSelect,
+}: {
+  sessions: readonly SessionIndexEntry[];
+  selected: SessionIndexEntry;
+  onSelect: (id: string) => void;
+}) {
+  const session = useAgentSession(sessionUrl(selected));
   const duration =
     session.status === 'ready' ? playbackDurationSeconds(session.timeline) : 0;
   const playback = usePlayback(duration, { autoPlay: true });
@@ -66,29 +174,14 @@ export function CodingAgentPage() {
     [timeline, time],
   );
   const totals = useMemo(
-    () =>
-      timeline
-        ? usageBreakdownAt(timeline, time)
-        : {
-            cached: { tokens: 0, cost: 0 },
-            cacheWrite: { tokens: 0, cost: 0 },
-            input: { tokens: 0, cost: 0 },
-            output: { tokens: 0, cost: 0 },
-            total: { tokens: 0, cost: 0 },
-          },
+    () => (timeline ? usageBreakdownAt(timeline, time) : EMPTY_BREAKDOWN),
     [timeline, time],
   );
   const fullTotals = useMemo(
     () =>
       timeline
         ? usageBreakdownAt(timeline, Number.POSITIVE_INFINITY)
-        : {
-            cached: { tokens: 0, cost: 0 },
-            cacheWrite: { tokens: 0, cost: 0 },
-            input: { tokens: 0, cost: 0 },
-            output: { tokens: 0, cost: 0 },
-            total: { tokens: 0, cost: 0 },
-          },
+        : EMPTY_BREAKDOWN,
     [timeline],
   );
 
@@ -145,11 +238,46 @@ export function CodingAgentPage() {
         <header className={styles.pageHeader}>
           <div>
             <Text className={shared.eyebrow}>Coding agent</Text>
-            <Title order={1}>Agent session replay</Title>
+            {sessions.length > 1 ? (
+              <Menu position="bottom-start" offset={6} width={360} withinPortal>
+                <Menu.Target>
+                  <UnstyledButton
+                    className={styles.sessionTitleButton}
+                    aria-label="Select session"
+                  >
+                    <Title
+                      order={1}
+                      component="span"
+                      className={styles.sessionTitle}
+                    >
+                      {selected.info.title}
+                    </Title>
+                    <span
+                      className={styles.sessionTitleChevron}
+                      aria-hidden="true"
+                    >
+                      ▾
+                    </span>
+                  </UnstyledButton>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Label>Sessions</Menu.Label>
+                  {sessions.map((entry) => (
+                    <Menu.Item
+                      key={entry.id}
+                      rightSection={entry.id === selected.id ? '✓' : undefined}
+                      onClick={() => onSelect(entry.id)}
+                    >
+                      <SessionMenuLabel session={entry} />
+                    </Menu.Item>
+                  ))}
+                </Menu.Dropdown>
+              </Menu>
+            ) : (
+              <Title order={1}>{selected.info.title}</Title>
+            )}
             <Text c="dimmed" maw={720}>
-              A recorded coding agent run, replayed token by token: thinking,
-              tool calls, and edits on the left; the provider requests that
-              produced them, with token counts and prices, on the right.
+              {selected.info.description ?? DEFAULT_DESCRIPTION}
             </Text>
           </div>
           <Group gap="xs" className={styles.headerBadges}>
