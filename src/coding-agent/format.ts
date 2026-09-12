@@ -26,3 +26,15 @@ export function formatClock(seconds: number): string {
 export function formatCost(amount: number): string {
   return `$${amount.toFixed(amount >= 0.01 ? 4 : 5)}`;
 }
+
+/**
+ * Implied price per million tokens, rounded to 3 significant digits with
+ * trailing zeros trimmed (`$0.15/M`). Returns a dash when there is no
+ * usage or cost to derive a rate from.
+ */
+export function formatPricePerMillion(cost: number, tokens: number): string {
+  if (tokens <= 0 || cost <= 0) return '\u2014';
+  const perMillion = (cost / tokens) * 1_000_000;
+  if (!Number.isFinite(perMillion)) return '\u2014';
+  return `$${Number(perMillion.toPrecision(3))}/M`;
+}

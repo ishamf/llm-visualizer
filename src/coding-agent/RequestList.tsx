@@ -1,7 +1,12 @@
 import { Loader, Text } from '@mantine/core';
 import { memo } from 'react';
 
-import { formatBytes, formatCost, formatTokens } from './format.ts';
+import {
+  formatBytes,
+  formatCost,
+  formatPricePerMillion,
+  formatTokens,
+} from './format.ts';
 import {
   type RequestState,
   type RequestTimeline,
@@ -132,6 +137,12 @@ export function RequestList({
         {footerRows.map(({ label, category }) => (
           <div className={styles.footerRow} key={label}>
             <span className={styles.footerLabel}>{label}</span>
+            <span
+              className={styles.footerRate}
+              title="Implied price per million tokens, from accumulated usage"
+            >
+              {formatPricePerMillion(category.cost, category.tokens)}
+            </span>
             <span className={styles.footerTokens}>
               {formatTokens(category.tokens)}
             </span>
@@ -142,6 +153,8 @@ export function RequestList({
         ))}
         <div className={`${styles.footerRow} ${styles.footerTotalRow}`}>
           <span className={styles.footerLabel}>Total</span>
+          {/* No per-million rate: a blended rate across categories is meaningless. */}
+          <span />
           <span className={styles.footerTokens}>
             {formatTokens(breakdown.total.tokens)}
           </span>

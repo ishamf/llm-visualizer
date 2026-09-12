@@ -180,7 +180,7 @@
 
 .footerRow {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto;
   align-items: baseline;
   column-gap: 14px;
   font-variant-numeric: tabular-nums;
@@ -200,6 +200,12 @@
   min-width: 64px;
   text-align: right;
   color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-gray-4));
+}
+
+.footerRate {
+  min-width: 64px;
+  text-align: right;
+  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-gray-5));
 }
 
 .footerTotalRow {
