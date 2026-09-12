@@ -59,10 +59,11 @@ typing → input processing → streaming → tools → (gap) → next turn
 3. **Streaming** — output tokens (including reasoning and tool-call tokens)
    advance the clock at a fixed rate. Within a request, the window is split
    across the response content blocks (thinking / text / toolCall)
-   proportional to each block's recorded streaming duration
-   (`timing.segments`), falling back to an even split when segments are
-   missing. Text reveals character-by-character; tool-call lines appear whole
-   with a spinner.
+   proportional to each block's UTF-8 byte length, falling back to an even
+   split when every block is empty. Recorded segment durations
+   (`timing.segments`) are ignored: they include API latency, which does not
+   reflect generation speed. Text reveals character-by-character; tool-call
+   lines appear whole with a spinner.
 4. **Tools** — a fixed pause per streamed tool call, during which the call
    line keeps its spinner; tool results appear when the phase ends.
 

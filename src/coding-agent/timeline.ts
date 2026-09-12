@@ -1,4 +1,8 @@
-import type { PackedSession, PackedUsage } from './packed-session.ts';
+import type {
+  PackedSession,
+  PackedSessionPart,
+  PackedUsage,
+} from './packed-session.ts';
 
 /** Output streaming rate: the clock advances one token per tick. */
 export const PLAYBACK_TOKENS_PER_SECOND = 50;
@@ -140,33 +144,32 @@ export type RequestState = {
   status: 'processing' | 'streaming' | 'done';
 };
 
+/** UTF-8 byte length of a string. */
+function utf8Length(value: string): number {
+  return textEncoder.encode(value).length;
+}
+
+/** Content weight of a response block: the bytes it carries on screen. */
+function blockWeightBytes(block: PackedSessionPart): number {
+  if (block.type === 'thinking') return utf8Length(block.thinking);
+  if (block.type === 'text') return utf8Length(block.text);
+  return utf8JsonBytes({ name: block.name, arguments: block.arguments });
+}
+
 /**
  * Splits a request's streaming window across its response content blocks,
- * proportional to each block's real streaming duration when segments are
- * available. Works in integer milliseconds; returns half-open windows
- * aligned with `content` indices.
+ * proportional to each block's UTF-8 byte length, falling back to an even
+ * split when every block is empty. Recorded segment durations are ignored:
+ * they include API latency, which does not represent generation speed.
+ * Works in integer milliseconds; returns half-open windows aligned with
+ * `content` indices.
  */
 function allocateBlockWindowsMs(
   startMs: number,
   windowMs: number,
-  blockCount: number,
-  segments:
-    | readonly { contentIndex: number; startDtMs: number; endDtMs: number }[]
-    | undefined,
+  content: readonly PackedSessionPart[],
 ): Array<{ start: number; end: number }> {
-  const rawWeights: number[] = Array.from(
-    { length: blockCount },
-    (_, index) => {
-      const segment = segments?.find(
-        (candidate) => candidate.contentIndex === index,
-      );
-      const duration =
-        segment === undefined
-          ? 0
-          : Math.max(0, segment.endDtMs - segment.startDtMs);
-      return Number.isFinite(duration) ? duration : 0;
-    },
-  );
+  const rawWeights = content.map(blockWeightBytes);
   const weights = rawWeights.some((weight) => weight > 0)
     ? rawWeights
     : rawWeights.map(() => 1);
@@ -229,8 +232,8 @@ function toolResultText(parts: readonly { type: string; text?: string }[]) {
  *    `INPUT_PROCESSING_TOKENS_PER_SECOND`; the first request is bounded by
  *    `MAX_INPUT_PROCESSING_MS`.
  * 3. `streaming` — output tokens stream at `PLAYBACK_TOKENS_PER_SECOND`,
- *    spread across the response content blocks by their recorded segment
- *    durations.
+ *    spread across the response content blocks proportionally to each
+ *    block's UTF-8 byte length.
  * 4. `tools` — `TOOL_EXECUTION_MS` per streamed tool call; tool results
  *    appear when the phase ends.
  *
@@ -345,8 +348,7 @@ export function buildTimeline(session: PackedSession): Timeline {
       const windowsMs = allocateBlockWindowsMs(
         streamStartTimeMs,
         streamMs,
-        response.content.length,
-        request.data.timing.segments,
+        response.content,
       );
       response.content.forEach((block, blockIndex) => {
         const { start, end } = {

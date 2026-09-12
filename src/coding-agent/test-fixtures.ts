@@ -10,7 +10,8 @@ export const TEST_TOOL_RESULT_TEXT = 'file.txt';
  * Two-request packed session used by the parser and timeline tests:
  *
  * - Request 1 (100 output tokens): user turn, then a thinking block and a
- *   `bash` tool call with real-time streaming segments.
+ *   `bash` tool call with recorded streaming segments (ignored by the
+ *   timeline, which weights blocks by content bytes).
  * - Request 2 (50 output tokens): a second user turn, then a final text
  *   response that stops the turn.
  */

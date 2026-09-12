@@ -88,10 +88,17 @@ describe('buildTimeline', () => {
     });
   });
 
-  it('splits a request’s streaming window across blocks by segment duration', () => {
+  it('splits a request’s streaming window across blocks by content bytes', () => {
     const timeline = buildTimeline(makeTestSession());
-    // Segments: thinking 50ms, toolCall 200ms → 1:4 split of the 2s window.
-    const thinkingWindowMs = (streamMs(100) * 50) / 250;
+    const encoder = new TextEncoder();
+    // Weights: 1-byte thinking text vs the tool call's JSON payload
+    // (`{ name, arguments }`), regardless of recorded segment durations.
+    const thinkingBytes = encoder.encode(TEST_THINKING_TEXT).length;
+    const toolCallBytes = encoder.encode(
+      JSON.stringify({ name: 'bash', arguments: { command: 'ls' } }),
+    ).length;
+    const thinkingWindowMs =
+      (streamMs(100) * thinkingBytes) / (thinkingBytes + toolCallBytes);
     const thinking = timeline.entries.find(
       (entry) => entry.kind === 'thinking',
     );
