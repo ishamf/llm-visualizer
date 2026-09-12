@@ -58,9 +58,11 @@ folders there manually and re-run `pnpm generate:session-index`.
 
 The page loads the index, then renders the session named by the `session`
 query parameter (falling back to the first entry): `/coding-agent?session=id`.
-When more than one session is available, the page header title becomes a
-dropdown listing every session with its model, request count, duration, and
-cost; switching remounts the replay so playback restarts from the beginning.
+When more than one session is available, a dropdown button showing the
+session title appears in the header's badge row, listing every session with
+its model, request count, duration, and cost; switching remounts the replay
+so playback restarts from the beginning. With a single session the selector
+is hidden and no session metadata is rendered.
 
 ## Timeline model
 
@@ -168,7 +170,7 @@ pin-to-bottom scroll behavior as the terminal.
 Normally only requests that have been sent at the current playback time are
 listed. Clicking an earlier card keeps the later requests visible in a dimmed
 `future` state — a temporary "peek" mode that ends as soon as the user plays
-or seeks the slider. The **Show future requests** checkbox in the panel
+or seeks the slider. The **Show all requests** checkbox in the panel
 header pins them permanently instead; it renders in the indeterminate state
 while a peek is active. `requestsAt` produces the `future` status only when
 asked for it via its `includeFuture` option, so the default snapshot logic is

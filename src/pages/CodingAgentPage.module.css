@@ -10,31 +10,15 @@
   gap: 28px;
 }
 
-.pageHeader h1,
-.sessionTitle {
+.pageHeader h1 {
   margin: 3px 0 10px;
   font-size: clamp(1.9rem, 4vw, 3rem);
   letter-spacing: -0.045em;
   line-height: 1;
 }
 
-.sessionTitleButton {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 12px;
-  padding: 0;
-  border-radius: var(--mantine-radius-sm);
-}
-
-.sessionTitleChevron {
-  font-size: clamp(1rem, 2.4vw, 1.6rem);
-  color: light-dark(var(--mantine-color-gray-5), var(--mantine-color-dark-3));
-  transition: color 120ms ease;
-}
-
-.sessionTitleButton:hover .sessionTitleChevron,
-.sessionTitleButton[data-expanded='true'] .sessionTitleChevron {
-  color: light-dark(var(--mantine-color-dark-7), var(--mantine-color-gray-1));
+.sessionSelector {
+  align-self: flex-start;
 }
 
 .sessionMenuItem {

@@ -97,6 +97,11 @@ const FOOTER_CATEGORY_ROWS: Array<[string, keyof UsageBreakdown]> = [
 
 type RequestListProps = {
   states: readonly RequestState[];
+  /**
+   * Drives autopin scrolling. Changes only with playback time, so toggling
+   * future-request visibility does not scroll the list.
+   */
+  pinWatch: unknown;
   breakdown: UsageBreakdown;
   totalRequests: number;
   futureMode: FutureRequestsMode;
@@ -106,13 +111,14 @@ type RequestListProps = {
 
 export function RequestList({
   states,
+  pinWatch,
   breakdown,
   totalRequests,
   futureMode,
   onFutureModeChange,
   onRequestClick,
 }: RequestListProps) {
-  const { containerRef, pinned, pin } = usePinnedAutoScroll(states);
+  const { containerRef, pinned, pin } = usePinnedAutoScroll(pinWatch);
   const footerRows = FOOTER_CATEGORY_ROWS.map(([label, category]) => ({
     label,
     category: breakdown[category],
@@ -133,7 +139,7 @@ export function RequestList({
           <Checkbox
             size="xs"
             color={futureMode === 'peek' ? 'gray' : 'violet'}
-            label="Show future requests"
+            label="Show all requests"
             checked={futureMode === 'shown'}
             indeterminate={futureMode === 'peek'}
             onChange={(event) =>
@@ -148,23 +154,25 @@ export function RequestList({
           />
         </div>
       </header>
-      <div className={styles.scroll} ref={containerRef}>
-        <div className={styles.cards}>
-          {states.map((state) => (
-            <RequestCard
-              key={state.request.id}
-              request={state.request}
-              status={state.status}
-              onRequestClick={onRequestClick}
-            />
-          ))}
+      <div className={styles.scrollArea}>
+        <div className={styles.scroll} ref={containerRef}>
+          <div className={styles.cards}>
+            {states.map((state) => (
+              <RequestCard
+                key={state.request.id}
+                request={state.request}
+                status={state.status}
+                onRequestClick={onRequestClick}
+              />
+            ))}
+          </div>
         </div>
+        {!pinned && (
+          <button type="button" className={styles.jumpToLatest} onClick={pin}>
+            ↓ Jump to latest
+          </button>
+        )}
       </div>
-      {!pinned && (
-        <button type="button" className={styles.jumpToLatest} onClick={pin}>
-          ↓ Jump to latest
-        </button>
-      )}
       <footer className={styles.listFooter}>
         {footerRows.map(({ label, category }) => (
           <div className={styles.footerRow} key={label}>

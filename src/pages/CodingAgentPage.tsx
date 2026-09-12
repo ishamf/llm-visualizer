@@ -7,7 +7,6 @@ import {
   Menu,
   Text,
   Title,
-  UnstyledButton,
 } from '@mantine/core';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -268,27 +267,23 @@ function SessionReplay({
         <header className={styles.pageHeader}>
           <div>
             <Text className={shared.eyebrow}>Coding agent</Text>
-            {sessions.length > 1 ? (
-              <Menu position="bottom-start" offset={6} width={360} withinPortal>
+            <Title order={1}>Agent session replay</Title>
+            <Text c="dimmed" maw={720}>
+              {DEFAULT_DESCRIPTION}
+            </Text>
+          </div>
+          <Group gap="xs" className={styles.headerBadges}>
+            {sessions.length > 1 && (
+              <Menu position="bottom-end" offset={6} width={360} withinPortal>
                 <Menu.Target>
-                  <UnstyledButton
-                    className={styles.sessionTitleButton}
-                    aria-label="Select session"
+                  <Button
+                    variant="default"
+                    size="xs"
+                    className={styles.sessionSelector}
+                    rightSection={<span aria-hidden="true">▾</span>}
                   >
-                    <Title
-                      order={1}
-                      component="span"
-                      className={styles.sessionTitle}
-                    >
-                      {selected.info.title}
-                    </Title>
-                    <span
-                      className={styles.sessionTitleChevron}
-                      aria-hidden="true"
-                    >
-                      ▾
-                    </span>
-                  </UnstyledButton>
+                    {selected.info.title}
+                  </Button>
                 </Menu.Target>
                 <Menu.Dropdown>
                   <Menu.Label>Sessions</Menu.Label>
@@ -303,14 +298,7 @@ function SessionReplay({
                   ))}
                 </Menu.Dropdown>
               </Menu>
-            ) : (
-              <Title order={1}>{selected.info.title}</Title>
             )}
-            <Text c="dimmed" maw={720}>
-              {selected.info.description ?? DEFAULT_DESCRIPTION}
-            </Text>
-          </div>
-          <Group gap="xs" className={styles.headerBadges}>
             <Badge variant="light">{timeline.model}</Badge>
             <Badge variant="outline">{timeline.requests.length} requests</Badge>
             <Badge variant="outline">
@@ -324,6 +312,7 @@ function SessionReplay({
           <AgentTerminal timeline={timeline} states={entryStates} />
           <RequestList
             states={requestStates}
+            pinWatch={time}
             breakdown={totals}
             totalRequests={timeline.requests.length}
             futureMode={futureMode}

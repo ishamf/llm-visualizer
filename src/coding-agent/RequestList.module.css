@@ -32,10 +32,18 @@
   letter-spacing: -0.01em;
 }
 
+/* Contains the scrollable cards and the jump button, so the button is
+   positioned over the cards regardless of the footer's height. */
+.scrollArea {
+  position: relative;
+  display: grid;
+  min-height: 0;
+  flex: 1;
+}
+
 .scroll {
   overflow-y: auto;
   min-height: 0;
-  flex: 1;
   scrollbar-gutter: stable;
 }
 
@@ -157,7 +165,7 @@
 .jumpToLatest {
   position: absolute;
   right: 14px;
-  bottom: 52px;
+  bottom: 14px;
   padding: 5px 11px;
   border: 1px solid
     light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
