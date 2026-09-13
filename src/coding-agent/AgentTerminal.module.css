@@ -281,6 +281,65 @@
   );
 }
 
+/* Content wrapper: positions the pane-focus highlight overlay relative to
+   the transcript, so the overlay scrolls together with the content. */
+.content {
+  position: relative;
+}
+
+/* Floating outline marking the transcript group that belongs to the open
+   request pane. Purely additive: absolutely positioned over the transcript
+   (no layout impact on the entries) and click-transparent. Bands span a
+   lane inset from the terminal edges — a group boundary, not a border
+   around individual messages. */
+.highlightLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Input boundary: cups the end of the request's input. The side rails fade
+   toward the top and the top edge stays open, so the band reads as a
+   boundary on the transcript flow rather than a box around a message. */
+.highlightBoundary {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  border-radius: 0 0 var(--mantine-radius-xs) var(--mantine-radius-xs);
+  background:
+    linear-gradient(
+        to bottom,
+        transparent,
+        light-dark(var(--mantine-color-violet-6), var(--mantine-color-violet-4))
+      )
+      left / 1px 100% no-repeat,
+    linear-gradient(
+        to bottom,
+        transparent,
+        light-dark(var(--mantine-color-violet-6), var(--mantine-color-violet-4))
+      )
+      right / 1px 100% no-repeat,
+    linear-gradient(
+        light-dark(
+          var(--mantine-color-violet-6),
+          var(--mantine-color-violet-4)
+        ),
+        light-dark(var(--mantine-color-violet-6), var(--mantine-color-violet-4))
+      )
+      bottom / 100% 1px no-repeat;
+}
+
+/* Output group: a closed box around all of the request's response
+   entries. */
+.highlightGroup {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  border: 1px solid
+    light-dark(var(--mantine-color-violet-6), var(--mantine-color-violet-4));
+  border-radius: var(--mantine-radius-xs);
+}
+
 /* Streaming caret */
 
 .caret {

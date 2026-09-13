@@ -10,6 +10,7 @@ import {
   USER_TYPING_WORDS_PER_MINUTE,
   buildTimeline,
   entriesAt,
+  lastInputEntryId,
   playbackDurationSeconds,
   requestsAt,
   usageBreakdownAt,
@@ -383,5 +384,48 @@ describe('usageBreakdownAt', () => {
     expect(breakdown.output.cost).toBeCloseTo(0.011, 12);
     expect(breakdown.total.tokens).toBe(185);
     expect(breakdown.total.cost).toBeCloseTo(0.03, 12);
+  });
+});
+
+describe('lastInputEntryId', () => {
+  it('resolves the last input message to its transcript entry', () => {
+    const session = makeTestSession();
+    const timeline = buildTimeline(session);
+    const states = entriesAt(timeline, timeline.durationSeconds);
+    // Request 1's input is just the opening prompt.
+    expect(lastInputEntryId(session.prompt.messages.slice(0, 1), states)).toBe(
+      'user-0',
+    );
+    // Request 2's input ends with the second user prompt.
+    expect(lastInputEntryId(session.prompt.messages.slice(0, 4), states)).toBe(
+      'user-3',
+    );
+  });
+
+  it('walks back over messages without transcript entries', () => {
+    const session = makeTestSession();
+    const timeline = buildTimeline(session);
+    const states = entriesAt(timeline, timeline.durationSeconds);
+    // An assistant message renders no entry; the boundary falls back to the
+    // prompt before it.
+    expect(lastInputEntryId(session.prompt.messages.slice(0, 2), states)).toBe(
+      'user-0',
+    );
+    // Before request 2's prompt is typed, the boundary is request 1's tool
+    // result.
+    const settle1 = timeline.requests[0].endTime + TOOL_EXECUTION_MS / 1000;
+    expect(
+      lastInputEntryId(
+        session.prompt.messages.slice(0, 4),
+        entriesAt(timeline, settle1 + 0.001),
+      ),
+    ).toBe('0001-result-call_1');
+  });
+
+  it('returns null when no input message is visible yet', () => {
+    const session = makeTestSession();
+    expect(
+      lastInputEntryId(session.prompt.messages.slice(0, 1), []),
+    ).toBeNull();
   });
 });

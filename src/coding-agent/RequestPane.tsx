@@ -3,7 +3,6 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
-  useState,
   type ReactNode,
 } from 'react';
 
@@ -18,7 +17,7 @@ import styles from './RequestPane.module.css';
  * all times: opening the other collapses the current one, and an open
  * section cannot be collapsed.
  */
-type ExpandedSection = 'input' | 'output';
+export type ExpandedSection = 'input' | 'output';
 
 /**
  * The pane's raw content for a request: the prompt prefix that was sent (the
@@ -125,6 +124,9 @@ type RequestPaneProps = {
   request: RequestTimeline;
   /** Packed session the request belongs to; provides the payload content. */
   session: PackedSession;
+  /** Which accordion section is expanded; owned by the page. */
+  expanded: ExpandedSection;
+  onExpand: (section: ExpandedSection) => void;
   /** Jumps the playback to when this request's response finished. */
   onGoto: (request: RequestTimeline) => void;
   onClose: () => void;
@@ -142,10 +144,11 @@ type RequestPaneProps = {
 export function RequestPane({
   request,
   session,
+  expanded,
+  onExpand,
   onGoto,
   onClose,
 }: RequestPaneProps) {
-  const [expanded, setExpanded] = useState<ExpandedSection>('input');
   const payload = useMemo(
     () => requestPayload(session, request),
     [session, request],
@@ -179,7 +182,7 @@ export function RequestPane({
           label="Input"
           bytes={request.sentBytes}
           expanded={expanded === 'input'}
-          onExpand={() => setExpanded('input')}
+          onExpand={() => onExpand('input')}
         >
           <InputCode value={payload.input} />
         </CodeSection>
@@ -187,7 +190,7 @@ export function RequestPane({
           label="Output"
           bytes={request.receivedBytes}
           expanded={expanded === 'output'}
-          onExpand={() => setExpanded('output')}
+          onExpand={() => onExpand('output')}
         >
           {payload.response ? (
             <pre className={styles.code}>

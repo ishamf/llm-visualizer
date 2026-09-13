@@ -18,7 +18,10 @@ import {
   formatTokens,
 } from '../coding-agent/format.ts';
 import { PlaybackBar } from '../coding-agent/PlaybackBar.tsx';
-import { RequestPane } from '../coding-agent/RequestPane.tsx';
+import {
+  RequestPane,
+  type ExpandedSection,
+} from '../coding-agent/RequestPane.tsx';
 import {
   RequestList,
   type FutureRequestsMode,
@@ -27,6 +30,7 @@ import type { SessionIndexEntry } from '../coding-agent/session-index.ts';
 import { sessionUrl } from '../coding-agent/session-urls.ts';
 import {
   entriesAt,
+  lastInputEntryId,
   playbackDurationSeconds,
   requestsAt,
   usageBreakdownAt,
@@ -168,6 +172,7 @@ function SessionReplay({
     playback;
   const ready = session.status === 'ready';
   const timeline = ready ? session.timeline : null;
+  const packedSession = ready ? session.session : null;
 
   // Future requests are normally hidden. Jumping to an earlier request (the
   // pane's Go to button) shows them in a temporary "peek" mode (the checkbox
@@ -180,6 +185,14 @@ function SessionReplay({
   // The request pane shows one request's payloads. It is keyed per request,
   // so opening another one resets its accordion.
   const [paneRequest, setPaneRequest] = useState<RequestTimeline | null>(null);
+  /**
+   * Whether closing the pane should scroll the terminal back to where it
+   * was. Cleared by the pane's Go to button, which seeks before closing —
+   * the seek position decides where the terminal ends up instead.
+   */
+  const [paneRevertOnClose, setPaneRevertOnClose] = useState(true);
+  /** Which pane accordion section is expanded; reset when the pane opens. */
+  const [paneSection, setPaneSection] = useState<ExpandedSection>('input');
   // Whether playback was running when the pane opened, so closing it can
   // resume. Set only on the open transition (switching requests keeps it);
   // manual play/pause while the pane is open cancels it.
@@ -189,6 +202,34 @@ function SessionReplay({
     () => (timeline ? entriesAt(timeline, time) : []),
     [timeline, time],
   );
+  /**
+   * Terminal wiring for the open pane: which transcript entries to outline,
+   * and which entry anchors the focus scroll. With the input expanded, the
+   * request's last input message is outlined; with the output expanded, all
+   * of the request's response entries are. The scroll anchor is always the
+   * input boundary — the bottom of the last input message.
+   */
+  const paneHighlight = useMemo(() => {
+    if (!paneRequest || !packedSession)
+      return { highlightIds: [], anchorId: null };
+    const packed = packedSession.requests[paneRequest.index - 1];
+    const anchorId = lastInputEntryId(
+      packedSession.prompt.messages.slice(0, packed?.messageCount ?? 0),
+      entryStates,
+    );
+    const highlightIds =
+      paneSection === 'output'
+        ? entryStates
+            .filter(
+              ({ entry }) =>
+                'requestId' in entry && entry.requestId === paneRequest.id,
+            )
+            .map(({ entry }) => entry.id)
+        : anchorId
+          ? [anchorId]
+          : [];
+    return { highlightIds, anchorId };
+  }, [paneRequest, paneSection, entryStates, packedSession]);
   const requestStates = useMemo(
     () =>
       timeline
@@ -266,11 +307,16 @@ function SessionReplay({
     (request: RequestTimeline) => {
       if (paneRequest) {
         if (paneRequest.id === request.id) closePane();
-        else setPaneRequest(request);
+        else {
+          setPaneSection('input');
+          setPaneRequest(request);
+        }
         return;
       }
       setResumeOnPaneClose(playing);
       pause();
+      setPaneSection('input');
+      setPaneRevertOnClose(true);
       setPaneRequest(request);
     },
     [paneRequest, playing, pause, closePane],
@@ -286,6 +332,8 @@ function SessionReplay({
       seek(request.endTime);
       setPeekLimit((limit) => Math.max(limit, liveEdgeRef.current));
       setFutureMode((mode) => (mode === 'shown' ? mode : 'peek'));
+      // The seek decides where the terminal ends up; no scroll revert.
+      setPaneRevertOnClose(false);
       setPaneRequest(null);
       setResumeOnPaneClose(false);
     },
@@ -377,7 +425,15 @@ function SessionReplay({
         </header>
 
         <div className={styles.workbench}>
-          <AgentTerminal timeline={timeline} states={entryStates} />
+          <AgentTerminal
+            timeline={timeline}
+            states={entryStates}
+            focusRequestId={paneRequest?.id ?? null}
+            revertOnClose={paneRevertOnClose}
+            highlightedEntryIds={paneHighlight.highlightIds}
+            scrollAnchorEntryId={paneHighlight.anchorId}
+            highlightVariant={paneSection === 'output' ? 'group' : 'boundary'}
+          />
           <div className={styles.requestArea}>
             <RequestList
               className={
@@ -398,6 +454,8 @@ function SessionReplay({
                 key={paneRequest.id}
                 request={paneRequest}
                 session={session.session}
+                expanded={paneSection}
+                onExpand={setPaneSection}
                 onGoto={handleRequestGoto}
                 onClose={closePane}
               />

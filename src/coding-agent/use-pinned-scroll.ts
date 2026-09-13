@@ -35,6 +35,7 @@ export function usePinnedAutoScroll(
   containerRef: RefObject<HTMLDivElement | null>;
   pinned: boolean;
   pin: () => void;
+  unpin: () => void;
 } {
   const containerRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
@@ -92,5 +93,10 @@ export function usePinnedAutoScroll(
     if (container) container.scrollTop = container.scrollHeight;
   }, [updatePinned]);
 
-  return { containerRef, pinned, pin };
+  /** Detaches the pin without scrolling; playback stops auto-following. */
+  const unpin = useCallback(() => {
+    updatePinned(false);
+  }, [updatePinned]);
+
+  return { containerRef, pinned, pin, unpin };
 }

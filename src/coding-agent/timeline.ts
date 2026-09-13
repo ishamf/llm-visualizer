@@ -1,5 +1,6 @@
 import type {
   PackedSession,
+  PackedSessionMessage,
   PackedSessionPart,
   PackedUsage,
 } from './packed-session.ts';
@@ -432,7 +433,9 @@ export function playbackDurationSeconds(timeline: Timeline): number {
   return timeline.durationSeconds;
 }
 
-/** Snapshot of the transcript at a playback time, for rendering. */
+/**
+ * Snapshot of the transcript at a playback time, for rendering.
+ */
 export function entriesAt(
   timeline: Timeline,
   timeSeconds: number,
@@ -460,6 +463,35 @@ export function entriesAt(
     states.push({ entry, revealed, streaming });
   }
   return states;
+}
+
+/**
+ * Id of the transcript entry rendering the last message of a request's
+ * input prefix — the conversation boundary the request responds to. Walks
+ * back over messages without transcript entries (assistant messages,
+ * empty prompts); returns `null` when none is visible yet, which is the
+ * case for future requests.
+ */
+export function lastInputEntryId(
+  messages: readonly PackedSessionMessage[],
+  states: readonly EntryState[],
+): string | null {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index];
+    if (message.role === 'user') {
+      const id = `user-${message.index}`;
+      if (states.some(({ entry }) => entry.id === id)) return id;
+      continue;
+    }
+    if (message.role === 'toolResult') {
+      const match = states.find(
+        ({ entry }) =>
+          entry.kind === 'toolResult' && entry.callId === message.toolCallId,
+      );
+      if (match) return match.entry.id;
+    }
+  }
+  return null;
 }
 
 /**
