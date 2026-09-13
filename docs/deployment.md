@@ -6,13 +6,18 @@ their URLs and response headers are configured correctly.
 
 ## Combined deployment build
 
-Production builds require a public Hugging Face model repository:
+Production builds default to the local `/models/` static host. For deployments,
+set `VITE_HF_MODEL_REPO` so the bundle downloads the model from a public
+Hugging Face repository instead:
 
 ```sh
 VITE_HF_MODEL_REPO=organization/instrumented-qwen3 \
 VITE_HF_MODEL_REVISION=<commit-sha> \
   pnpm build
 ```
+
+Omitting `VITE_HF_MODEL_REPO` is fine for trying out the build; it emits a
+warning and compiles the local model host into the bundle.
 
 The Cloudflare Pages-ready output is written to `dist/`. It contains both the
 static application and the distributable web component:
@@ -38,6 +43,9 @@ VITE_HF_MODEL_REVISION=<commit-sha> \
   pnpm build:site
 ```
 
+As with `pnpm build`, omitting the model configuration is allowed for local
+experiments and falls back to `/models/`.
+
 The site-only output is also written to `dist/`.
 
 The repository ID and revision are compiled into the client bundle. They are
@@ -50,7 +58,7 @@ immutable model artifacts.
 
 ## Browser model hosting
 
-The Hugging Face repository must be public. Its root must contain the
+When `VITE_HF_MODEL_REPO` is set, the Hugging Face repository must be public. Its root must contain the
 Transformers.js configuration and tokenizer files, with the instrumented weights
 at:
 
@@ -124,7 +132,7 @@ because the application enables cross-origin isolation.
 
 ## Standalone web-component build
 
-Build the distributable web component with the same public Hugging Face model
+Build the distributable web component with the same optional Hugging Face model
 configuration:
 
 ```sh

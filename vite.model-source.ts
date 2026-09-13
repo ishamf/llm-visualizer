@@ -7,9 +7,11 @@ export function validateProductionModelSource(mode: string) {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
   const repoId = env.VITE_HF_MODEL_REPO?.trim();
   if (!repoId) {
-    throw new Error(
-      'VITE_HF_MODEL_REPO is required for production builds (for example, organization/instrumented-qwen3).',
+    console.warn(
+      'warning: VITE_HF_MODEL_REPO is not set; the production bundle falls back to the local /models/ static host. ' +
+        'Set it to a public Hugging Face repository (for example, organization/instrumented-qwen3) for deployments.',
     );
+    return;
   }
   if (!HF_REPO_PATTERN.test(repoId)) {
     throw new Error(
