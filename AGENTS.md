@@ -1,5 +1,15 @@
 # Agent notes
 
+## The two main visualizations
+
+- **Contribution text** (`/attention`) — the prompt and generated response
+  rendered with per-token attention-contribution opacity. Metric and
+  rendering: the [README](README.md#how-contribution-is-measured);
+  pre-generated datasets: `docs/contribution-datasets.md`.
+- **Coding agent replay** (`/coding-agent`) — a recorded coding agent run
+  replayed token by token, with the provider requests that produced it.
+  Documented in `docs/coding-agent-visualization.md`.
+
 ## Browser verification (agent-browser)
 
 Use `agent-browser` to verify UI changes against an already-running dev
