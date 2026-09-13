@@ -1,4 +1,11 @@
-import { Fragment, useMemo, useState, type ReactNode } from 'react';
+import {
+  Fragment,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import { formatBytes, formatClock } from './format.ts';
 import { prettyJson, splitTextBlocks } from './pretty-json.ts';
@@ -94,6 +101,26 @@ function CodeSection({
   );
 }
 
+/**
+ * Scrollable code box for the request input. It starts scrolled to the
+ * end: the input ends with the newest messages — the reason this request
+ * was made — while the system prompt and tools sit on top. Re-applies when
+ * the content changes; the pane is keyed per request, so in practice that
+ * is once per mount, and playback re-renders keep the user's position.
+ */
+function InputCode({ value }: { value: unknown }) {
+  const ref = useRef<HTMLPreElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [value]);
+  return (
+    <pre ref={ref} className={styles.code}>
+      <PrettyJson value={value} />
+    </pre>
+  );
+}
+
 type RequestPaneProps = {
   request: RequestTimeline;
   /** Packed session the request belongs to; provides the payload content. */
@@ -108,9 +135,9 @@ type RequestPaneProps = {
  * (which slides left to make room). The header's Go to button jumps the
  * playback to when the request completed and closes the pane. The space is
  * reserved for the input/output accordion: the request input (the prompt
- * prefix that was sent) and the parsed response as scrollable JSON code
- * boxes. The input starts expanded and exactly one section is always
- * expanded.
+ * prefix that was sent, initially scrolled to the end) and the parsed
+ * response as scrollable JSON code boxes. The input starts expanded and
+ * exactly one section is always expanded.
  */
 export function RequestPane({
   request,
@@ -154,9 +181,7 @@ export function RequestPane({
           expanded={expanded === 'input'}
           onExpand={() => setExpanded('input')}
         >
-          <pre className={styles.code}>
-            <PrettyJson value={payload.input} />
-          </pre>
+          <InputCode value={payload.input} />
         </CodeSection>
         <CodeSection
           label="Output"
