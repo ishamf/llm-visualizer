@@ -165,22 +165,22 @@ total, over requests completed so far.
 Clicking a card pauses playback and seeks to the moment that request's
 response finished streaming. A minimum gap between requests guarantees the
 following request is not revealed at that point. The panel shares the same
-pin-to-bottom scroll behavior as the terminal, but the pin tracks the newest
-sent request instead of the list's end.
+pin-to-bottom scroll behavior as the terminal.
 
 Normally only requests that have been sent at the current playback time are
 listed. Clicking an earlier card keeps the later requests visible in a dimmed
 `future` state — a temporary "peek" mode that ends as soon as the user plays
 or seeks the slider. The **Show all requests** checkbox in the panel
 header pins them permanently instead; it renders in the indeterminate state
-while a peek is active. Toggling it never scrolls the list: the auto-scroll
-targets the newest sent request's card, and the dimmed requests are appended
-after it. While future requests are visible, an in-flight
-request keeps the settled card — payload bytes, usage, and the spinner where
-the checkmark would be — instead of the live labels, so seeking across it
-does not flip the card's layout. `requestsAt` produces the `future` status
-only when asked for it via its `includeFuture` option, so the default
-snapshot logic is unchanged.
+while a peek is active. Toggling it never scrolls the list. While future
+requests are visible the panel does not auto-scroll at all — it becomes a
+static browsing view without the jump button, since every request is
+rendered and the list can simply be scrolled. While future requests are
+visible, an in-flight request keeps the settled card — payload bytes,
+usage, and the spinner where the checkmark would be — instead of the live
+labels, so seeking across it does not flip the card's layout.
+`requestsAt` produces the `future` status only when asked for it via its
+`includeFuture` option, so the default snapshot logic is unchanged.
 
 ### Playback bar
 

@@ -1,5 +1,5 @@
 import { Checkbox, Loader, Text } from '@mantine/core';
-import { memo, useRef, type Ref } from 'react';
+import { memo } from 'react';
 
 import {
   formatBytes,
@@ -32,11 +32,6 @@ type RequestCardProps = {
    * request's window does not flip its card between presentations.
    */
   settledPending: boolean;
-  /**
-   * Marks this card as the live edge for the pinned auto-scroll; attached
-   * only to the newest sent request while future requests are visible.
-   */
-  endRef?: Ref<HTMLButtonElement>;
   onRequestClick: (request: RequestTimeline) => void;
 };
 
@@ -44,7 +39,6 @@ const RequestCard = memo(function RequestCard({
   request,
   status,
   settledPending,
-  endRef,
   onRequestClick,
 }: RequestCardProps) {
   const usage = request.usage;
@@ -52,7 +46,6 @@ const RequestCard = memo(function RequestCard({
   return (
     <button
       type="button"
-      ref={endRef}
       className={styles.requestCard}
       data-status={status}
       onClick={() => onRequestClick(request)}
@@ -128,12 +121,14 @@ export function RequestList({
   onFutureModeChange,
   onRequestClick,
 }: RequestListProps) {
-  // The live edge is the newest request sent at the current playback time.
-  // The auto-scroll tracks its card (see usePinnedAutoScroll), so the dimmed
-  // future requests appended after it never affect the scroll position —
-  // toggling their visibility does not scroll, even mid-playback. The watch
-  // value changes only when the edge advances to another request or the
-  // edge card settles (its usage row appears), not on every playback frame.
+  // The watch value identifies the newest request sent at the current
+  // playback time (id + status): it changes only when the edge advances to
+  // another request or the edge card settles (its usage row appears) — not
+  // on every playback frame, and not when toggling future-request
+  // visibility. In the default hidden mode the list follows it
+  // pin-to-bottom; with future requests visible (peek or shown) `follow` is
+  // off, the list is a static browsing view, and the jump button is hidden
+  // along with the auto-scroll.
   let liveEdgeIndex = -1;
   for (let i = states.length - 1; i >= 0; i -= 1) {
     if (states[i].status !== 'future') {
@@ -142,11 +137,10 @@ export function RequestList({
     }
   }
   const liveEdge = liveEdgeIndex >= 0 ? states[liveEdgeIndex] : undefined;
-  const hasFuture = liveEdgeIndex < states.length - 1;
-  const endRef = useRef<HTMLButtonElement | null>(null);
+  const following = futureMode === 'hidden';
   const { containerRef, pinned, pin } = usePinnedAutoScroll(
     liveEdge ? `${liveEdge.request.id}:${liveEdge.status}` : '',
-    { endRef },
+    { follow: following },
   );
   // While future requests are visible, in-flight requests use the settled
   // presentation (see RequestCard); otherwise they show the live labels.
@@ -189,21 +183,18 @@ export function RequestList({
       <div className={styles.scrollArea}>
         <div className={styles.scroll} ref={containerRef}>
           <div className={styles.cards}>
-            {states.map((state, index) => (
+            {states.map((state) => (
               <RequestCard
                 key={state.request.id}
                 request={state.request}
                 status={state.status}
                 settledPending={settledPending}
-                endRef={
-                  hasFuture && index === liveEdgeIndex ? endRef : undefined
-                }
                 onRequestClick={onRequestClick}
               />
             ))}
           </div>
         </div>
-        {!pinned && (
+        {following && !pinned && (
           <button type="button" className={styles.jumpToLatest} onClick={pin}>
             ↓ Jump to latest
           </button>
