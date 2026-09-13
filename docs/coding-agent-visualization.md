@@ -169,24 +169,23 @@ of the visualization (on the single-column mobile layout the pane covers
 the list in place instead). Opening it pauses playback; closing it — via
 its close button, a click on the dimmed backdrop over the terminal, or
 clicking the selected card again — resumes playback, but only if it was
-running when the pane opened. The space is reserved for a two-section
+running when the pane opened. The header carries a **Go to** button next
+to the title: it seeks to the moment that request's response finished
+streaming, applies the bounded peek, and closes the pane without resuming
+playback. A minimum gap between requests guarantees the following request
+is not revealed at that point. The space is reserved for a two-section
 accordion with the request input (the prompt prefix as pretty-printed
 JSON, the same shape the payload byte sizes were computed from) and the
 parsed assistant response in scrollable code boxes. Input starts expanded;
 exactly one section is always expanded — opening the output collapses the
 input, and an open section cannot be collapsed (its header shows no hover
 or pointer affordance). The accordion resets to the input when another
-request is opened.
-
-A small ⤓ button on each card keeps the old jump behavior: it pauses
-playback and seeks to the moment that request's response finished streaming.
-A minimum gap between requests guarantees the following request is not
-revealed at that point. The panel shares the same
+request is opened. The panel shares the same
 pin-to-bottom scroll behavior as the terminal.
 
 Normally only requests that have been sent at the current playback time are
-listed. Jumping to an earlier request (the ⤓ button) keeps the
-already-visible requests in a dimmed `future` state — a temporary "peek"
+listed. Jumping to an earlier request (the pane's **Go to** button) keeps
+the already-visible requests in a dimmed `future` state — a temporary "peek"
 mode that ends as soon as the user plays or seeks the slider. The peek is
 bounded by the request edge shown before the jump: requests up to that edge
 stay visible (those after the seeked one dimmed), and nothing beyond it is

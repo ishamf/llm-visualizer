@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 
-import { formatBytes } from './format.ts';
+import { formatBytes, formatClock } from './format.ts';
 import type { PackedSession, PackedResponse } from './packed-session.ts';
 import type { RequestTimeline } from './timeline.ts';
 import styles from './RequestPane.module.css';
@@ -76,17 +76,26 @@ type RequestPaneProps = {
   request: RequestTimeline;
   /** Packed session the request belongs to; provides the payload content. */
   session: PackedSession;
+  /** Jumps the playback to when this request's response finished. */
+  onGoto: (request: RequestTimeline) => void;
   onClose: () => void;
 };
 
 /**
  * Detail view for a single provider request, shown next to the request list
- * (which slides left to make room). The space is reserved for the
- * input/output accordion: the request input (the prompt prefix that was
- * sent) and the parsed response as scrollable JSON code boxes. The input
- * starts expanded and exactly one section is always expanded.
+ * (which slides left to make room). The header's Go to button jumps the
+ * playback to when the request completed and closes the pane. The space is
+ * reserved for the input/output accordion: the request input (the prompt
+ * prefix that was sent) and the parsed response as scrollable JSON code
+ * boxes. The input starts expanded and exactly one section is always
+ * expanded.
  */
-export function RequestPane({ request, session, onClose }: RequestPaneProps) {
+export function RequestPane({
+  request,
+  session,
+  onGoto,
+  onClose,
+}: RequestPaneProps) {
   const [expanded, setExpanded] = useState<ExpandedSection>('input');
   const payload = useMemo(
     () => requestPayload(session, request),
@@ -99,6 +108,14 @@ export function RequestPane({ request, session, onClose }: RequestPaneProps) {
     >
       <header className={styles.paneHeader}>
         <span className={styles.paneTitle}>Request #{request.index}</span>
+        <button
+          type="button"
+          className={styles.paneGoto}
+          title="Pause and seek to when this request completed"
+          onClick={() => onGoto(request)}
+        >
+          Go to {formatClock(request.endTime)}
+        </button>
         <button
           type="button"
           className={styles.paneClose}

@@ -36,8 +36,6 @@ type RequestCardProps = {
   selected: boolean;
   /** Opens (or toggles) the request pane for this request. */
   onRequestClick: (request: RequestTimeline) => void;
-  /** Pauses and seeks to when this request's response finished streaming. */
-  onRequestSeek: (request: RequestTimeline) => void;
 };
 
 const RequestCard = memo(function RequestCard({
@@ -46,28 +44,16 @@ const RequestCard = memo(function RequestCard({
   settledPending,
   selected,
   onRequestClick,
-  onRequestSeek,
 }: RequestCardProps) {
   const usage = request.usage;
   const settled = status === 'done' || status === 'future' || settledPending;
-  // The card is a role="button" div rather than a real button so the seek
-  // action can be a real nested button. Keyboard activation is handled
-  // below; the seek button's own events are excluded by the target check
-  // and stopPropagation.
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <button
+      type="button"
       className={styles.requestCard}
       data-status={status}
       data-selected={selected || undefined}
       onClick={() => onRequestClick(request)}
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return;
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        onRequestClick(request);
-      }}
       aria-label={`View details of request ${request.index}`}
     >
       <span className={styles.requestHeader}>
@@ -92,18 +78,6 @@ const RequestCard = memo(function RequestCard({
         ) : status === 'future' ? null : (
           <Loader className={styles.requestSpinner} size="xs" type="dots" />
         )}
-        <button
-          type="button"
-          className={styles.requestSeek}
-          title="Pause and seek to when this request completed"
-          aria-label={`Pause and seek to when request ${request.index} completed`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onRequestSeek(request);
-          }}
-        >
-          ⤓
-        </button>
       </span>
       {settled && (
         <span className={styles.requestUsage}>
@@ -124,7 +98,7 @@ const RequestCard = memo(function RequestCard({
           </span>
         </span>
       )}
-    </div>
+    </button>
   );
 });
 
@@ -142,7 +116,6 @@ type RequestListProps = {
   futureMode: FutureRequestsMode;
   onFutureModeChange: (mode: FutureRequestsMode) => void;
   onRequestClick: (request: RequestTimeline) => void;
-  onRequestSeek: (request: RequestTimeline) => void;
   /** Id of the request shown in the request pane, if any. */
   selectedRequestId: string | null;
   /** Extra classes for the panel root, e.g. the pane's shift transition. */
@@ -156,7 +129,6 @@ export function RequestList({
   futureMode,
   onFutureModeChange,
   onRequestClick,
-  onRequestSeek,
   selectedRequestId,
   className,
 }: RequestListProps) {
@@ -235,7 +207,6 @@ export function RequestList({
                 settledPending={settledPending}
                 selected={state.request.id === selectedRequestId}
                 onRequestClick={onRequestClick}
-                onRequestSeek={onRequestSeek}
               />
             ))}
           </div>

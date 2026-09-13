@@ -48,10 +48,38 @@
 }
 
 .paneTitle {
-  flex: 1;
   font-size: 0.82rem;
   font-weight: 700;
   letter-spacing: -0.01em;
+}
+
+/* Jump action next to the title: pauses at when this request completed and
+   closes the pane. `margin-right: auto` keeps it beside the title while the
+   close button stays on the far edge. */
+.paneGoto {
+  flex: none;
+  margin-right: auto;
+  padding: 3px 10px;
+  border: 1px solid
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-5));
+  border-radius: 999px;
+  color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-gray-3));
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.paneGoto:hover {
+  border-color: var(--mantine-color-violet-4);
+  color: var(--mantine-color-violet-6);
+}
+
+.paneGoto:focus-visible {
+  outline: 2px solid var(--mantine-color-violet-5);
+  outline-offset: 2px;
 }
 
 .paneClose {

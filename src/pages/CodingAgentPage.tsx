@@ -57,9 +57,7 @@ function useSpaceToggle(onToggle: () => void, enabled: boolean) {
       const target = event.target;
       if (
         target instanceof HTMLElement &&
-        target.closest(
-          'button, input, textarea, select, [role="slider"], [role="button"]',
-        )
+        target.closest('button, input, textarea, select, [role="slider"]')
       ) {
         return;
       }
@@ -172,10 +170,10 @@ function SessionReplay({
   const timeline = ready ? session.timeline : null;
 
   // Future requests are normally hidden. Jumping to an earlier request (the
-  // ⤓ button) shows them in a temporary "peek" mode (the checkbox renders
-  // indeterminate) until the user plays or seeks; the checkbox flips into a
-  // permanent "shown" mode. The peek is bounded: only requests up to the
-  // edge that was visible before the jump appear, so jumping back never
+  // pane's Go to button) shows them in a temporary "peek" mode (the checkbox
+  // renders indeterminate) until the user plays or seeks; the checkbox flips
+  // into a permanent "shown" mode. The peek is bounded: only requests up to
+  // the edge that was visible before the jump appear, so jumping back never
   // reveals anything new.
   const [futureMode, setFutureMode] = useState<FutureRequestsMode>('hidden');
   const [peekLimit, setPeekLimit] = useState(0);
@@ -278,18 +276,18 @@ function SessionReplay({
     [paneRequest, playing, pause, closePane],
   );
 
-  // The ⤓ button on a card jumps to when that request's response finished
-  // streaming: pause, seek, and reveal the already-visible requests in the
-  // temporary peek mode (unless "Show all requests" already pins them).
-  // The peek bound is the edge shown before the jump — extended if a jump
-  // happens while already peeking, never shrunk — so nothing beyond it is
-  // revealed.
-  const handleRequestSeek = useCallback(
+  // The pane's Go to button jumps to when that request's response finished
+  // streaming: pause, seek, reveal the already-visible requests (bounded
+  // peek), and close the pane. Playback stays paused — the resume-on-close
+  // intent is discarded.
+  const handleRequestGoto = useCallback(
     (request: RequestTimeline) => {
       pause();
       seek(request.endTime);
       setPeekLimit((limit) => Math.max(limit, liveEdgeRef.current));
       setFutureMode((mode) => (mode === 'shown' ? mode : 'peek'));
+      setPaneRequest(null);
+      setResumeOnPaneClose(false);
     },
     [pause, seek],
   );
@@ -393,7 +391,6 @@ function SessionReplay({
               futureMode={futureMode}
               onFutureModeChange={setFutureMode}
               onRequestClick={handleRequestTogglePane}
-              onRequestSeek={handleRequestSeek}
               selectedRequestId={paneRequest?.id ?? null}
             />
             {paneRequest && (
@@ -401,6 +398,7 @@ function SessionReplay({
                 key={paneRequest.id}
                 request={paneRequest}
                 session={session.session}
+                onGoto={handleRequestGoto}
                 onClose={closePane}
               />
             )}
