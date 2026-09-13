@@ -29,10 +29,8 @@ running. Find it and reuse it. To match a listening port to its project
 directory:
 
 ```bash
-ss -tlnp | grep node            # listening port → pid
-readlink /proc/<pid>/cwd        # pid → working directory of that server
-# or list vite processes directly (argv reveals the project path):
-pgrep -af vite
+pgrep -af vite                  # list vite processes directly (argv reveals the project path):
+ss -tlnp | grep node            # listening port → pid (if port is not visible)
 ```
 
 Reuse the server whose working directory matches this repository; if none
