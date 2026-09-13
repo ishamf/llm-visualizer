@@ -34,10 +34,12 @@ function requestPayload(
 }
 
 /**
- * Pretty-printed JSON for a code box. Multi-line strings — prompts, tool
- * arguments, tool output — become Python-style `'''` text blocks with real
- * newlines instead of one long `\n`-escaped line; the block parts are
- * wrapped in a span so they can be tinted apart from the JSON around them.
+ * Pretty-printed JSON for a code box. Free-form text — multi-line strings
+ * (prompts, tool arguments, tool output) plus tool descriptions and
+ * `text`/`thinking` parts even without newlines — becomes Python-style
+ * `'''` text blocks with real newlines instead of one long `\n`-escaped
+ * line; the block parts are wrapped in a span so they can be tinted apart
+ * from the JSON around them.
  */
 function PrettyJson({ value }: { value: unknown }) {
   const parts = useMemo(() => splitTextBlocks(prettyJson(value)), [value]);

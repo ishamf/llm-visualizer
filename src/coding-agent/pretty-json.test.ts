@@ -77,6 +77,98 @@ describe('prettyJson', () => {
   it('keeps single-line strings escaped as JSON', () => {
     expect(prettyJson({ text: 'a b' })).toBe('{\n  "text": "a b"\n}');
   });
+
+  it('always renders tool descriptions as blocks', () => {
+    const rendered = prettyJson({
+      tools: [
+        {
+          name: 'bash',
+          description: 'Runs a shell command',
+          parameters: { type: 'object' },
+        },
+      ],
+    });
+    expect(rendered).toContain("'''\nRuns a shell command\n'''");
+  });
+
+  it('does not force descriptions outside tool definitions', () => {
+    const rendered = prettyJson({
+      tools: [
+        {
+          name: 'bash',
+          parameters: { type: 'object', description: 'schema text' },
+        },
+      ],
+      meta: { description: 'not a tool' },
+    });
+    expect(rendered).toContain('"description": "schema text"');
+    expect(rendered).toContain('"description": "not a tool"');
+  });
+
+  it('always renders text and thinking parts as blocks', () => {
+    const rendered = prettyJson({
+      messages: [
+        { role: 'user', parts: [{ type: 'text', text: 'plain words' }] },
+        {
+          role: 'assistant',
+          parts: [{ type: 'thinking', thinking: 'pondering' }],
+        },
+      ],
+    });
+    expect(rendered).toContain("'''\nplain words\n'''");
+    expect(rendered).toContain("'''\npondering\n'''");
+  });
+
+  it('keeps empty forced fields as JSON strings', () => {
+    const rendered = prettyJson({
+      messages: [{ role: 'user', parts: [{ type: 'text', text: '' }] }],
+    });
+    expect(rendered).toContain('"text": ""');
+  });
+
+  it('renders parameter-schema descriptions over 100 chars as blocks', () => {
+    const long = 'd'.repeat(101);
+    const rendered = prettyJson({
+      tools: [
+        {
+          name: 'bash',
+          parameters: {
+            type: 'object',
+            description: long,
+            properties: {
+              command: { type: 'string', description: long },
+            },
+          },
+        },
+      ],
+    });
+    expect(rendered).toContain(`'''\n${long}\n'''`);
+  });
+
+  it('keeps schema descriptions of 100 chars or fewer as JSON', () => {
+    const rendered = prettyJson({
+      tools: [
+        {
+          name: 'bash',
+          parameters: {
+            type: 'object',
+            description: 'x'.repeat(100),
+            properties: {
+              command: { type: 'string', description: 'short' },
+            },
+          },
+        },
+      ],
+    });
+    expect(rendered).toContain(`"description": "${'x'.repeat(100)}"`);
+    expect(rendered).toContain('"description": "short"');
+  });
+
+  it('does not apply the length rule outside tool parameters', () => {
+    const long = 'y'.repeat(101);
+    const rendered = prettyJson({ meta: { description: long } });
+    expect(rendered).toContain(`"description": "${long}"`);
+  });
 });
 
 describe('splitTextBlocks', () => {
