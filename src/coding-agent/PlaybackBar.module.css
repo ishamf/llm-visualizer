@@ -54,19 +54,47 @@
   flex: 1;
 }
 
-/* Narrow screens: the slider cannot share a line with the fixed-size
-   controls (play button, clocks, speed control), so it takes a full row of
-   its own instead of being crushed to its min-content width — which, as a
-   grid item of the page column, would otherwise stretch the whole page
-   wider than the viewport. Desktop (>900px) never matches this query. */
+/* Narrow screens: switch to an explicit two-row grid — the classic player
+   layout. Row 1 is the seek row (play, current time, slider, duration) so the
+   clocks sit at the ends of the bar they describe; row 2 holds the speed
+   control, right-aligned. A grid is deterministic at every width down to
+   ~320px: the slider column is minmax(0, 1fr) and the slider's min-content
+   width is tiny, so it absorbs whatever space is left without ever pushing
+   the page column wider than the viewport (the reason the old flex-wrap
+   variant banished the slider to a full-width row). The speed area spans the
+   full second row — sharing the duration clock's column would let the wider
+   speed control inflate that column and squeeze the slider. Desktop (>900px)
+   never matches this query. */
 @media (max-width: 480px) {
   .playbackBar {
-    gap: 10px;
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'play  current seek     duration'
+      'speed speed   speed    speed';
+    align-items: center;
+    gap: 8px 12px;
+  }
+
+  .playButton {
+    grid-area: play;
+  }
+
+  .clockCurrent {
+    grid-area: current;
   }
 
   .seekSlider {
-    order: 1;
-    flex: 1 1 100%;
+    grid-area: seek;
+  }
+
+  .clockDuration {
+    grid-area: duration;
+  }
+
+  .speedControl {
+    grid-area: speed;
+    justify-self: end;
   }
 }
 

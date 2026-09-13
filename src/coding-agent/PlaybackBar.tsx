@@ -38,7 +38,7 @@ export function PlaybackBar({
       >
         <span className={styles.playIcon} data-playing={playing} />
       </ActionIcon>
-      <Text className={styles.clock} size="sm" c="dimmed">
+      <Text className={`${styles.clock} ${styles.clockCurrent}`} size="sm" c="dimmed">
         {formatClock(time)}
       </Text>
       <Slider
@@ -51,7 +51,11 @@ export function PlaybackBar({
         onChange={onSeek}
         aria-label="Seek playback"
       />
-      <Text className={styles.clock} size="sm" c="dimmed">
+      <Text
+        className={`${styles.clock} ${styles.clockDuration}`}
+        size="sm"
+        c="dimmed"
+      >
         {formatClock(duration)}
       </Text>
       <SegmentedControl
