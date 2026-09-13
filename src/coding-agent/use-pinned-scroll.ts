@@ -13,13 +13,27 @@ import {
  */
 const PIN_THRESHOLD_PX = 40;
 
+export type PinnedAutoScrollOptions = {
+  /**
+   * Element whose bottom edge is the live edge of the content, such as the
+   * newest request's card. The pin then tracks that edge instead of the
+   * container's bottom, so content appended after it (dimmed future
+   * requests) never affects pinning or scrolling. When omitted — or while
+   * the element is detached — the container's content end is the live edge.
+   */
+  endRef?: RefObject<HTMLElement | null>;
+};
+
 /**
  * Keeps a scrollable container pinned to the bottom while content grows.
  * The pin detaches as soon as the user scrolls up (re-attaching when they
  * scroll back to the bottom) so manual scrolling is respected during
  * playback.
  */
-export function usePinnedAutoScroll(watchValue: unknown): {
+export function usePinnedAutoScroll(
+  watchValue: unknown,
+  { endRef }: PinnedAutoScrollOptions = {},
+): {
   containerRef: RefObject<HTMLDivElement | null>;
   pinned: boolean;
   pin: () => void;
@@ -35,13 +49,46 @@ export function usePinnedAutoScroll(watchValue: unknown): {
     setPinned(value);
   }, []);
 
+  /**
+   * Distance from the viewport bottom to the live edge's bottom; negative
+   * when the edge is above it (the user scrolled up).
+   */
+  const distanceToEnd = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return Number.POSITIVE_INFINITY;
+    const end = endRef?.current;
+    if (!end) {
+      return (
+        container.scrollHeight - container.scrollTop - container.clientHeight
+      );
+    }
+    return (
+      container.getBoundingClientRect().bottom -
+      end.getBoundingClientRect().bottom
+    );
+  }, [endRef]);
+
+  /** Puts the live edge's bottom at the viewport bottom. */
+  const scrollToEdge = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const end = endRef?.current;
+    if (!end) {
+      container.scrollTop = container.scrollHeight;
+      return;
+    }
+    container.scrollTop +=
+      end.getBoundingClientRect().bottom -
+      container.getBoundingClientRect().bottom;
+  }, [endRef]);
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     lastScrollTopRef.current = container.scrollTop;
     lastScrollHeightRef.current = container.scrollHeight;
     const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = container;
+      const { scrollTop, scrollHeight } = container;
       // Content shrinking (e.g. a thinking block collapsing) clamps
       // scrollTop downwards and fires a scroll event; that is not the user
       // scrolling, so only count upward movement on unchanged content.
@@ -53,24 +100,22 @@ export function usePinnedAutoScroll(watchValue: unknown): {
         updatePinned(false);
         return;
       }
-      const distance = scrollHeight - scrollTop - clientHeight;
-      updatePinned(distance < PIN_THRESHOLD_PX);
+      updatePinned(distanceToEnd() < PIN_THRESHOLD_PX);
     };
     container.addEventListener('scroll', handleScroll, { passive: true });
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [updatePinned]);
+  }, [updatePinned, distanceToEnd]);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !pinnedRef.current) return;
-    container.scrollTop = container.scrollHeight;
-  }, [watchValue]);
+    scrollToEdge();
+  }, [watchValue, scrollToEdge]);
 
   const pin = useCallback(() => {
     updatePinned(true);
-    const container = containerRef.current;
-    if (container) container.scrollTop = container.scrollHeight;
-  }, [updatePinned]);
+    scrollToEdge();
+  }, [updatePinned, scrollToEdge]);
 
   return { containerRef, pinned, pin };
 }

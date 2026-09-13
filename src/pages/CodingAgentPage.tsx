@@ -312,7 +312,6 @@ function SessionReplay({
           <AgentTerminal timeline={timeline} states={entryStates} />
           <RequestList
             states={requestStates}
-            pinWatch={time}
             breakdown={totals}
             totalRequests={timeline.requests.length}
             futureMode={futureMode}
