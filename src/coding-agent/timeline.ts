@@ -465,18 +465,29 @@ export function entriesAt(
 /**
  * Snapshot of the provider request list at a playback time. With
  * `includeFuture`, requests not yet sent are kept in the list with the
- * `future` status instead of being omitted, so the UI can show the whole
- * session (e.g. after jumping back to an earlier request).
+ * `future` status instead of being omitted, so the UI can peek at requests
+ * beyond the playback position (e.g. after jumping back to an earlier
+ * request). `futureLimit` bounds those future requests to an index at or
+ * below it — a peek reveals nothing beyond what was already visible —
+ * while requests that are already sent always appear.
  */
 export function requestsAt(
   timeline: Timeline,
   timeSeconds: number,
-  { includeFuture = false }: { includeFuture?: boolean } = {},
+  {
+    includeFuture = false,
+    futureLimit,
+  }: { includeFuture?: boolean; futureLimit?: number } = {},
 ): RequestState[] {
   const states: RequestState[] = [];
   for (const request of timeline.requests) {
     if (timeSeconds < request.sentTime) {
-      if (includeFuture) states.push({ request, status: 'future' });
+      if (
+        includeFuture &&
+        (futureLimit === undefined || request.index <= futureLimit)
+      ) {
+        states.push({ request, status: 'future' });
+      }
       continue;
     }
     states.push({

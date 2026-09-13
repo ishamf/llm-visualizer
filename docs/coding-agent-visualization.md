@@ -185,18 +185,20 @@ revealed at that point. The panel shares the same
 pin-to-bottom scroll behavior as the terminal.
 
 Normally only requests that have been sent at the current playback time are
-listed. Jumping to an earlier request (the ⤓ button) keeps the later
-requests visible in a dimmed `future` state — a temporary "peek" mode that
-ends as soon as the user plays or seeks the slider. The **Show all
-requests** checkbox in the panel header pins them permanently instead; it
-renders in the indeterminate state while a peek is active. Toggling it
-never scrolls the list. While future requests are visible the panel does
-not auto-scroll at all — it becomes a static browsing view without the
-jump button, since every request is rendered and the list can simply be
-scrolled. While future requests are visible, an in-flight request keeps
-the settled card — payload bytes, usage, and the spinner where the
-checkmark would be — instead of the live labels, so seeking across it does
-not flip the card's layout.
+listed. Jumping to an earlier request (the ⤓ button) keeps the
+already-visible requests in a dimmed `future` state — a temporary "peek"
+mode that ends as soon as the user plays or seeks the slider. The peek is
+bounded by the request edge shown before the jump: requests up to that edge
+stay visible (those after the seeked one dimmed), and nothing beyond it is
+revealed. The **Show all requests** checkbox in the panel header lifts the
+bound and pins every request permanently instead; it renders in the
+indeterminate state while a peek is active. Toggling it never scrolls the
+list. While future requests are visible the panel does not auto-scroll at
+all — it becomes a static browsing view without the jump button, since
+every request is rendered and the list can simply be scrolled. While future
+requests are visible, an in-flight request keeps the settled card — payload
+bytes, usage, and the spinner where the checkmark would be — instead of the
+live labels, so seeking across it does not flip the card's layout.
 `requestsAt` produces the `future` status only when asked for it via its
 `includeFuture` option, so the default snapshot logic is unchanged.
 

@@ -8,7 +8,7 @@ import {
   Text,
   Title,
 } from '@mantine/core';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import { AgentTerminal } from '../coding-agent/AgentTerminal.tsx';
@@ -174,8 +174,11 @@ function SessionReplay({
   // Future requests are normally hidden. Jumping to an earlier request (the
   // ⤓ button) shows them in a temporary "peek" mode (the checkbox renders
   // indeterminate) until the user plays or seeks; the checkbox flips into a
-  // permanent "shown" mode.
+  // permanent "shown" mode. The peek is bounded: only requests up to the
+  // edge that was visible before the jump appear, so jumping back never
+  // reveals anything new.
   const [futureMode, setFutureMode] = useState<FutureRequestsMode>('hidden');
+  const [peekLimit, setPeekLimit] = useState(0);
   // The request pane shows one request's payloads. It is keyed per request,
   // so opening another one resets its accordion.
   const [paneRequest, setPaneRequest] = useState<RequestTimeline | null>(null);
@@ -191,9 +194,12 @@ function SessionReplay({
   const requestStates = useMemo(
     () =>
       timeline
-        ? requestsAt(timeline, time, { includeFuture: futureMode !== 'hidden' })
+        ? requestsAt(timeline, time, {
+            includeFuture: futureMode !== 'hidden',
+            futureLimit: futureMode === 'peek' ? peekLimit : undefined,
+          })
         : [],
-    [timeline, time, futureMode],
+    [timeline, time, futureMode, peekLimit],
   );
   const totals = useMemo(
     () => (timeline ? usageBreakdownAt(timeline, time) : EMPTY_BREAKDOWN),
@@ -207,10 +213,24 @@ function SessionReplay({
     [timeline],
   );
 
-  const clearPeek = useCallback(
-    () => setFutureMode((mode) => (mode === 'peek' ? 'hidden' : mode)),
-    [],
-  );
+  // Index of the newest request sent at the current playback time (0 before
+  // the first request). Mirrored into a ref so the stable seek callback can
+  // read the edge at click time without depending on per-frame values.
+  let liveEdgeIndex = 0;
+  for (const { request, status } of requestStates) {
+    if (status !== 'future') liveEdgeIndex = request.index;
+  }
+  const liveEdgeRef = useRef(0);
+  useEffect(() => {
+    liveEdgeRef.current = liveEdgeIndex;
+  }, [liveEdgeIndex]);
+
+  const clearPeek = useCallback(() => {
+    setFutureMode((mode) => (mode === 'peek' ? 'hidden' : mode));
+    // The bound belongs to the peek episode; drop it so the next jump
+    // captures a fresh edge.
+    setPeekLimit(0);
+  }, []);
 
   // Manual play/pause while the pane is open discards the resume-on-close
   // intent: the user has taken over playback.
@@ -259,12 +279,16 @@ function SessionReplay({
   );
 
   // The ⤓ button on a card jumps to when that request's response finished
-  // streaming: pause, seek, and reveal the later requests in the temporary
-  // peek mode (unless "Show all requests" already pins them).
+  // streaming: pause, seek, and reveal the already-visible requests in the
+  // temporary peek mode (unless "Show all requests" already pins them).
+  // The peek bound is the edge shown before the jump — extended if a jump
+  // happens while already peeking, never shrunk — so nothing beyond it is
+  // revealed.
   const handleRequestSeek = useCallback(
     (request: RequestTimeline) => {
       pause();
       seek(request.endTime);
+      setPeekLimit((limit) => Math.max(limit, liveEdgeRef.current));
       setFutureMode((mode) => (mode === 'shown' ? mode : 'peek'));
     },
     [pause, seek],

@@ -313,6 +313,36 @@ describe('requestsAt', () => {
     ]);
   });
 
+  it('bounds future requests to the given index limit', () => {
+    expect(
+      requestsAt(timeline, s(R1_END_MS), {
+        includeFuture: true,
+        futureLimit: 1,
+      }),
+    ).toEqual([{ request: timeline.requests[0], status: 'done' }]);
+    expect(
+      requestsAt(timeline, s(R1_END_MS), {
+        includeFuture: true,
+        futureLimit: 2,
+      }),
+    ).toEqual([
+      { request: timeline.requests[0], status: 'done' },
+      { request: timeline.requests[1], status: 'future' },
+    ]);
+  });
+
+  it('never bounds requests that are already sent', () => {
+    expect(
+      requestsAt(timeline, s(R2_SENT_MS + 5), {
+        includeFuture: true,
+        futureLimit: 1,
+      }),
+    ).toEqual([
+      { request: timeline.requests[0], status: 'done' },
+      { request: timeline.requests[1], status: 'processing' },
+    ]);
+  });
+
   it('marks completed requests as done at the boundary', () => {
     expect(requestsAt(timeline, s(R1_END_MS))).toEqual([
       { request: timeline.requests[0], status: 'done' },
