@@ -8,10 +8,12 @@ import {
   Text,
   Title,
 } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import { AgentTerminal } from '../coding-agent/AgentTerminal.tsx';
+import { MobileRequestOverlay } from '../coding-agent/MobileRequestOverlay.tsx';
 import {
   formatClock,
   formatCost,
@@ -41,6 +43,10 @@ import { usePlayback } from '../coding-agent/use-playback.ts';
 import { useSessionIndex } from '../coding-agent/use-session-index.ts';
 import shared from '../shared.module.css';
 import styles from './CodingAgentPage.module.css';
+
+/** Below this width the page renders the mobile alternate UI. Matches the
+ * desktop breakpoint the workbench styles used to collapse at. */
+const MOBILE_MEDIA_QUERY = '(max-width: 900px)';
 
 const DEFAULT_DESCRIPTION =
   'A recorded coding agent run, replayed token by token: thinking, tool calls, and edits on the left; the provider requests that produced them, with token counts and prices, on the right.';
@@ -173,6 +179,7 @@ function SessionReplay({
   const ready = session.status === 'ready';
   const timeline = ready ? session.timeline : null;
   const packedSession = ready ? session.session : null;
+  const isMobile = useMediaQuery(MOBILE_MEDIA_QUERY);
 
   // Future requests are normally hidden. Jumping to an earlier request (the
   // pane's Go to button) shows them in a temporary "peek" mode (the checkbox
@@ -367,62 +374,123 @@ function SessionReplay({
     );
   }
 
+  // Shared page chrome, identical in both layouts.
+  const backButton = (
+    <Button
+      component={Link}
+      to="/"
+      variant="subtle"
+      size="compact-sm"
+      className={shared.backLink}
+    >
+      ← Back to homepage
+    </Button>
+  );
+
+  const header = (
+    <header className={styles.pageHeader}>
+      <div>
+        <Text className={shared.eyebrow}>Coding agent</Text>
+        <Title order={1}>Agent session replay</Title>
+        <Text c="dimmed" maw={720}>
+          {DEFAULT_DESCRIPTION}
+        </Text>
+      </div>
+      <Group gap="xs" className={styles.headerBadges}>
+        {sessions.length > 1 && (
+          <Menu position="bottom-end" offset={6} width={360} withinPortal>
+            <Menu.Target>
+              <Button
+                variant="default"
+                size="xs"
+                className={styles.sessionSelector}
+                rightSection={<span aria-hidden="true">▾</span>}
+              >
+                {selected.info.title}
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Label>Sessions</Menu.Label>
+              {sessions.map((entry) => (
+                <Menu.Item
+                  key={entry.id}
+                  rightSection={entry.id === selected.id ? '✓' : undefined}
+                  onClick={() => onSelect(entry.id)}
+                >
+                  <SessionMenuLabel session={entry} />
+                </Menu.Item>
+              ))}
+            </Menu.Dropdown>
+          </Menu>
+        )}
+        <Badge variant="light">{timeline.model}</Badge>
+        <Badge variant="outline">{timeline.requests.length} requests</Badge>
+        <Badge variant="outline">
+          {formatTokens(fullTotals.output.tokens)} output tokens
+        </Badge>
+        <Badge variant="outline">{formatCost(fullTotals.total.cost)}</Badge>
+      </Group>
+    </header>
+  );
+
+  const playbackBar = (
+    <PlaybackBar
+      time={time}
+      duration={duration}
+      playing={playing}
+      speed={speed}
+      onToggle={handleToggle}
+      onSpeedChange={setSpeed}
+      onSeek={handleSeek}
+    />
+  );
+
+  // Mobile: the terminal stands alone; the request list and pane live behind
+  // the floating summary card as drawers over it. The playback bar stays
+  // reachable below, so playback can be controlled while browsing requests.
+  if (isMobile) {
+    return (
+      <main className={shared.appShell}>
+        <Container size="xl" className={styles.pageContainer}>
+          {backButton}
+          {header}
+          <div className={styles.mobileTerminalArea}>
+            <AgentTerminal
+              timeline={timeline}
+              states={entryStates}
+              focusRequestId={paneRequest?.id ?? null}
+              revertOnClose={paneRevertOnClose}
+              highlightedEntryIds={paneHighlight.highlightIds}
+              scrollAnchorEntryId={paneHighlight.anchorId}
+              highlightVariant={paneSection === 'output' ? 'group' : 'boundary'}
+            />
+            <MobileRequestOverlay
+              states={requestStates}
+              breakdown={totals}
+              totalRequests={timeline.requests.length}
+              futureMode={futureMode}
+              onFutureModeChange={setFutureMode}
+              onRequestTogglePane={handleRequestTogglePane}
+              selectedRequestId={paneRequest?.id ?? null}
+              paneRequest={paneRequest}
+              session={session.session}
+              expanded={paneSection}
+              onExpand={setPaneSection}
+              onGoto={handleRequestGoto}
+              onClosePane={closePane}
+            />
+          </div>
+          {playbackBar}
+        </Container>
+      </main>
+    );
+  }
+
   return (
     <main className={shared.appShell}>
       <Container size="xl" className={styles.pageContainer}>
-        <Button
-          component={Link}
-          to="/"
-          variant="subtle"
-          size="compact-sm"
-          className={shared.backLink}
-        >
-          ← Back to homepage
-        </Button>
-
-        <header className={styles.pageHeader}>
-          <div>
-            <Text className={shared.eyebrow}>Coding agent</Text>
-            <Title order={1}>Agent session replay</Title>
-            <Text c="dimmed" maw={720}>
-              {DEFAULT_DESCRIPTION}
-            </Text>
-          </div>
-          <Group gap="xs" className={styles.headerBadges}>
-            {sessions.length > 1 && (
-              <Menu position="bottom-end" offset={6} width={360} withinPortal>
-                <Menu.Target>
-                  <Button
-                    variant="default"
-                    size="xs"
-                    className={styles.sessionSelector}
-                    rightSection={<span aria-hidden="true">▾</span>}
-                  >
-                    {selected.info.title}
-                  </Button>
-                </Menu.Target>
-                <Menu.Dropdown>
-                  <Menu.Label>Sessions</Menu.Label>
-                  {sessions.map((entry) => (
-                    <Menu.Item
-                      key={entry.id}
-                      rightSection={entry.id === selected.id ? '✓' : undefined}
-                      onClick={() => onSelect(entry.id)}
-                    >
-                      <SessionMenuLabel session={entry} />
-                    </Menu.Item>
-                  ))}
-                </Menu.Dropdown>
-              </Menu>
-            )}
-            <Badge variant="light">{timeline.model}</Badge>
-            <Badge variant="outline">{timeline.requests.length} requests</Badge>
-            <Badge variant="outline">
-              {formatTokens(fullTotals.output.tokens)} output tokens
-            </Badge>
-            <Badge variant="outline">{formatCost(fullTotals.total.cost)}</Badge>
-          </Group>
-        </header>
+        {backButton}
+        {header}
 
         <div className={styles.workbench}>
           <AgentTerminal
@@ -472,15 +540,7 @@ function SessionReplay({
           )}
         </div>
 
-        <PlaybackBar
-          time={time}
-          duration={duration}
-          playing={playing}
-          speed={speed}
-          onToggle={handleToggle}
-          onSpeedChange={setSpeed}
-          onSeek={handleSeek}
-        />
+        {playbackBar}
       </Container>
     </main>
   );

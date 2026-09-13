@@ -1,0 +1,158 @@
+/* Mobile alternate UI for the coding agent replay. The terminal stands
+   alone; provider requests live behind a floating summary card and slide in
+   as right-anchored drawers over it. Layers inside the overlay, bottom to
+   top: summary card (1) → list backdrop (2) → list drawer (3) → pane
+   backdrop (4) → pane drawer (5). */
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  /* Above the terminal (its sticky header carries z-index 2). */
+  z-index: 3;
+  /* Transparent pass-through: with no drawer open the terminal must stay
+     fully interactive; visible children re-enable pointer events. */
+  pointer-events: none;
+  /* The closed list drawer parks translated past the right edge; a
+     transformed element still extends the document's scrollable area even
+     while hidden, which would give the page a horizontal scrollbar. Clip
+     the drawers to the terminal area (also how they slide in from behind
+     its edge). `clip`, not `hidden`: no scroll container is created. */
+  overflow: clip;
+}
+
+.overlay > * {
+  pointer-events: auto;
+}
+
+/* Floating summary card ------------------------------------------------- */
+
+/* Condensed request summary that replaces the desktop list footer on
+   mobile: how many requests the replay has made so far plus their
+   accumulated tokens and cost. Clicking it opens the request list. Pinned
+   under the terminal's sticky header row; the blur keeps it readable over
+   streamed text (and over the wrapped header row on narrow screens). */
+.summaryCard {
+  position: absolute;
+  top: 42px;
+  right: 10px;
+  z-index: 1;
+  display: grid;
+  gap: 2px;
+  justify-items: end;
+  padding: 7px 12px;
+  border: 1px solid
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  border-radius: var(--mantine-radius-md);
+  background: light-dark(
+    color-mix(in srgb, var(--mantine-color-white) 88%, transparent),
+    color-mix(in srgb, var(--mantine-color-dark-8) 88%, transparent)
+  );
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--mantine-shadow-sm);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: right;
+}
+
+.summaryCard:focus-visible {
+  outline: 2px solid var(--mantine-color-violet-5);
+  outline-offset: 2px;
+}
+
+.summaryRequests {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.summaryUsage {
+  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-3));
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Backdrops -------------------------------------------------------------- */
+
+/* Dim over the terminal behind an open drawer; clicking it dismisses the
+   drawer on top of it. The pane variant sits one layer higher, so while the
+   pane is open it also dims the list drawer — whose left edge stays visible
+   in the gap beside the pane as the back-to-list area. */
+.backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  padding: 0;
+  border: none;
+  background: light-dark(rgb(0 0 0 / 0.08), rgb(0 0 0 / 0.3));
+  cursor: pointer;
+  animation: backdrop-in 220ms ease;
+}
+
+.paneBackdrop {
+  z-index: 4;
+}
+
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Drawers ---------------------------------------------------------------- */
+
+/* Shared geometry: right-anchored over the terminal, leaving a gap on the
+   left wide enough to serve as the click-to-dismiss backdrop. */
+.overlay {
+  --drawer-width: min(92%, 420px);
+}
+
+/* The request list. Always mounted so it slides out instead of vanishing;
+   `visibility` flips only after the slide-out finishes. */
+.listDrawer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  z-index: 3;
+  width: var(--drawer-width);
+  visibility: hidden;
+  transform: translateX(calc(100% + 16px));
+  transition:
+    transform 280ms cubic-bezier(0.2, 0.7, 0.3, 1),
+    visibility 0s linear 280ms;
+}
+
+.listDrawer[data-open] {
+  visibility: visible;
+  transform: none;
+  box-shadow: var(--mantine-shadow-lg);
+  transition: transform 280ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+.listFill {
+  height: 100%;
+}
+
+/* The request pane. One step narrower than the list, so the list's left
+   edge remains visible in the gap — the space reads as "the list is still
+   here" and clicking it (or anywhere outside the pane) closes the pane. */
+.paneDrawer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  z-index: 5;
+  width: calc(var(--drawer-width) - 8%);
+  animation: drawer-in 280ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+@keyframes drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}

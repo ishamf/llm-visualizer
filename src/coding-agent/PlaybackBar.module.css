@@ -1,5 +1,8 @@
 .playbackBar {
   display: flex;
+  /* Wraps instead of overflowing on narrow screens. Never triggers on
+     desktop, where the bar always fits on one line. */
+  flex-wrap: wrap;
   align-items: center;
   gap: 14px;
   padding: 10px 16px;
@@ -49,6 +52,22 @@
 
 .seekSlider {
   flex: 1;
+}
+
+/* Narrow screens: the slider cannot share a line with the fixed-size
+   controls (play button, clocks, speed control), so it takes a full row of
+   its own instead of being crushed to its min-content width — which, as a
+   grid item of the page column, would otherwise stretch the whole page
+   wider than the viewport. Desktop (>900px) never matches this query. */
+@media (max-width: 480px) {
+  .playbackBar {
+    gap: 10px;
+  }
+
+  .seekSlider {
+    order: 1;
+    flex: 1 1 100%;
+  }
 }
 
 .speedControl {

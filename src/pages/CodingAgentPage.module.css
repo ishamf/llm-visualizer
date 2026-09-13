@@ -105,25 +105,16 @@
     flex-direction: column;
     gap: 12px;
   }
+}
 
-  .workbench {
-    grid-template-columns: 1fr;
-    height: auto;
-  }
+/* Mobile-only terminal stage (rendered by the mobile branch): the terminal
+   stands alone and anchors the floating request HUD/overlay. */
+.mobileTerminalArea {
+  position: relative;
+  height: min(62vh, 620px);
+  min-height: 360px;
+}
 
-  .workbench > :first-child {
-    height: min(62vh, 620px);
-    min-height: 360px;
-  }
-
-  .requestArea {
-    height: 320px;
-  }
-
-  /* The list cannot slide over the terminal in the single-column layout; the
-     pane simply covers the list in place instead. */
-  .requestListShell.requestListShifted {
-    transform: none;
-    box-shadow: none;
-  }
+.mobileTerminalArea > :first-child {
+  height: 100%;
 }
