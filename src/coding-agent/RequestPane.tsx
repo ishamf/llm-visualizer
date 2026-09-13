@@ -1,6 +1,7 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useMemo, useState, type ReactNode } from 'react';
 
 import { formatBytes, formatClock } from './format.ts';
+import { prettyJson, splitTextBlocks } from './pretty-json.ts';
 import type { PackedSession, PackedResponse } from './packed-session.ts';
 import type { RequestTimeline } from './timeline.ts';
 import styles from './RequestPane.module.css';
@@ -13,27 +14,46 @@ import styles from './RequestPane.module.css';
 type ExpandedSection = 'input' | 'output';
 
 /**
- * The pane's raw content for a request: the prompt prefix that was sent as
- * pretty-printed JSON (the same shape the payload byte sizes were computed
- * from) and the parsed assistant response, if one was recorded.
+ * The pane's raw content for a request: the prompt prefix that was sent (the
+ * same shape the payload byte sizes were computed from) and the parsed
+ * assistant response, if one was recorded.
  */
 function requestPayload(
   session: PackedSession,
   request: RequestTimeline,
-): { input: string; response: PackedResponse | undefined } {
+): { input: unknown; response: PackedResponse | undefined } {
   const packed = session.requests[request.index - 1];
   return {
-    input: JSON.stringify(
-      {
-        system: session.prompt.system,
-        tools: session.prompt.tools,
-        messages: session.prompt.messages.slice(0, packed?.messageCount ?? 0),
-      },
-      null,
-      2,
-    ),
+    input: {
+      system: session.prompt.system,
+      tools: session.prompt.tools,
+      messages: session.prompt.messages.slice(0, packed?.messageCount ?? 0),
+    },
     response: packed?.response,
   };
+}
+
+/**
+ * Pretty-printed JSON for a code box. Multi-line strings — prompts, tool
+ * arguments, tool output — become Python-style `'''` text blocks with real
+ * newlines instead of one long `\n`-escaped line; the block parts are
+ * wrapped in a span so they can be tinted apart from the JSON around them.
+ */
+function PrettyJson({ value }: { value: unknown }) {
+  const parts = useMemo(() => splitTextBlocks(prettyJson(value)), [value]);
+  return (
+    <>
+      {parts.map((part, index) =>
+        'block' in part ? (
+          <span className={styles.textBlock} key={index}>
+            {part.block}
+          </span>
+        ) : (
+          <Fragment key={index}>{part.text}</Fragment>
+        ),
+      )}
+    </>
+  );
 }
 
 type CodeSectionProps = {
@@ -132,7 +152,9 @@ export function RequestPane({
           expanded={expanded === 'input'}
           onExpand={() => setExpanded('input')}
         >
-          <pre className={styles.code}>{payload.input}</pre>
+          <pre className={styles.code}>
+            <PrettyJson value={payload.input} />
+          </pre>
         </CodeSection>
         <CodeSection
           label="Output"
@@ -142,7 +164,7 @@ export function RequestPane({
         >
           {payload.response ? (
             <pre className={styles.code}>
-              {JSON.stringify(payload.response, null, 2)}
+              <PrettyJson value={payload.response} />
             </pre>
           ) : (
             <p className={styles.noResponse}>

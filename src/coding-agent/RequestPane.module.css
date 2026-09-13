@@ -211,6 +211,25 @@
   overflow-wrap: anywhere;
 }
 
+/* Triple-quoted text block: a multi-line string rendered Python-style
+   instead of as one \n-escaped line. Just a slightly bluer tone of the
+   surrounding text color, so the block reads as text without drawing
+   attention. */
+.textBlock {
+  color: light-dark(
+    color-mix(
+      in srgb,
+      var(--mantine-color-gray-7) 80%,
+      var(--mantine-color-blue-6)
+    ),
+    color-mix(
+      in srgb,
+      var(--mantine-color-gray-4) 80%,
+      var(--mantine-color-blue-4)
+    )
+  );
+}
+
 .noResponse {
   flex: 1;
   min-height: 0;
