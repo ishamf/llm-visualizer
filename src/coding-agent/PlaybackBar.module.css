@@ -53,4 +53,12 @@
 
 .speedControl {
   flex-shrink: 0;
+
+  /* Mantine hardcodes the SegmentedControl root to dark-8 in dark mode, which
+     blends into the playback bar (also dark-8-based). Pick a shade that
+     contrasts with the bar in both schemes. */
+  background-color: light-dark(
+    var(--mantine-color-gray-1),
+    var(--mantine-color-dark-5)
+  );
 }
