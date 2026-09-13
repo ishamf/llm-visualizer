@@ -84,6 +84,14 @@
   outline-offset: 2px;
 }
 
+.requestCard[data-selected] {
+  border-color: var(--mantine-color-violet-5);
+  background: light-dark(
+    color-mix(in srgb, var(--mantine-color-violet-0) 55%, transparent),
+    color-mix(in srgb, var(--mantine-color-violet-9) 26%, transparent)
+  );
+}
+
 .requestCard[data-status='streaming'],
 .requestCard[data-status='processing'] {
   border-color: var(--mantine-color-violet-4);
@@ -130,6 +138,40 @@
 
 .requestSpinner {
   align-self: center;
+}
+
+/* Seek action: pauses and jumps to when this request's response finished. */
+.requestSeek {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-5));
+  border-radius: var(--mantine-radius-sm);
+  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-3));
+  background: light-dark(
+    color-mix(in srgb, var(--mantine-color-white) 70%, transparent),
+    color-mix(in srgb, var(--mantine-color-dark-7) 70%, transparent)
+  );
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
+.requestSeek:hover {
+  border-color: var(--mantine-color-violet-4);
+  color: var(--mantine-color-violet-6);
+}
+
+.requestSeek:focus-visible {
+  outline: 2px solid var(--mantine-color-violet-5);
+  outline-offset: 2px;
 }
 
 .requestDone {

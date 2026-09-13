@@ -124,7 +124,7 @@ jumping ahead on refocus.
 `src/pages/CodingAgentPage.tsx` composes three parts over the shared
 `usePlayback` clock, deriving everything from the current time with pure
 functions (`entriesAt`, `requestsAt`, `usageBreakdownAt`), so playing,
-pausing, seeking, and clicking a request all run through the same snapshot
+pausing, seeking, and jumping to a request all run through the same snapshot
 logic.
 
 ### Terminal (main view)
@@ -162,23 +162,41 @@ input / output token counts, and the request cost. The footer accumulates
 per-category tokens and costs (cached, cache write, input, output) with the
 total, over requests completed so far.
 
-Clicking a card pauses playback and seeks to the moment that request's
-response finished streaming. A minimum gap between requests guarantees the
-following request is not revealed at that point. The panel shares the same
+Clicking a card opens the **request pane**: the list slides left by its own
+width plus a padding gap and a floating pane of the same width appears in
+its place, overlaying the terminal's right edge without reflowing the rest
+of the visualization (on the single-column mobile layout the pane covers
+the list in place instead). Opening it pauses playback; closing it — via
+its close button, a click on the dimmed backdrop over the terminal, or
+clicking the selected card again — resumes playback, but only if it was
+running when the pane opened. The space is reserved for a two-section
+accordion with the request input (the prompt prefix as pretty-printed
+JSON, the same shape the payload byte sizes were computed from) and the
+parsed assistant response in scrollable code boxes. Input starts expanded;
+exactly one section is always expanded — opening the output collapses the
+input, and an open section cannot be collapsed (its header shows no hover
+or pointer affordance). The accordion resets to the input when another
+request is opened.
+
+A small ⤓ button on each card keeps the old jump behavior: it pauses
+playback and seeks to the moment that request's response finished streaming.
+A minimum gap between requests guarantees the following request is not
+revealed at that point. The panel shares the same
 pin-to-bottom scroll behavior as the terminal.
 
 Normally only requests that have been sent at the current playback time are
-listed. Clicking an earlier card keeps the later requests visible in a dimmed
-`future` state — a temporary "peek" mode that ends as soon as the user plays
-or seeks the slider. The **Show all requests** checkbox in the panel
-header pins them permanently instead; it renders in the indeterminate state
-while a peek is active. Toggling it never scrolls the list. While future
-requests are visible the panel does not auto-scroll at all — it becomes a
-static browsing view without the jump button, since every request is
-rendered and the list can simply be scrolled. While future requests are
-visible, an in-flight request keeps the settled card — payload bytes,
-usage, and the spinner where the checkmark would be — instead of the live
-labels, so seeking across it does not flip the card's layout.
+listed. Jumping to an earlier request (the ⤓ button) keeps the later
+requests visible in a dimmed `future` state — a temporary "peek" mode that
+ends as soon as the user plays or seeks the slider. The **Show all
+requests** checkbox in the panel header pins them permanently instead; it
+renders in the indeterminate state while a peek is active. Toggling it
+never scrolls the list. While future requests are visible the panel does
+not auto-scroll at all — it becomes a static browsing view without the
+jump button, since every request is rendered and the list can simply be
+scrolled. While future requests are visible, an in-flight request keeps
+the settled card — payload bytes, usage, and the spinner where the
+checkmark would be — instead of the live labels, so seeking across it does
+not flip the card's layout.
 `requestsAt` produces the `future` status only when asked for it via its
 `includeFuture` option, so the default snapshot logic is unchanged.
 

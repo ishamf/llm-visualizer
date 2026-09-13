@@ -1,0 +1,197 @@
+/* Floating detail pane for a single provider request. Positioned by the
+   page over the request list's original spot; the list slides left to make
+   room, so nothing outside the workbench reflows. */
+.pane {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-5));
+  border-radius: var(--mantine-radius-md);
+  /* Opaque: the pane floats above other content (the shifted list on the
+     single-column layout), so nothing may show through. The blend keeps the
+     same tint the translucent version had over the page background. */
+  background: light-dark(
+    var(--mantine-color-white),
+    color-mix(
+      in srgb,
+      var(--mantine-color-dark-8) 96%,
+      var(--mantine-color-dark-7)
+    )
+  );
+  box-shadow: var(--mantine-shadow-lg);
+  animation: pane-in 220ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+@keyframes pane-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.paneHeader {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px 9px 14px;
+  border-bottom: 1px solid
+    light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-6));
+}
+
+.paneTitle {
+  flex: 1;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.paneClose {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--mantine-radius-sm);
+  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-3));
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.paneClose:hover {
+  border-color: light-dark(
+    var(--mantine-color-gray-3),
+    var(--mantine-color-dark-5)
+  );
+  color: light-dark(var(--mantine-color-gray-9), var(--mantine-color-gray-2));
+}
+
+.paneClose:focus-visible {
+  outline: 2px solid var(--mantine-color-violet-5);
+  outline-offset: 2px;
+}
+
+/* Input / output accordion. The expanded section claims the remaining pane
+   height; its code box scrolls within it. */
+
+.sections {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.section {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.section + .section {
+  border-top: 1px solid
+    light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-6));
+}
+
+.section[data-expanded] {
+  flex: 1;
+}
+
+.sectionToggle {
+  display: flex;
+  flex: none;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: none;
+  color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-gray-4));
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.sectionToggle:hover {
+  color: var(--mantine-color-violet-6);
+}
+
+/* The open section's toggle has no effect, so it must not look clickable. */
+.section[data-expanded] .sectionToggle {
+  cursor: default;
+}
+
+.section[data-expanded] .sectionToggle:hover {
+  color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-gray-4));
+}
+
+.sectionToggle:focus-visible {
+  outline: 2px solid var(--mantine-color-violet-5);
+  outline-offset: -2px;
+}
+
+.sectionLabel {
+  flex: 1;
+}
+
+.sectionBytes {
+  color: light-dark(var(--mantine-color-gray-5), var(--mantine-color-dark-4));
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.section[data-expanded] .sectionBytes {
+  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-3));
+}
+
+.chevron {
+  color: light-dark(var(--mantine-color-gray-5), var(--mantine-color-dark-4));
+  font-size: 0.9em;
+}
+
+.code {
+  flex: 1;
+  min-height: 0;
+  margin: 0 12px 12px;
+  padding: 8px 10px;
+  border: 1px solid
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-5));
+  border-radius: var(--mantine-radius-sm);
+  overflow: auto;
+  color: light-dark(var(--mantine-color-gray-7), var(--mantine-color-gray-4));
+  font-family:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono',
+    monospace;
+  font-size: 0.68rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.noResponse {
+  flex: 1;
+  min-height: 0;
+  margin: 0 12px 12px;
+  padding: 8px 10px;
+  border: 1px dashed
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-5));
+  border-radius: var(--mantine-radius-sm);
+  overflow: auto;
+  color: light-dark(var(--mantine-color-gray-5), var(--mantine-color-dark-3));
+  font-size: 0.72rem;
+}

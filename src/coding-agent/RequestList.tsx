@@ -32,24 +32,43 @@ type RequestCardProps = {
    * request's window does not flip its card between presentations.
    */
   settledPending: boolean;
+  /** Whether the request pane is currently showing this request. */
+  selected: boolean;
+  /** Opens (or toggles) the request pane for this request. */
   onRequestClick: (request: RequestTimeline) => void;
+  /** Pauses and seeks to when this request's response finished streaming. */
+  onRequestSeek: (request: RequestTimeline) => void;
 };
 
 const RequestCard = memo(function RequestCard({
   request,
   status,
   settledPending,
+  selected,
   onRequestClick,
+  onRequestSeek,
 }: RequestCardProps) {
   const usage = request.usage;
   const settled = status === 'done' || status === 'future' || settledPending;
+  // The card is a role="button" div rather than a real button so the seek
+  // action can be a real nested button. Keyboard activation is handled
+  // below; the seek button's own events are excluded by the target check
+  // and stopPropagation.
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       className={styles.requestCard}
       data-status={status}
+      data-selected={selected || undefined}
       onClick={() => onRequestClick(request)}
-      aria-label={`Pause and seek to when request ${request.index} completed`}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        onRequestClick(request);
+      }}
+      aria-label={`View details of request ${request.index}`}
     >
       <span className={styles.requestHeader}>
         <span className={styles.requestIndex}>#{request.index}</span>
@@ -73,6 +92,18 @@ const RequestCard = memo(function RequestCard({
         ) : status === 'future' ? null : (
           <Loader className={styles.requestSpinner} size="xs" type="dots" />
         )}
+        <button
+          type="button"
+          className={styles.requestSeek}
+          title="Pause and seek to when this request completed"
+          aria-label={`Pause and seek to when request ${request.index} completed`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onRequestSeek(request);
+          }}
+        >
+          ⤓
+        </button>
       </span>
       {settled && (
         <span className={styles.requestUsage}>
@@ -93,7 +124,7 @@ const RequestCard = memo(function RequestCard({
           </span>
         </span>
       )}
-    </button>
+    </div>
   );
 });
 
@@ -111,6 +142,11 @@ type RequestListProps = {
   futureMode: FutureRequestsMode;
   onFutureModeChange: (mode: FutureRequestsMode) => void;
   onRequestClick: (request: RequestTimeline) => void;
+  onRequestSeek: (request: RequestTimeline) => void;
+  /** Id of the request shown in the request pane, if any. */
+  selectedRequestId: string | null;
+  /** Extra classes for the panel root, e.g. the pane's shift transition. */
+  className?: string;
 };
 
 export function RequestList({
@@ -120,6 +156,9 @@ export function RequestList({
   futureMode,
   onFutureModeChange,
   onRequestClick,
+  onRequestSeek,
+  selectedRequestId,
+  className,
 }: RequestListProps) {
   // The watch value identifies the newest request sent at the current
   // playback time (id + status): it changes only when the edge advances to
@@ -150,7 +189,12 @@ export function RequestList({
     category: breakdown[category],
   })).filter(({ category }) => category.tokens > 0 || category.cost > 0);
   return (
-    <aside className={styles.requestList} aria-label="Provider requests">
+    <aside
+      className={
+        className ? `${styles.requestList} ${className}` : styles.requestList
+      }
+      aria-label="Provider requests"
+    >
       <header className={styles.listHeader}>
         <div className={styles.listHeaderRow}>
           <Text className={styles.listTitle} size="sm" fw={650}>
@@ -189,7 +233,9 @@ export function RequestList({
                 request={state.request}
                 status={state.status}
                 settledPending={settledPending}
+                selected={state.request.id === selectedRequestId}
                 onRequestClick={onRequestClick}
+                onRequestSeek={onRequestSeek}
               />
             ))}
           </div>
