@@ -1,12 +1,4 @@
-import {
-  Alert,
-  Badge,
-  Button,
-  Container,
-  Group,
-  Menu,
-  Text,
-} from '@mantine/core';
+import { Alert, Button, Container, Group, Menu, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import {
   useCallback,
@@ -19,11 +11,7 @@ import {
 
 import { AgentTerminal } from './coding-agent/AgentTerminal.tsx';
 import { MobileRequestOverlay } from './coding-agent/MobileRequestOverlay.tsx';
-import {
-  formatClock,
-  formatCost,
-  formatTokens,
-} from './coding-agent/format.ts';
+import { formatClock, formatCost } from './coding-agent/format.ts';
 import { PlaybackBar } from './coding-agent/PlaybackBar.tsx';
 import {
   RequestPane,
@@ -89,6 +77,12 @@ export type CodingAgentExperienceProps = {
 /** Below this width the experience renders the mobile alternate UI. Matches the
  * desktop breakpoint the workbench styles used to collapse at. */
 const MOBILE_MEDIA_QUERY = '(max-width: 900px)';
+
+/** Requests after which the mobile floating summary card permanently switches
+ * from the compact "N requests made" summary to the desktop request list
+ * footer's per-category breakdown. One-way: seeking playback back behind the
+ * switch never reverts it. */
+const MOBILE_BREAKDOWN_AFTER_REQUESTS = 3;
 
 const EMPTY_BREAKDOWN = {
   cached: { tokens: 0, cost: 0 },
@@ -304,13 +298,16 @@ function SessionReplay({
     () => (timeline ? usageBreakdownAt(timeline, time) : EMPTY_BREAKDOWN),
     [timeline, time],
   );
-  const fullTotals = useMemo(
-    () =>
-      timeline
-        ? usageBreakdownAt(timeline, Number.POSITIVE_INFINITY)
-        : EMPTY_BREAKDOWN,
-    [timeline],
+  // High-water mark of requests sent during this replay. Seeking back lowers
+  // the live count but never this mark, so the mobile summary card's switch
+  // to the footer-style breakdown (see MOBILE_BREAKDOWN_AFTER_REQUESTS) is
+  // permanent. Updated during render — React bails out unless it increases.
+  const sentCount = requestStates.reduce(
+    (count, { status }) => (status !== 'future' ? count + 1 : count),
+    0,
   );
+  const [peakSentCount, setPeakSentCount] = useState(0);
+  if (sentCount > peakSentCount) setPeakSentCount(sentCount);
 
   // Index of the newest request sent at the current playback time (0 before
   // the first request). Mirrored into a ref so the stable seek callback can
@@ -447,12 +444,12 @@ function SessionReplay({
   }
 
   // Shared header, identical in both layouts. The article-level heading
-  // (`headerContent`) is page-supplied; the session selector and metadata
-  // badges belong to the experience.
+  // (`headerContent`) is page-supplied; the session selector belongs to the
+  // experience.
   const header = (
     <header className={pageStyles.pageHeader}>
       {headerContent}
-      <Group gap="xs" className={pageStyles.headerBadges}>
+      <Group gap="xs">
         {sessions.length > 1 && (
           <Menu
             position="bottom-end"
@@ -485,12 +482,6 @@ function SessionReplay({
             </Menu.Dropdown>
           </Menu>
         )}
-        <Badge variant="light">{timeline.model}</Badge>
-        <Badge variant="outline">{timeline.requests.length} requests</Badge>
-        <Badge variant="outline">
-          {formatTokens(fullTotals.output.tokens)} output tokens
-        </Badge>
-        <Badge variant="outline">{formatCost(fullTotals.total.cost)}</Badge>
       </Group>
     </header>
   );
@@ -528,6 +519,7 @@ function SessionReplay({
           <MobileRequestOverlay
             states={requestStates}
             breakdown={totals}
+            showBreakdown={peakSentCount >= MOBILE_BREAKDOWN_AFTER_REQUESTS}
             totalRequests={timeline.requests.length}
             futureMode={futureMode}
             onFutureModeChange={setFutureMode}

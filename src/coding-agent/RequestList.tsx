@@ -12,14 +12,13 @@ import {
   type RequestTimeline,
   type UsageBreakdown,
 } from './timeline.ts';
+import { FOOTER_CATEGORY_ROWS } from './usage-categories.ts';
 import { usePinnedAutoScroll } from './use-pinned-scroll.ts';
 import styles from './RequestList.module.css';
 
-/**
- * How future (not yet sent) requests are presented: `hidden` omits them,
+/** How future (not yet sent) requests are presented: `hidden` omits them,
  * `peek` shows them temporarily after jumping to an earlier request, and
- * `shown` keeps them visible permanently.
- */
+ * `shown` keeps them visible permanently. */
 export type FutureRequestsMode = 'hidden' | 'peek' | 'shown';
 
 type RequestCardProps = {
@@ -101,13 +100,6 @@ const RequestCard = memo(function RequestCard({
     </button>
   );
 });
-
-const FOOTER_CATEGORY_ROWS: Array<[string, keyof UsageBreakdown]> = [
-  ['Cached', 'cached'],
-  ['Cache write', 'cacheWrite'],
-  ['Input', 'input'],
-  ['Output', 'output'],
-];
 
 type RequestListProps = {
   states: readonly RequestState[];

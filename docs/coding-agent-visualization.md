@@ -14,8 +14,8 @@ generated, what it did, and what it cost.
 ## Web component
 
 The `src/web-component/coding-agent.ts` entry defines
-`<xif-coding-agent>`, which renders the same replay as the page — header
-badges, session selector, terminal, request list, playback bar — inside an
+`<xif-coding-agent>`, which renders the same replay as the page — session
+selector, terminal, request list, playback bar — inside an
 open shadow root. It has no router and never touches the host URL. The replay
 logic itself lives in the router-free `CodingAgentExperience`; the page only
 adds the `<h1>`, description, back-to-homepage links, and `?session=` URL
@@ -83,7 +83,7 @@ folders there manually and re-run `pnpm generate:session-index`.
 The page loads the index, then renders the session named by the `session`
 query parameter (falling back to the first entry): `/coding-agent?session=id`.
 When more than one session is available, a dropdown button showing the
-session title appears in the header's badge row, listing every session with
+session title appears in the header, listing every session with
 its model, request count, duration, and cost; switching remounts the replay
 so playback restarts from the beginning. With a single session the selector
 is hidden and no session metadata is rendered.
@@ -154,7 +154,7 @@ logic.
 ### Terminal (main view)
 
 `src/coding-agent/AgentTerminal.tsx` renders the transcript in a CLI style,
-light and dark:
+light and dark, under a sticky header showing the model:
 
 - User prompts with a `❯` mark, typed out with a caret.
 - Thinking blocks, dim and italic, expanded while streaming; a completed block
@@ -194,7 +194,13 @@ the list in place instead). Opening it pauses playback; closing it — via
 its close button, a click on the dimmed backdrop over the terminal, or
 clicking the selected card again — resumes playback, but only if it was
 running when the pane opened. On the mobile layout the list itself is a
-drawer over the terminal, opened from a floating summary card; since it
+drawer over the terminal, opened from a floating summary card. The card
+starts as a two-line summary — requests made so far plus accumulated tokens
+and cost — and once three requests have been sent it permanently expands to
+one dimmed line per usage category plus a total, in the compact line's
+format; the switch is a
+high-water mark, so seeking playback back behind it never reverts the card.
+Since the drawer
 covers the terminal too, opening it pauses playback by the same rule, and a
 pane opened from the list keeps the drawer's intent — playback resumes only
 when the last drawer closes, and a manual play/pause or the Go to button

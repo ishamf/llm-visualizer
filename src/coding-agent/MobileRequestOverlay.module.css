@@ -73,6 +73,36 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Expanded summary: one line per usage category in the compact line's
+   format, dimmed like it; only the "N requests made" heading stays
+   highlighted. A two-column grid keeps the costs in a shared column so they
+   line up for comparison — without padding inside the cells, equal-width
+   costs still flush right exactly like the single-line layout did. */
+.summaryBreakdown {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 4px;
+  row-gap: 2px;
+  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-3));
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Costs share a left edge (the card's right-alignment would only line up
+   their ends); the text column inherits the card's right alignment, so the
+   "·" separators also line up. */
+.summaryCost {
+  text-align: left;
+}
+
+/* Subtle rule between the category lines and the total. */
+.summaryDivider {
+  grid-column: 1 / -1;
+  margin-top: 3px;
+  border-top: 1px solid
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+}
+
 /* Backdrops -------------------------------------------------------------- */
 
 /* Dim over the terminal behind an open drawer; clicking it dismisses the

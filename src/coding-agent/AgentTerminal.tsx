@@ -547,12 +547,7 @@ export function AgentTerminal({
     <div className={styles.terminal}>
       <div className={styles.scroll} ref={containerRef}>
         <div className={styles.header}>
-          <span className={styles.headerTitle}>
-            {timeline.provider} · {timeline.model}
-          </span>
-          {timeline.cwd && (
-            <span className={styles.headerCwd}>{timeline.cwd}</span>
-          )}
+          <span className={styles.headerTitle}>{timeline.model}</span>
         </div>
         <div className={styles.content} ref={contentRef}>
           <div className={styles.transcript}>

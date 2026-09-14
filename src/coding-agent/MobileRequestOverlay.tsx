@@ -1,4 +1,6 @@
 import { formatCost, formatTokens } from './format.ts';
+import { Fragment } from 'react';
+
 import { RequestList, type FutureRequestsMode } from './RequestList.tsx';
 import { RequestPane, type ExpandedSection } from './RequestPane.tsx';
 import type { PackedSession } from './packed-session.ts';
@@ -7,11 +9,19 @@ import type {
   RequestTimeline,
   UsageBreakdown,
 } from './timeline.ts';
+import { FOOTER_CATEGORY_ROWS } from './usage-categories.ts';
 import styles from './MobileRequestOverlay.module.css';
 
 type MobileRequestOverlayProps = {
   states: readonly RequestState[];
   breakdown: UsageBreakdown;
+  /**
+   * Whether the summary card expands from the compact one-line usage to one
+   * dimmed line per usage category plus a total. The page locks it in once
+   * enough requests have been sent (a high-water mark), so seeking playback
+   * back never reverts it.
+   */
+  showBreakdown: boolean;
   totalRequests: number;
   futureMode: FutureRequestsMode;
   onFutureModeChange: (mode: FutureRequestsMode) => void;
@@ -36,8 +46,10 @@ type MobileRequestOverlayProps = {
  * Mobile alternate UI for the provider requests. The terminal stands alone;
  * a floating summary card (requests made plus accumulated tokens and cost)
  * sits in its top-right corner and opens the request list as a drawer that
- * slides in from the right over a dimmed backdrop. Opening a request's pane
- * slides a slightly narrower drawer on top — the list's left edge stays
+ * slides in from the right over a dimmed backdrop. Once a few requests have
+ * been sent, the card permanently expands to one dimmed line per usage
+ * category plus a total, in the compact line's format. Opening a request's
+ * pane slides a slightly narrower drawer on top — the list's left edge stays
  * visible in the gap and clicking it (or the backdrop) returns to the list.
  *
  * Playback state, the pane, and the list drawer's open state are owned by
@@ -47,6 +59,7 @@ type MobileRequestOverlayProps = {
 export function MobileRequestOverlay({
   states,
   breakdown,
+  showBreakdown,
   totalRequests,
   futureMode,
   onFutureModeChange,
@@ -67,6 +80,12 @@ export function MobileRequestOverlay({
   const paneOpen = paneRequest !== null;
   const drawerOpen = listOpen || paneOpen;
   const sentCount = states.filter(({ status }) => status !== 'future').length;
+  // The expanded summary separates the total from the category lines with a
+  // subtle rule — pointless when no category line is shown at all.
+  const hasCategoryLines = FOOTER_CATEGORY_ROWS.some(
+    ([, category]) =>
+      breakdown[category].tokens > 0 || breakdown[category].cost > 0,
+  );
 
   return (
     <div className={styles.overlay}>
@@ -78,12 +97,38 @@ export function MobileRequestOverlay({
         aria-controls="mobile-request-list"
       >
         <span className={styles.summaryRequests}>
-          {sentCount} requests made
+          {sentCount} {sentCount === 1 ? 'request' : 'requests'} made
         </span>
-        <span className={styles.summaryUsage}>
-          {formatTokens(breakdown.total.tokens)} tokens ·{' '}
-          {formatCost(breakdown.total.cost)}
-        </span>
+        {showBreakdown ? (
+          <div className={styles.summaryBreakdown}>
+            {FOOTER_CATEGORY_ROWS.map(([label, category]) => {
+              const usage = breakdown[category];
+              if (usage.tokens <= 0 && usage.cost <= 0) return null;
+              return (
+                <Fragment key={label}>
+                  <span>
+                    {formatTokens(usage.tokens)} {label.toLowerCase()} tokens ·
+                  </span>
+                  <span className={styles.summaryCost}>
+                    {formatCost(usage.cost)}
+                  </span>
+                </Fragment>
+              );
+            })}
+            {hasCategoryLines && (
+              <div className={styles.summaryDivider} aria-hidden="true" />
+            )}
+            <span>{formatTokens(breakdown.total.tokens)} total tokens ·</span>
+            <span className={styles.summaryCost}>
+              {formatCost(breakdown.total.cost)}
+            </span>
+          </div>
+        ) : (
+          <span className={styles.summaryUsage}>
+            {formatTokens(breakdown.total.tokens)} tokens ·{' '}
+            {formatCost(breakdown.total.cost)}
+          </span>
+        )}
       </button>
 
       {drawerOpen && !paneOpen && (

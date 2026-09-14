@@ -62,13 +62,6 @@
   letter-spacing: 0.02em;
 }
 
-.headerCwd {
-  overflow: hidden;
-  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-3));
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .transcript {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
