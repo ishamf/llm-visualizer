@@ -3,7 +3,7 @@
 Pre-generated contribution datasets are produced offline from the instrumented
 model and served as static JSON. The browser never runs the model to display
 pre-generated examples. The metric that produced these values is described in
-the [README](../README.md#how-contribution-is-measured).
+[Contribution text](./contribution-text.md).
 
 Every dataset identifies its metric as
 `unprojected-attention-contribution-rss` and uses schema version 1, so a

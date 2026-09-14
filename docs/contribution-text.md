@@ -1,13 +1,15 @@
 # Contribution text
 
-The main visualization is **contribution text**. The prompt and the generated
-response are rendered as plain text, and each token's opacity shows how
-strongly every earlier token contributed to it. Hovering a generated token
-highlights its strongest sources.
+The **contribution text** visualization renders the prompt and the generated
+response as plain text, and each token's opacity shows how strongly every
+earlier token contributed to it. Hovering a generated token highlights its
+strongest sources. It lives at `/attention`, is embedded on the homepage,
+and is also published as the `xif-contribution-text` web component.
 
 You can explore a pre-generated example, or type a prompt and generate a new
 response: the model runs locally in a web worker, so the prompt never leaves
-the browser.
+the browser. The file formats of the pre-generated examples are described in
+[Contribution datasets](contribution-datasets.md).
 
 ## How contribution is measured
 
@@ -40,21 +42,4 @@ This is not a measure of total causal influence on the final logits. The
 attention output projection, residual connection, MLP, later layers, and the
 language-model head can redirect or cancel it. A post-output-projection
 metric is planned in
-[the extended instrumentation plan](docs/plans/extended-instrumentation-plan.md).
-
-## Suggestions
-
-This text is preserved verbatim from the README, which now links here
-instead. Consider these edits now that it is standalone, then delete this
-section:
-
-- The opening still says "The main visualization is **contribution text**";
-  with two main visualizations, reword it and say where the visualization
-  lives (`/attention`, the homepage, and the `xif-contribution-text` web
-  component).
-- The plan link at the end is relative to the repository root; from this
-  folder it must be
-  [the extended instrumentation plan](plans/extended-instrumentation-plan.md).
-- Cross-link the sibling docs: [Contribution
-  datasets](contribution-datasets.md) for the pre-generated file formats and
-  [Coding agent replay](coding-agent.md) for the other main visualization.
+[the extended instrumentation plan](plans/extended-instrumentation-plan.md).

@@ -4,7 +4,7 @@
 
 - **Contribution text** (`/attention`) — the prompt and generated response
   rendered with per-token attention-contribution opacity. Metric and
-  rendering: the [README](README.md#how-contribution-is-measured);
+  rendering: `docs/contribution-text.md`;
   pre-generated datasets: `docs/contribution-datasets.md`.
 - **Coding agent replay** (`/coding-agent`) — a recorded coding agent run
   replayed token by token, with the provider requests that produced it.
