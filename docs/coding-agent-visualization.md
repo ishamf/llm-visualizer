@@ -154,7 +154,8 @@ logic.
 ### Terminal (main view)
 
 `src/coding-agent/AgentTerminal.tsx` renders the transcript in a CLI style,
-light and dark, under a sticky header showing the model:
+light and dark, under a sticky header showing the model and the project
+directory:
 
 - User prompts with a `❯` mark, typed out with a caret.
 - Thinking blocks, dim and italic, expanded while streaming; a completed block
