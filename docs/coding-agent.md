@@ -14,5 +14,20 @@ terminal-style view while a side panel follows each provider request — what
 was sent, what came back, and what it cost — and the playback bar plays,
 pauses, and seeks the whole timeline.
 
+## Setup
+
+The replay needs a recorded session in `generated/coding-agent/`; the folder
+layout is described in
+[Data source](coding-agent-visualization.md#data-source). You can download
+the example session (TODO: add link) or record your own with the recorder
+plugin (TODO: add link).
+
+With a session folder in place, compile the session index that the page
+loads:
+
+```sh
+pnpm generate:session-index
+```
+
 The session format, playback timeline, and interface are described in
 [Coding agent visualization](coding-agent-visualization.md).

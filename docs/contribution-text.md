@@ -11,6 +11,71 @@ response: the model runs locally in a web worker, so the prompt never leaves
 the browser. The file formats of the pre-generated examples are described in
 [Contribution datasets](contribution-datasets.md).
 
+## Setup
+
+The general setup — installing dependencies and starting the dev server — is
+in the [README](../README.md#setup). On top of it, the contribution-text
+visualization needs the instrumented model and, for the pre-generated
+examples, locally generated data.
+
+### 1. Download the model
+
+The app is pinned to Qwen3-0.6B with `int8` weights (`MODEL_CONFIGURATION` in
+`src/generation/config.ts`) and, in development, loads the instrumented ONNX
+file at `models/Qwen3-0.6B-ONNX/onnx/instrumented_int8.onnx` plus the
+tokenizer and config files next to it. The visualizations read internal
+attention tensors that stock ONNX models do not expose, so the weights must be
+instrumented; any way of placing the files in `models/Qwen3-0.6B-ONNX` works.
+For example, with the Hugging Face CLI and the pre-instrumented
+[ishamf/Qwen3-0.6B-ONNX-Instrumented](https://huggingface.co/ishamf/Qwen3-0.6B-ONNX-Instrumented)
+repository (≈630 MB):
+
+```sh
+hf download ishamf/Qwen3-0.6B-ONNX-Instrumented \
+  onnx/instrumented_int8.onnx \
+  config.json generation_config.json \
+  tokenizer.json tokenizer_config.json \
+  special_tokens_map.json added_tokens.json \
+  vocab.json merges.txt chat_template.jinja \
+  --local-dir models/Qwen3-0.6B-ONNX
+```
+
+Alternatively, download the original model from
+[onnx-community/Qwen3-0.6B-ONNX](https://huggingface.co/onnx-community/Qwen3-0.6B-ONNX)
+(same file list, with `onnx/model_int8.onnx` instead of
+`onnx/instrumented_int8.onnx`) and run the instrumentation script after
+installing its pip dependencies — see
+[Model instrumentation](instrumentation.md).
+
+`models/` is gitignored, so this is a local, one-time setup step.
+
+### 2. Optional: generate the pre-generated prompts
+
+The contribution-text pre-generated prompts load from `generated/`
+(gitignored). The exporter runs the same model in Node for every configured
+prompt:
+
+```sh
+pnpm generate:summed-contributions
+pnpm generate:data-manifest
+```
+
+Dataset formats and exporter options are described in
+[Contribution datasets](contribution-datasets.md), and the discovery
+catalogs in [Generated data manifests](generated-data-manifests.md).
+
+### 3. Try it out
+
+Open <http://localhost:5173> and type a prompt. The model runs in a web worker
+in your browser, so the prompt never leaves your machine. The first generation
+fetches the ≈620 MB of weights from the dev server; the browser caches them,
+so later runs start faster.
+
+A fresh clone has no `generated/` data, so the pre-generated examples area
+shows an error message; in-browser generation is unaffected. Generate the
+prompts locally (previous step) or point `VITE_GENERATED_DATA_BASE_URL` at a
+deployed data origin.
+
 ## How contribution is measured
 
 The dataset metric is the **unprojected attention contribution magnitude**.
