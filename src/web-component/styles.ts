@@ -32,6 +32,13 @@ const hostCss = `
   :host, :host * {
     box-sizing: border-box;
   }
+
+  /* The card's own padding provides the inset, so a Mantine Container's
+     document-level inline padding would stack on top of it and make the
+     horizontal padding larger than the vertical one. */
+  :host .mantine-Container-root {
+    padding-inline: 0;
+  }
 `;
 
 export const visualizerStyleSheet = new CSSStyleSheet();

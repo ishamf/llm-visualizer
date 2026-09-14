@@ -18,7 +18,7 @@ export default defineConfig(({ command, mode }) => {
         input: {
           'contribution-text': resolve(
             import.meta.dirname,
-            'src/web-component/entry.ts',
+            'src/web-component/contribution-text.ts',
           ),
           'coding-agent': resolve(
             import.meta.dirname,
