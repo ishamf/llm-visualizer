@@ -6,12 +6,21 @@ import type { SessionIndexEntry } from './session-index.ts';
  * (`<id>/session.json` + `<id>/info.json`), with a generated `index.json`
  * describing them all.
  */
-export const SESSIONS_BASE_URL = `${GENERATED_DATA_BASE_URL}coding-agent/`;
-
-export function sessionIndexUrl(): string {
-  return `${SESSIONS_BASE_URL}index.json`;
+export function sessionsBaseUrl(
+  generatedDataBaseUrl: string = GENERATED_DATA_BASE_URL,
+): string {
+  return `${generatedDataBaseUrl}coding-agent/`;
 }
 
-export function sessionUrl(entry: Pick<SessionIndexEntry, 'path'>): string {
-  return `${SESSIONS_BASE_URL}${entry.path}session.json`;
+export function sessionIndexUrl(
+  generatedDataBaseUrl: string = GENERATED_DATA_BASE_URL,
+): string {
+  return `${sessionsBaseUrl(generatedDataBaseUrl)}index.json`;
+}
+
+export function sessionUrl(
+  entry: Pick<SessionIndexEntry, 'path'>,
+  generatedDataBaseUrl: string = GENERATED_DATA_BASE_URL,
+): string {
+  return `${sessionsBaseUrl(generatedDataBaseUrl)}${entry.path}session.json`;
 }

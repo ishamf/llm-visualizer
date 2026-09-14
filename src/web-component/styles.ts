@@ -34,7 +34,7 @@ const hostCss = `
   }
 `;
 
-export const contributionTextStyleSheet = new CSSStyleSheet();
-contributionTextStyleSheet.replaceSync(
+export const visualizerStyleSheet = new CSSStyleSheet();
+visualizerStyleSheet.replaceSync(
   [mantineCss, indexCss, appCss, hostCss].join('\n'),
 );

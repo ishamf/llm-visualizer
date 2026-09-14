@@ -28,6 +28,7 @@ dist/
 ├── assets/
 └── web-component/
     ├── contribution-text.js
+    ├── coding-agent.js
     ├── workers/
     └── static/
 ```
@@ -143,9 +144,24 @@ VITE_HF_MODEL_REVISION=<commit-sha> \
 
 The standalone output is written to `dist-web-component/`. The combined
 `pnpm build` command writes the same distribution beneath
-`dist/web-component/` so it is deployed together with the application.
+`dist/web-component/` so it is deployed together with the application. The
+entries share runtime chunks beneath `static/`, so the folder is deployed as
+a unit; every entry resolves its chunks and workers relative to its own URL,
+which keeps the distribution valid under an arbitrary URL prefix.
 
-When the component omits its `model-base-url` attribute, it uses the Hugging
+The distribution defines two elements:
+
+- `xif-contribution-text` (`contribution-text.js`) — the contribution-text
+  experience with in-browser generation. See
+  [Contribution text](./contribution-text.md).
+- `xif-coding-agent` (`coding-agent.js`) — the coding agent replay. It loads
+  only the session JSONs and needs neither the model nor a worker, so it
+  works without cross-origin isolation. Its `generated-data-base-url`,
+  `session`, and `color-scheme` attributes behave like the contribution
+  element's, with `session` selecting the replayed session (the analog of the
+  page's `?session=` parameter).
+
+When the contribution element omits its `model-base-url` attribute, it uses the Hugging
 Face repository configured at build time. Setting `model-base-url` instead uses
 the custom static-host layout:
 

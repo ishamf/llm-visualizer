@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Coding agent replay Web Component example</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --page-color: #25211d;
+        --page-background: #f3eee6;
+        font-family: Georgia, 'Times New Roman', serif;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+          --page-color: #eee9e2;
+          --page-background: #191714;
+        }
+      }
+
+      body {
+        max-width: 86rem;
+        margin: 0 auto;
+        padding: 3rem 1.5rem 5rem;
+        color: var(--page-color);
+        background: var(--page-background);
+      }
+
+      article > header {
+        max-width: 48rem;
+        margin-bottom: 2.5rem;
+      }
+
+      h1 {
+        margin-bottom: 0.75rem;
+        font-size: clamp(2.5rem, 7vw, 5.5rem);
+        line-height: 0.95;
+        letter-spacing: -0.055em;
+      }
+
+      p {
+        font-size: 1.1rem;
+        line-height: 1.65;
+      }
+
+      /* Deliberately hostile host rules: these must not reach the component. */
+      button,
+      input,
+      select,
+      textarea {
+        padding: 2rem;
+        color: lime;
+        font: inherit;
+        background: magenta;
+      }
+    </style>
+  </head>
+  <body>
+    <article>
+      <header>
+        <p>LLM Visualizer</p>
+        <h1>Agent session replay</h1>
+        <p>
+          A recorded coding agent run, replayed token by token: thinking, tool
+          calls, and edits in the terminal; the provider requests that produced
+          them, with token counts and prices, beside it.
+        </p>
+        <p>
+          The page and embedded component automatically follow your browser's
+          light or dark color scheme.
+        </p>
+      </header>
+
+      <xif-coding-agent
+        generated-data-base-url="/generated/"
+        color-scheme="auto"
+      ></xif-coding-agent>
+    </article>
+
+    <script type="module" src="/src/web-component/coding-agent.ts"></script>
+  </body>
+</html>

@@ -3,12 +3,36 @@
 The coding agent visualization replays a recorded coding agent session as it
 happened: user prompts, the assistant's streaming thinking and text, tool
 calls with their results, and the provider requests that produced all of it,
-with token counts, payload sizes, and prices. It lives at `/coding-agent` and
-is linked from the homepage.
+with token counts, payload sizes, and prices. It lives at `/coding-agent`, is
+linked from the homepage, and is also published as the `xif-coding-agent` web
+component.
 
 Unlike the contribution visualizations, which render pre-computed model
 internals, this one renders the _runtime_ of an agent: what the model
 generated, what it did, and what it cost.
+
+## Web component
+
+The `src/web-component/coding-agent.ts` entry defines
+`<xif-coding-agent>`, which renders the same replay as the page — header
+badges, session selector, terminal, request list, playback bar — inside an
+open shadow root. It has no router and never touches the host URL. The replay
+logic itself lives in the router-free `CodingAgentExperience`; the page only
+adds the `<h1>`, description, back-to-homepage links, and `?session=` URL
+sync.
+
+| Attribute                 | Default                  | Purpose                                              |
+| ------------------------- | ------------------------ | ---------------------------------------------------- |
+| `generated-data-base-url` | `/generated/`            | Base URL for the session index and session JSONs     |
+| `session`                 | first `index.json` entry | Session id to replay (a deep link, like `?session=`) |
+| `color-scheme`            | `auto`                   | `light`, `dark`, or `auto` Mantine scheme            |
+
+Setting the `session` attribute points the replay at that session until the
+user picks another one in the header selector; changing the attribute again
+takes precedence once more. `dev/coding-agent.html` is a plain-HTML fixture
+that exercises the element against deliberately hostile host styles. The
+visualization needs no model or worker — sessions are static JSON — so unlike
+`<xif-contribution-text>` it works on pages without cross-origin isolation.
 
 ## Data source
 
@@ -213,3 +237,7 @@ Timeline construction, entry/request snapshots, usage breakdowns, payload
 sizes, and parser validation are covered by unit tests against a synthetic
 two-request session (`src/coding-agent/*-test.ts`); expectations are derived
 from the exported constants so retuning them keeps the tests meaningful.
+
+`dev/coding-agent.html` serves as the manual browser fixture for the web
+component; `dev/contribution-text.html` plays the same role for the
+contribution-text element.

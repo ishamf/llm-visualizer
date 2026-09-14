@@ -5,17 +5,12 @@ import {
 } from '@mantine/core';
 import { createRoot, type Root } from 'react-dom/client';
 
-import { ContributionTextExperience } from '../ContributionTextExperience.tsx';
+import { CodingAgentExperience } from '../CodingAgentExperience.tsx';
 import { GENERATED_DATA_BASE_URL } from '../data/dataset-catalog.ts';
-import {
-  BROWSER_MODEL_SOURCE,
-  type BrowserModelSource,
-} from '../generation/browser-config.ts';
 import { PortalTargetProvider } from './portal-target.tsx';
 import { visualizerStyleSheet } from './styles.ts';
-import { createDistributionWorker } from './worker-loader.ts';
 
-const ELEMENT_NAME = 'xif-contribution-text';
+const ELEMENT_NAME = 'xif-coding-agent';
 const isolatedColorSchemeManager: MantineColorSchemeManager = {
   get: (defaultValue) => defaultValue,
   set: () => undefined,
@@ -28,20 +23,26 @@ function parseColorScheme(value: string | null): MantineColorScheme {
   return value === 'light' || value === 'dark' ? value : 'auto';
 }
 
-export function defineContributionTextElement(workerUrl: URL) {
+export function defineCodingAgentElement() {
   if (customElements.get(ELEMENT_NAME)) return;
 
-  class ContributionTextElement extends HTMLElement {
+  class CodingAgentElement extends HTMLElement {
     static observedAttributes = [
       'color-scheme',
       'generated-data-base-url',
-      'model-base-url',
+      'session',
     ];
 
     readonly #mountNode: HTMLDivElement;
     readonly #portalNode: HTMLDivElement;
     readonly #colorSchemeObserver: MutationObserver;
     #root: Root | undefined;
+    /**
+     * Session picked in the header selector. `null` means the default first
+     * session was chosen explicitly; `undefined` means no choice was made and
+     * the `session` attribute (if any) decides.
+     */
+    #selectedSessionId: string | null | undefined;
 
     constructor() {
       super();
@@ -49,9 +50,9 @@ export function defineContributionTextElement(workerUrl: URL) {
       shadowRoot.adoptedStyleSheets = [visualizerStyleSheet];
 
       this.#mountNode = document.createElement('div');
-      this.#mountNode.dataset.contributionTextRoot = '';
+      this.#mountNode.dataset.codingAgentRoot = '';
       this.#portalNode = document.createElement('div');
-      this.#portalNode.dataset.contributionTextPortals = '';
+      this.#portalNode.dataset.codingAgentPortals = '';
       shadowRoot.append(this.#mountNode, this.#portalNode);
 
       this.#colorSchemeObserver = new MutationObserver(() => {
@@ -73,7 +74,15 @@ export function defineContributionTextElement(workerUrl: URL) {
       this.#root = undefined;
     }
 
-    attributeChangedCallback() {
+    attributeChangedCallback(
+      name: string,
+      oldValue: string | null,
+      newValue: string | null,
+    ) {
+      // A host-driven session change overrides whatever the selector chose.
+      if (name === 'session' && oldValue !== newValue) {
+        this.#selectedSessionId = undefined;
+      }
       if (this.isConnected) this.#render();
     }
 
@@ -95,13 +104,12 @@ export function defineContributionTextElement(workerUrl: URL) {
         this.getAttribute('generated-data-base-url') ?? GENERATED_DATA_BASE_URL,
         document.baseURI,
       ).href;
-      const modelBaseUrl = this.getAttribute('model-base-url');
-      const modelSource: BrowserModelSource = modelBaseUrl
-        ? {
-            type: 'local',
-            baseUrl: new URL(modelBaseUrl, document.baseURI).href,
-          }
-        : BROWSER_MODEL_SOURCE;
+      // An explicit `session` attribute deep-links a replay until the user
+      // chooses another one in the header selector.
+      const sessionId =
+        this.#selectedSessionId === undefined
+          ? this.getAttribute('session')
+          : this.#selectedSessionId;
 
       this.#root ??= createRoot(this.#mountNode);
       this.#root.render(
@@ -113,11 +121,14 @@ export function defineContributionTextElement(workerUrl: URL) {
           getRootElement={() => this}
         >
           <PortalTargetProvider target={this.#portalNode}>
-            <ContributionTextExperience
-              createWorker={() => createDistributionWorker(workerUrl)}
-              embedded
+            <CodingAgentExperience
               generatedDataBaseUrl={generatedDataBaseUrl}
-              modelSource={modelSource}
+              onSessionSelect={(id) => {
+                if (this.#selectedSessionId === id) return;
+                this.#selectedSessionId = id;
+                this.#render();
+              }}
+              sessionId={sessionId}
             />
           </PortalTargetProvider>
         </MantineProvider>,
@@ -125,5 +136,5 @@ export function defineContributionTextElement(workerUrl: URL) {
     }
   }
 
-  customElements.define(ELEMENT_NAME, ContributionTextElement);
+  customElements.define(ELEMENT_NAME, CodingAgentElement);
 }
