@@ -193,7 +193,12 @@ of the visualization (on the single-column mobile layout the pane covers
 the list in place instead). Opening it pauses playback; closing it — via
 its close button, a click on the dimmed backdrop over the terminal, or
 clicking the selected card again — resumes playback, but only if it was
-running when the pane opened. The header carries a **Go to** button next
+running when the pane opened. On the mobile layout the list itself is a
+drawer over the terminal, opened from a floating summary card; since it
+covers the terminal too, opening it pauses playback by the same rule, and a
+pane opened from the list keeps the drawer's intent — playback resumes only
+when the last drawer closes, and a manual play/pause or the Go to button
+cancels it. The header carries a **Go to** button next
 to the title: it seeks to the moment that request's response finished
 streaming, applies the bounded peek, and closes the pane without resuming
 playback. A minimum gap between requests guarantees the following request

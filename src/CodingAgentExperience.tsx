@@ -251,6 +251,12 @@ function SessionReplay({
   // resume. Set only on the open transition (switching requests keeps it);
   // manual play/pause while the pane is open cancels it.
   const [resumeOnPaneClose, setResumeOnPaneClose] = useState(false);
+  // The mobile request list drawer covers the terminal just like the pane,
+  // so it pauses playback the same way. Its open state lives here (the
+  // desktop list is a permanent column and has no open state) so opening
+  // the drawer can pause; the resume intent works like the pane's.
+  const [listOpen, setListOpen] = useState(false);
+  const [resumeOnListClose, setResumeOnListClose] = useState(false);
 
   const entryStates = useMemo(
     () => (timeline ? entriesAt(timeline, time) : []),
@@ -325,13 +331,15 @@ function SessionReplay({
     setPeekLimit(0);
   }, []);
 
-  // Manual play/pause while the pane is open discards the resume-on-close
-  // intent: the user has taken over playback.
+  // Manual play/pause while the pane or the mobile request list drawer is
+  // open discards the resume-on-close intents: the user has taken over
+  // playback.
   const handleToggle = useCallback(() => {
     if (paneRequest) setResumeOnPaneClose(false);
+    if (listOpen) setResumeOnListClose(false);
     toggle();
     clearPeek();
-  }, [paneRequest, toggle, clearPeek]);
+  }, [paneRequest, listOpen, toggle, clearPeek]);
 
   const handleSeek = useCallback(
     (value: number) => {
@@ -353,6 +361,28 @@ function SessionReplay({
     if (resumeOnPaneClose) play();
     setResumeOnPaneClose(false);
   }, [resumeOnPaneClose, play]);
+
+  // Opening the mobile request list covers the terminal, so it pauses
+  // playback like the pane does, remembering whether it was running so
+  // closing can resume; closing the drawer resumes unless a manual
+  // play/pause (see handleToggle) or a Go to jump cancelled the intent. The
+  // pane keeps the drawer open underneath it, so the pause belongs to the
+  // last drawer that uncovered the terminal.
+  const handleListOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) {
+        if (!listOpen && !paneRequest) {
+          setResumeOnListClose(playing);
+          pause();
+        }
+      } else {
+        if (resumeOnListClose) play();
+        setResumeOnListClose(false);
+      }
+      setListOpen(open);
+    },
+    [listOpen, paneRequest, playing, pause, play, resumeOnListClose],
+  );
 
   // Clicking a card toggles the request pane. Opening it pauses playback,
   // remembering whether it was running so closing can resume; switching
@@ -390,6 +420,7 @@ function SessionReplay({
       setPaneRevertOnClose(false);
       setPaneRequest(null);
       setResumeOnPaneClose(false);
+      setResumeOnListClose(false);
     },
     [pause, seek],
   );
@@ -500,6 +531,8 @@ function SessionReplay({
             totalRequests={timeline.requests.length}
             futureMode={futureMode}
             onFutureModeChange={setFutureMode}
+            listOpen={listOpen}
+            onListOpenChange={handleListOpenChange}
             onRequestTogglePane={handleRequestTogglePane}
             selectedRequestId={paneRequest?.id ?? null}
             paneRequest={paneRequest}

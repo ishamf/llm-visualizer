@@ -1,5 +1,3 @@
-import { useState } from 'react';
-
 import { formatCost, formatTokens } from './format.ts';
 import { RequestList, type FutureRequestsMode } from './RequestList.tsx';
 import { RequestPane, type ExpandedSection } from './RequestPane.tsx';
@@ -17,6 +15,10 @@ type MobileRequestOverlayProps = {
   totalRequests: number;
   futureMode: FutureRequestsMode;
   onFutureModeChange: (mode: FutureRequestsMode) => void;
+  /** Whether the request list drawer is open; owned by the page so opening
+   * it can pause playback like the request pane does. */
+  listOpen: boolean;
+  onListOpenChange: (open: boolean) => void;
   /** Opens (or toggles) the request pane; pauses playback like on desktop. */
   onRequestTogglePane: (request: RequestTimeline) => void;
   /** Id of the request shown in the request pane, if any. */
@@ -38,9 +40,9 @@ type MobileRequestOverlayProps = {
  * slides a slightly narrower drawer on top — the list's left edge stays
  * visible in the gap and clicking it (or the backdrop) returns to the list.
  *
- * Playback state and the pane are owned by the page; this component only
- * owns whether the list drawer is open, so pause/resume-on-close semantics
- * match the desktop UI exactly.
+ * Playback state, the pane, and the list drawer's open state are owned by
+ * the page, so opening either drawer pauses playback with the same
+ * resume-on-close semantics as the desktop pane.
  */
 export function MobileRequestOverlay({
   states,
@@ -48,6 +50,8 @@ export function MobileRequestOverlay({
   totalRequests,
   futureMode,
   onFutureModeChange,
+  listOpen,
+  onListOpenChange,
   onRequestTogglePane,
   selectedRequestId,
   paneRequest,
@@ -57,7 +61,6 @@ export function MobileRequestOverlay({
   onGoto,
   onClosePane,
 }: MobileRequestOverlayProps) {
-  const [listOpen, setListOpen] = useState(false);
   // The pane always opens from the list, and closing it returns there, so
   // the list drawer stays open underneath for as long as the pane is open —
   // including when the pane survives a resize from the desktop layout.
@@ -70,7 +73,7 @@ export function MobileRequestOverlay({
       <button
         type="button"
         className={styles.summaryCard}
-        onClick={() => setListOpen(true)}
+        onClick={() => onListOpenChange(true)}
         aria-expanded={drawerOpen}
         aria-controls="mobile-request-list"
       >
@@ -89,7 +92,7 @@ export function MobileRequestOverlay({
           className={styles.backdrop}
           aria-label="Close requests list"
           tabIndex={-1}
-          onClick={() => setListOpen(false)}
+          onClick={() => onListOpenChange(false)}
         />
       )}
 
