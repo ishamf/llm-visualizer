@@ -1,53 +1,35 @@
 # LLM Visualizer
 
-A Vite/React application for exploring how transformer language models read
-information from their context. Pre-generated visualizations load as static
-JSON from a separately deployable origin, and new responses can be generated
-privately in the browser with an instrumented ONNX model.
+A Vite/React application for exploring language-model internals. It has two
+main visualizations: **contribution text** and a **coding agent replay**.
+Pre-generated data loads as static JSON from a separately deployable origin,
+and contribution text can also generate new responses privately in the
+browser with an instrumented ONNX model.
 
-## Contribution text
+## Visualizations
 
-The main visualization is **contribution text**. The prompt and the generated
-response are rendered as plain text, and each token's opacity shows how
-strongly every earlier token contributed to it. Hovering a generated token
-highlights its strongest sources.
+### Contribution text
 
-You can explore a pre-generated example, or type a prompt and generate a new
+The prompt and the generated response are rendered as plain text, and each
+token's opacity shows how strongly every earlier token contributed to it.
+Hovering a generated token highlights its strongest sources. You can explore
+a pre-generated example at `/attention`, or type a prompt and generate a new
 response: the model runs locally in a web worker, so the prompt never leaves
 the browser.
 
-## How contribution is measured
+How the contribution is measured and rendered is described in
+[Contribution text](docs/contribution-text.md).
 
-The dataset metric is the **unprojected attention contribution magnitude**.
-For layer `l`, query head `h`, destination token `i`, and source token `j`:
+### Coding agent replay
 
-```text
-A[l,h,i,j]       = softmax(QKᵀ / √128 + causal mask)
-m[l,h,i,j]       = A[l,h,i,j] * ‖V[l,⌊h/2⌋,j]‖
-aggregate[l,i,j] = √(Σ_h m[l,h,i,j]²)
-```
+A recorded coding agent session is replayed as it happened at
+`/coding-agent`: user prompts, the assistant's streaming thinking and text,
+tool calls with their results, and the provider requests that produced all
+of it, with token counts, payload sizes, and prices.
 
-- `Q` and `K` are the post-RoPE query and key vectors, and the causal mask
-  prevents attention to future tokens.
-- Qwen3 uses grouped-query attention: query head `h` reads the key/value head
-  `⌊h/2⌋`, so each source contributes its value vector `V` to every query head
-  that reads it.
-- A head transfers the source's value vector scaled by the attention weight,
-  and `m` is the magnitude of that transfer.
-- The 16 query heads are aggregated with a root-sum-square, which is the L2
-  norm of the concatenated per-head source contributions. This is exact before
-  the attention output projection.
-
-The contribution-text visualization sums `aggregate` across all 28 layers.
-The opacity of a generated token therefore reflects how much value-vector
-magnitude each earlier token supplied to the attention blocks that produced
-its prediction.
-
-This is not a measure of total causal influence on the final logits. The
-attention output projection, residual connection, MLP, later layers, and the
-language-model head can redirect or cancel it. A post-output-projection
-metric is planned in
-[the extended instrumentation plan](docs/plans/extended-instrumentation-plan.md).
+It is described in [Coding agent replay](docs/coding-agent.md), with
+implementation details in
+[Coding agent visualization](docs/coding-agent-visualization.md).
 
 ## Experimental visualizations
 
@@ -134,6 +116,12 @@ model.
 
 ## Documentation
 
+- [Contribution text](docs/contribution-text.md) — the contribution-text
+  visualization
+- [Coding agent replay](docs/coding-agent.md) — the coding agent
+  visualization
+- [Coding agent visualization](docs/coding-agent-visualization.md) —
+  implementation details for the replay
 - [Deployment](docs/deployment.md) — production builds, model and
   generated-data hosting, response headers, web-component build
 - [Contribution datasets](docs/contribution-datasets.md) — dataset formats,
