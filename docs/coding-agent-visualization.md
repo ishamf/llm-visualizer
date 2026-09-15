@@ -257,6 +257,16 @@ Play/pause, a seek slider, and a `m:ss` clock; space toggles playback unless
 a control has focus. Pressing play at the end restarts from the beginning.
 Playback auto-starts once the session has loaded.
 
+While the thumb is dragged, the slider reports changes at pointer rate, and
+each seek re-derives the whole transcript snapshot. Rendered updates are
+therefore throttled (leading update, then at most one per window, always
+ending with a trailing update carrying the final position — see
+`createSeekThrottle` in `src/coding-agent/seek-throttle.ts`). The window is
+`SEEK_RENDER_THROTTLE_MS` in `src/coding-agent/use-playback.ts`; the clock
+and thumb follow the pointer at full rate meanwhile, and releasing the thumb
+renders its position immediately. Scrubbing also holds playback: the animation
+loop stops advancing and resumes from the released time.
+
 ### Cost charts
 
 Below the playback bar, the standalone page renders `RequestCostChart`

@@ -17,8 +17,11 @@ const MAX_FRAME_DELTA_SECONDS = 0.1;
  * when the thumb sweeps far. The authoritative time still follows every
  * change exactly — only the re-render is throttled, with a trailing update
  * so the final position always lands (see `createSeekThrottle`).
+ *
+ * Tuning knob: raise it to bound scrub re-renders further, lower it to make
+ * mid-drag renders fresher.
  */
-const SEEK_RENDER_THROTTLE_MS = 250;
+export const SEEK_RENDER_THROTTLE_MS = 250;
 
 export type SeekOptions = {
   /** Bypass the throttle and render immediately (e.g. scrub release). */
