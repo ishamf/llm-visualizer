@@ -21,7 +21,7 @@ const MAX_FRAME_DELTA_SECONDS = 0.1;
  * Tuning knob: raise it to bound scrub re-renders further, lower it to make
  * mid-drag renders fresher.
  */
-export const SEEK_RENDER_THROTTLE_MS = 250;
+export const SEEK_RENDER_THROTTLE_MS = 100;
 
 export type SeekOptions = {
   /** Bypass the throttle and render immediately (e.g. scrub release). */
