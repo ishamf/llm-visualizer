@@ -24,9 +24,16 @@
   color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
 }
 
-.chart {
+.chartFigure {
   width: 100%;
   max-width: 760px;
+  margin-inline: auto; /* center the fixed-width figure on wide screens */
+  display: grid;
+  gap: 8px;
+}
+
+.chart {
+  width: 100%;
   height: 196px;
 }
 

@@ -56,18 +56,20 @@ export function ContextCostChart({ session }: { session: PackedSession }) {
         spread over the context tokens it ingested and generated, per{' '}
         {CONTEXT_COST_BUCKET_TOKENS.toLocaleString('en-US')} tokens.
       </p>
-      <ChartBody
-        rows={series.buckets.map(({ start, end, costs }) => ({
-          start,
-          end,
-          ...costs,
-        }))}
-        ariaLabel={`Stacked bar chart of allocated cost per ${CONTEXT_COST_BUCKET_TOKENS} context tokens`}
-        tooltipTitle={(row) =>
-          `${kilo(row.start)}–${kilo(row.end)} tokens: ${formatCost(row.total)}`
-        }
-      />
-      <ChartLegend />
+      <div className={styles.chartFigure}>
+        <ChartBody
+          rows={series.buckets.map(({ start, end, costs }) => ({
+            start,
+            end,
+            ...costs,
+          }))}
+          ariaLabel={`Stacked bar chart of allocated cost per ${CONTEXT_COST_BUCKET_TOKENS} context tokens`}
+          tooltipTitle={(row) =>
+            `${kilo(row.start)}–${kilo(row.end)} tokens: ${formatCost(row.total)}`
+          }
+        />
+        <ChartLegend />
+      </div>
     </section>
   );
 }
@@ -101,19 +103,21 @@ export function ContextCostWindowChart({
         it, at the same per-request prices. The trailing window smooths the
         per-request spikes of the per-slice chart.
       </p>
-      <ChartBody
-        rows={series.buckets.map(({ start, end, windowStart, costs }) => ({
-          start,
-          end,
-          windowStart,
-          ...costs,
-        }))}
-        ariaLabel={`Stacked bar chart of the cost of the last ${CONTEXT_COST_WINDOW_TOKENS} context tokens, per ${CONTEXT_COST_WINDOW_BUCKET_TOKENS}-token slice`}
-        tooltipTitle={(row) =>
-          `${kilo(row.start)}–${kilo(row.end)} tokens: ${formatCost(row.total)} (window ${kilo(row.windowStart ?? 0)}–${kilo(row.end)})`
-        }
-      />
-      <ChartLegend />
+      <div className={styles.chartFigure}>
+        <ChartBody
+          rows={series.buckets.map(({ start, end, windowStart, costs }) => ({
+            start,
+            end,
+            windowStart,
+            ...costs,
+          }))}
+          ariaLabel={`Stacked bar chart of the cost of the last ${CONTEXT_COST_WINDOW_TOKENS} context tokens, per ${CONTEXT_COST_WINDOW_BUCKET_TOKENS}-token slice`}
+          tooltipTitle={(row) =>
+            `${kilo(row.start)}–${kilo(row.end)} tokens: ${formatCost(row.total)} (window ${kilo(row.windowStart ?? 0)}–${kilo(row.end)})`
+          }
+        />
+        <ChartLegend />
+      </div>
     </section>
   );
 }
