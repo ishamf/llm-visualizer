@@ -12,6 +12,7 @@ import {
 import { AgentTerminal } from './coding-agent/AgentTerminal.tsx';
 import { MobileRequestOverlay } from './coding-agent/MobileRequestOverlay.tsx';
 import { formatClock, formatCost } from './coding-agent/format.ts';
+import type { PackedSession } from './coding-agent/packed-session.ts';
 import { PlaybackBar } from './coding-agent/PlaybackBar.tsx';
 import {
   RequestPane,
@@ -56,6 +57,12 @@ export type CodingAgentExperienceProps = {
    * the standalone app's back-to-homepage button.
    */
   errorAction?: ReactNode;
+  /**
+   * Page-only content rendered below the playback bar once the session has
+   * loaded, receiving the packed session — e.g. the standalone app's
+   * cost-over-context chart. Not tied to playback.
+   */
+  footerContent?: (session: PackedSession) => ReactNode;
   /**
    * Base URL of the generated data; the session index is loaded from
    * `<base>coding-agent/index.json`. Defaults to the build-time
@@ -131,6 +138,7 @@ function SessionMenuLabel({ session }: { session: SessionIndexEntry }) {
 
 export function CodingAgentExperience({
   errorAction,
+  footerContent,
   generatedDataBaseUrl = GENERATED_DATA_BASE_URL,
   headerContent,
   headerLead,
@@ -181,6 +189,7 @@ export function CodingAgentExperience({
     <SessionReplay
       key={selected.id}
       errorAction={errorAction}
+      footerContent={footerContent}
       generatedDataBaseUrl={generatedDataBaseUrl}
       headerContent={headerContent}
       headerLead={headerLead}
@@ -193,6 +202,7 @@ export function CodingAgentExperience({
 
 function SessionReplay({
   errorAction,
+  footerContent,
   generatedDataBaseUrl,
   headerContent,
   headerLead,
@@ -201,6 +211,7 @@ function SessionReplay({
   onSelect,
 }: {
   errorAction?: ReactNode;
+  footerContent?: (session: PackedSession) => ReactNode;
   generatedDataBaseUrl: string;
   headerContent?: ReactNode;
   headerLead?: ReactNode;
@@ -536,6 +547,7 @@ function SessionReplay({
           />
         </div>
         {playbackBar}
+        {footerContent?.(session.session)}
       </Container>
     );
   }
@@ -594,6 +606,7 @@ function SessionReplay({
       </div>
 
       {playbackBar}
+      {footerContent?.(session.session)}
     </Container>
   );
 }

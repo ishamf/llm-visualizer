@@ -1,0 +1,122 @@
+.chartSection {
+  display: grid;
+  gap: 8px;
+  padding: 14px 18px 16px;
+  border: 1px solid
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-5));
+  border-radius: var(--mantine-radius-md);
+  background: light-dark(
+    color-mix(in srgb, var(--mantine-color-white) 82%, transparent),
+    color-mix(in srgb, var(--mantine-color-dark-8) 82%, transparent)
+  );
+}
+
+.chartTitle {
+  margin: 0;
+  font-size: var(--mantine-font-size-md);
+  font-weight: 600;
+}
+
+.chartDescription {
+  margin: 0;
+  max-width: 720px;
+  font-size: var(--mantine-font-size-sm);
+  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
+}
+
+.chart {
+  width: 100%;
+  max-width: 760px;
+  height: 196px;
+}
+
+/* Recharts chrome, tuned to match the surrounding Mantine theme. */
+.chart :global(.recharts-cartesian-grid-horizontal) line {
+  stroke: light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-5));
+  stroke-dasharray: 2 4;
+}
+
+.chart :global(.recharts-cartesian-axis-line) {
+  stroke: light-dark(var(--mantine-color-gray-4), var(--mantine-color-dark-4));
+}
+
+.chart :global(.recharts-cartesian-axis-tick-value),
+.chart :global(.recharts-label) {
+  font-size: 10px;
+  fill: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
+}
+
+.tooltip {
+  padding: 6px 10px;
+  border: 1px solid
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-5));
+  border-radius: var(--mantine-radius-sm);
+  background: light-dark(
+    var(--mantine-color-white),
+    var(--mantine-color-dark-7)
+  );
+  font-size: var(--mantine-font-size-xs);
+  white-space: pre-line;
+}
+
+.tooltipTitle {
+  font-weight: 600;
+}
+
+/* Stacked bar categories; shades stay legible on both color schemes. Both
+   fill (SVG bars) and background (legend swatches) pick up the color. */
+.cached {
+  fill: light-dark(var(--mantine-color-teal-6), var(--mantine-color-teal-4));
+  background-color: light-dark(
+    var(--mantine-color-teal-6),
+    var(--mantine-color-teal-4)
+  );
+}
+
+.cacheWrite {
+  fill: light-dark(var(--mantine-color-grape-6), var(--mantine-color-grape-4));
+  background-color: light-dark(
+    var(--mantine-color-grape-6),
+    var(--mantine-color-grape-4)
+  );
+}
+
+.input {
+  fill: light-dark(var(--mantine-color-blue-6), var(--mantine-color-blue-4));
+  background-color: light-dark(
+    var(--mantine-color-blue-6),
+    var(--mantine-color-blue-4)
+  );
+}
+
+.output {
+  fill: light-dark(
+    var(--mantine-color-orange-6),
+    var(--mantine-color-orange-4)
+  );
+  background-color: light-dark(
+    var(--mantine-color-orange-6),
+    var(--mantine-color-orange-4)
+  );
+}
+
+.chartLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: var(--mantine-font-size-xs);
+  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legendSwatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}

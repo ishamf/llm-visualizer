@@ -18,8 +18,8 @@ The `src/web-component/coding-agent.ts` entry defines
 selector, terminal, request list, playback bar — inside an
 open shadow root. It has no router and never touches the host URL. The replay
 logic itself lives in the router-free `CodingAgentExperience`; the page only
-adds the `<h1>`, description, back-to-homepage links, and `?session=` URL
-sync.
+adds the `<h1>`, description, back-to-homepage links, `?session=` URL
+sync, and the cost-over-context chart below the playback bar.
 
 | Attribute                 | Default                  | Purpose                                              |
 | ------------------------- | ------------------------ | ---------------------------------------------------- |
@@ -242,6 +242,26 @@ live labels, so seeking across it does not flip the card's layout.
 Play/pause, a seek slider, and a `m:ss` clock; space toggles playback unless
 a control has focus. Pressing play at the end restarts from the beginning.
 Playback auto-starts once the session has loaded.
+
+### Cost over context (page only)
+
+Below the playback bar, the standalone page renders a cost-over-context
+chart (`src/pages/ContextCostChart.tsx`) that is page-only: the web
+component never sees it. `CodingAgentExperience` exposes it through its
+optional `footerContent` render prop, which receives the loaded packed
+session and is rendered under the playback bar in both layouts.
+
+`src/coding-agent/context-cost.ts` allocates each request's full cost —
+uncached input, cached read, cache write, and output — over the context
+tokens the request owned: the transcript is treated as growing
+monotonically, so request _n_ owns the segment between the previous
+context end and its own `input + cacheRead + cacheWrite + output` tokens,
+and its cost (including the cached-read cost of the context it consumed)
+is spread evenly over that segment. The allocation is bucketed into
+1000-token windows; a request straddling a bucket boundary splits its
+cost proportionally. A request whose recorded token counts don't extend
+the context end dumps its whole cost into the bucket at the current end.
+The chart is static from session load — it does not follow playback.
 
 ## Testing
 

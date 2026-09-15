@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 
 import { CodingAgentExperience } from '../CodingAgentExperience.tsx';
 import shared from '../shared.module.css';
+import { ContextCostChart } from './ContextCostChart.tsx';
 
 const DEFAULT_DESCRIPTION =
   'A recorded coding agent run, replayed token by token: thinking, tool calls, and edits on the left; the provider requests that produced them, with token counts and prices, on the right.';
@@ -38,6 +39,7 @@ export function CodingAgentPage() {
             ← Back to homepage
           </Button>
         }
+        footerContent={(session) => <ContextCostChart session={session} />}
         onSessionSelect={(sessionId) =>
           setSearchParams(sessionId ? { session: sessionId } : {})
         }
