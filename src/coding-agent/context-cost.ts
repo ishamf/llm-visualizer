@@ -22,6 +22,15 @@ import type { PackedSession } from './packed-session.ts';
  * default); a request straddling a bucket boundary splits its cost
  * proportionally to the overlap. The series does not follow playback — it
  * always covers the whole session.
+ *
+ * `contextCostWindowSeries` reuses that same allocation, bucketed into
+ * 500-token slices, and reports for each slice the total cost of the
+ * trailing context window ending at it (`CONTEXT_COST_WINDOW_TOKENS`
+ * tokens by default: the slice's own tokens plus the preceding ones,
+ * truncated at the start of the session). The buckets partition the
+ * context line, so each window total is an exact sum of the allocation;
+ * the wide window smooths the per-request spikes of the per-bucket
+ * series.
  */
 
 export type ContextCostBucket = {
@@ -46,6 +55,11 @@ export type ContextCostSeries = {
 };
 
 export const CONTEXT_COST_BUCKET_TOKENS = 1000;
+
+/** Slice size for the rolling-window series. */
+export const CONTEXT_COST_WINDOW_BUCKET_TOKENS = 500;
+/** Trailing context window summed into each rolling-window bucket. */
+export const CONTEXT_COST_WINDOW_TOKENS = 5000;
 
 const emptyCosts = () => ({
   cached: 0,
@@ -106,4 +120,61 @@ export function contextCostSeries(
   }
 
   return { bucketTokens, contextTokens: cursor, buckets };
+}
+
+export type ContextCostWindowBucket = {
+  /** First context token of the slice. */
+  start: number;
+  /** One past the last context token of the slice. */
+  end: number;
+  /** First context token covered by the trailing window. */
+  windowStart: number;
+  costs: ContextCostBucket['costs'];
+};
+
+export type ContextCostWindowSeries = {
+  bucketTokens: number;
+  windowTokens: number;
+  /** Total context tokens covered (the end of the last request). */
+  contextTokens: number;
+  buckets: ContextCostWindowBucket[];
+};
+
+/**
+ * Rolling-window view of the per-slice allocation: the cost of the
+ * `windowTokens` context tokens ending at each `bucketTokens` slice.
+ */
+export function contextCostWindowSeries(
+  session: PackedSession,
+  windowTokens: number = CONTEXT_COST_WINDOW_TOKENS,
+  bucketTokens: number = CONTEXT_COST_WINDOW_BUCKET_TOKENS,
+): ContextCostWindowSeries {
+  const series = contextCostSeries(session, bucketTokens);
+  // A window spans this many aligned slices; the bucket partition makes
+  // summing them exact.
+  const span = Math.max(1, Math.round(windowTokens / bucketTokens));
+  const buckets = series.buckets.map((slice, index) => {
+    const first = Math.max(0, index - span + 1);
+    const costs = emptyCosts();
+    for (let i = first; i <= index; i += 1) {
+      const part = series.buckets[i].costs;
+      costs.cached += part.cached;
+      costs.cacheWrite += part.cacheWrite;
+      costs.input += part.input;
+      costs.output += part.output;
+      costs.total += part.total;
+    }
+    return {
+      start: slice.start,
+      end: slice.end,
+      windowStart: series.buckets[first].start,
+      costs,
+    };
+  });
+  return {
+    bucketTokens,
+    windowTokens: span * bucketTokens,
+    contextTokens: series.contextTokens,
+    buckets,
+  };
 }

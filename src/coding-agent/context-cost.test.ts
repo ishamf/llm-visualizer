@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   CONTEXT_COST_BUCKET_TOKENS,
+  CONTEXT_COST_WINDOW_BUCKET_TOKENS,
+  CONTEXT_COST_WINDOW_TOKENS,
   contextCostSeries,
+  contextCostWindowSeries,
 } from './context-cost.ts';
 import type { PackedSession } from './packed-session.ts';
 import { makeTestSession } from './test-fixtures.ts';
@@ -98,5 +101,61 @@ describe('contextCostSeries', () => {
       series.buckets.reduce((sum, bucket) => sum + bucket.costs.total, 0),
       0.1 + 0.5,
     );
+  });
+});
+
+describe('contextCostWindowSeries', () => {
+  it('sums the trailing window of context cost ending at each bucket', () => {
+    // One request owning [0, 6000) at 0.001/token: twelve 500-token
+    // buckets of 0.5 each. A 5000-token window holds ten buckets, so the
+    // first nine buckets sum everything before them (truncated at the
+    // session start) and later buckets hold exactly ten buckets' worth.
+    const series = contextCostWindowSeries(
+      withUsage([
+        { input: 6000, output: 0 },
+        { input: 0, output: 0 },
+      ]),
+    );
+    expect(series.bucketTokens).toBe(CONTEXT_COST_WINDOW_BUCKET_TOKENS);
+    expect(series.windowTokens).toBe(CONTEXT_COST_WINDOW_TOKENS);
+    expect(series.contextTokens).toBe(6000);
+    expect(series.buckets).toHaveLength(12);
+    closeTo(series.buckets[0].costs.total, 0.5);
+    closeTo(series.buckets[9].costs.total, 5);
+    closeTo(series.buckets[10].costs.total, 5);
+    closeTo(series.buckets[11].costs.total, 5);
+    // The whole allocation is uncached input cost.
+    closeTo(series.buckets[11].costs.input, 5);
+    closeTo(
+      series.buckets[11].costs.cached +
+        series.buckets[11].costs.cacheWrite +
+        series.buckets[11].costs.output,
+      0,
+    );
+    // Early windows are truncated at the session start; later ones span
+    // exactly 5000 tokens.
+    expect(series.buckets[0].windowStart).toBe(0);
+    expect(series.buckets[9].windowStart).toBe(0);
+    expect(series.buckets[10].windowStart).toBe(500);
+    expect(series.buckets[11].windowStart).toBe(1000);
+  });
+
+  it('accumulates the trailing window across requests', () => {
+    // Request 1 owns [0, 1000) at 0.001/token (input cost 1); request 2
+    // owns [1000, 1500) — its 1500 cached-read tokens minus the 1000 the
+    // context already covered — at 0.0001/token (cached-read cost 0.15).
+    const series = contextCostWindowSeries(
+      withUsage([
+        { input: 1000, output: 0 },
+        { input: 0, cacheRead: 1500, output: 0 },
+      ]),
+    );
+    expect(series.contextTokens).toBe(1500);
+    expect(series.buckets).toHaveLength(3);
+    closeTo(series.buckets[0].costs.total, 0.5);
+    closeTo(series.buckets[2].costs.total, 1.15);
+    closeTo(series.buckets[2].costs.input, 1);
+    closeTo(series.buckets[2].costs.cached, 0.15);
+    expect(series.buckets[2].windowStart).toBe(0);
   });
 });

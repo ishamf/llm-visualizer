@@ -245,9 +245,9 @@ Playback auto-starts once the session has loaded.
 
 ### Cost over context (page only)
 
-Below the playback bar, the standalone page renders a cost-over-context
-chart (`src/pages/ContextCostChart.tsx`) that is page-only: the web
-component never sees it. `CodingAgentExperience` exposes it through its
+Below the playback bar, the standalone page renders two cost-over-context
+charts (`src/pages/ContextCostChart.tsx`) that are page-only: the web
+component never sees them. `CodingAgentExperience` exposes them through its
 optional `footerContent` render prop, which receives the loaded packed
 session and is rendered under the playback bar in both layouts.
 
@@ -261,7 +261,17 @@ is spread evenly over that segment. The allocation is bucketed into
 1000-token windows; a request straddling a bucket boundary splits its
 cost proportionally. A request whose recorded token counts don't extend
 the context end dumps its whole cost into the bucket at the current end.
-The chart is static from session load — it does not follow playback.
+The charts are static from session load — they do not follow playback.
+
+Beneath it, `ContextCostWindowChart` renders a rolling-window variant of
+the same allocation (`contextCostWindowSeries` in
+`src/coding-agent/context-cost.ts`): the allocation is bucketed into
+500-token slices, and each slice reports the total cost of the trailing
+5000 context tokens ending at it — the slice's own 500 tokens plus the
+4500 before it, truncated at the start of the session. Because the
+buckets partition the context line, each window total is an exact sum of
+the per-slice allocation; the wide window smooths the per-request spikes
+visible in the per-slice chart above.
 
 ## Testing
 
