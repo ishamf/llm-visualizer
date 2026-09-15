@@ -59,8 +59,8 @@ export type CodingAgentExperienceProps = {
   errorAction?: ReactNode;
   /**
    * Page-only content rendered below the playback bar once the session has
-   * loaded, receiving the packed session — e.g. the standalone app's
-   * cost-over-context chart. Not tied to playback.
+   * loaded, receiving the packed session — e.g. the standalone app's cost
+   * charts. Not tied to playback.
    */
   footerContent?: (session: PackedSession) => ReactNode;
   /**

@@ -19,7 +19,7 @@ selector, terminal, request list, playback bar — inside an
 open shadow root. It has no router and never touches the host URL. The replay
 logic itself lives in the router-free `CodingAgentExperience`; the page only
 adds the `<h1>`, description, back-to-homepage links, `?session=` URL
-sync, and the cost-over-context chart below the playback bar.
+sync, and the cost charts below the playback bar.
 
 | Attribute                 | Default                  | Purpose                                              |
 | ------------------------- | ------------------------ | ---------------------------------------------------- |
@@ -243,10 +243,10 @@ Play/pause, a seek slider, and a `m:ss` clock; space toggles playback unless
 a control has focus. Pressing play at the end restarts from the beginning.
 Playback auto-starts once the session has loaded.
 
-### Cost over context (page only)
+### Cost charts (page only)
 
-Below the playback bar, the standalone page renders two cost-over-context
-charts (`src/pages/ContextCostChart.tsx`) that are page-only: the web
+Below the playback bar, the standalone page renders three cost charts
+(`src/pages/ContextCostChart.tsx`) that are page-only: the web
 component never sees them. `CodingAgentExperience` exposes them through its
 optional `footerContent` render prop, which receives the loaded packed
 session and is rendered under the playback bar in both layouts.
@@ -272,6 +272,13 @@ the same allocation (`contextCostWindowSeries` in
 buckets partition the context line, each window total is an exact sum of
 the per-slice allocation; the wide window smooths the per-request spikes
 visible in the per-slice chart above.
+
+`RequestCostChart` is the simplest view: one stacked bar per provider
+request, in the order the requests were sent, showing what each request
+cost straight from its recorded `usage.cost` — no context allocation. The
+categories and their colors are shared with the context charts, stacked
+cached read at the bottom, then cache write, input, and output; the
+description line states the session total.
 
 ## Testing
 

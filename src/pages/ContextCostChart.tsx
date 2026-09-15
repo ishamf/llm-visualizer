@@ -34,13 +34,23 @@ const STACKED_CATEGORIES: Array<{
 
 type Costs = ContextCostBucket['costs'];
 
-/** One chart row: bucket position plus its stacked cost values. */
-type CostRow = {
+/** One context chart row: bucket position plus its stacked cost values. */
+type ContextCostRow = {
+  /** First context token of the bucket. */
   start: number;
+  /** One past the last context token of the bucket. */
   end: number;
   /** First context token of the trailing window (rolling chart only). */
   windowStart?: number;
 } & Costs;
+
+/** One per-request chart row: the request number plus its cost values. */
+type RequestCostRow = {
+  /** 1-based request number, matching the request list labels. */
+  request: number;
+} & Costs;
+
+type CostRow = ContextCostRow | RequestCostRow;
 
 const kilo = (tokens: number) => `${Math.round(tokens / 1000)}k`;
 
@@ -66,6 +76,62 @@ export function ContextCostChart({ session }: { session: PackedSession }) {
           ariaLabel={`Stacked bar chart of allocated cost per ${CONTEXT_COST_BUCKET_TOKENS} context tokens`}
           tooltipTitle={(row) =>
             `${kilo(row.start)}–${kilo(row.end)} tokens: ${formatCost(row.total)}`
+          }
+        />
+        <ChartLegend />
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The simplest view of the session's spend: one stacked bar per provider
+ * request, in the order the requests were sent, with the same categories
+ * as the context charts. No context allocation — just what each request
+ * cost, straight from its recorded usage.
+ */
+export function RequestCostChart({ session }: { session: PackedSession }) {
+  const rows = useMemo<RequestCostRow[]>(
+    () =>
+      session.requests.map(({ data }, index) => {
+        const cost = data.response.usage.cost;
+        const values = {
+          cached: cost?.cacheRead ?? 0,
+          cacheWrite: cost?.cacheWrite ?? 0,
+          input: cost?.input ?? 0,
+          output: cost?.output ?? 0,
+        };
+        return {
+          request: index + 1,
+          ...values,
+          // The bar's total; summing the components keeps it consistent
+          // with the segments actually drawn.
+          total:
+            values.cached + values.cacheWrite + values.input + values.output,
+        };
+      }),
+    [session],
+  );
+  const total = rows.reduce((sum, row) => sum + row.total, 0);
+  return (
+    <section className={styles.chartSection} aria-label="Cost per request">
+      <h2 className={styles.chartTitle}>Cost per request</h2>
+      <p className={styles.chartDescription}>
+        Each request’s cost — cached read, cache write, input, and output — as
+        one bar, in the order the requests were sent. The session total is{' '}
+        {formatCost(total)}.
+      </p>
+      <div className={styles.chartFigure}>
+        <ChartBody
+          rows={rows}
+          xKey="request"
+          xTickFormatter={(value) => String(value)}
+          xAxisLabel="request"
+          barCategoryGap="25%"
+          maxBarSize={48}
+          ariaLabel="Stacked bar chart of cost per provider request"
+          tooltipTitle={(row) =>
+            `Request ${row.request}: ${formatCost(row.total)}`
           }
         />
         <ChartLegend />
@@ -122,14 +188,29 @@ export function ContextCostWindowChart({
   );
 }
 
-function ChartBody({
+function ChartBody<Row extends CostRow>({
   rows,
   ariaLabel,
   tooltipTitle,
+  xKey = 'start',
+  xTickFormatter = kilo,
+  xAxisLabel = 'context tokens',
+  barCategoryGap = 1,
+  maxBarSize,
 }: {
-  rows: CostRow[];
+  rows: Row[];
   ariaLabel: string;
-  tooltipTitle: (row: CostRow) => string;
+  tooltipTitle: (row: Row) => string;
+  /** Row field plotted on the x axis. */
+  xKey?: 'start' | 'request';
+  /** X tick formatting; the context charts show token kilos. */
+  xTickFormatter?: (value: number) => string;
+  /** Label rendered under the x axis. */
+  xAxisLabel?: string;
+  /** Gap between neighboring bars; the context charts pack edge to edge. */
+  barCategoryGap?: number | string;
+  /** Cap on a single bar's width, for sessions with few bars. */
+  maxBarSize?: number;
 }) {
   // At most eight x labels.
   const labelInterval = Math.max(0, Math.ceil(rows.length / 8) - 1);
@@ -140,20 +221,20 @@ function ChartBody({
         <BarChart
           data={rows}
           margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
-          barCategoryGap={1}
+          barCategoryGap={barCategoryGap}
           barGap={0}
           accessibilityLayer
         >
           <CartesianGrid vertical={false} />
           <XAxis
-            dataKey="start"
-            tickFormatter={kilo}
+            dataKey={xKey}
+            tickFormatter={xTickFormatter}
             interval={labelInterval}
             tickLine={false}
             axisLine
             height={36}
             label={{
-              value: 'context tokens',
+              value: xAxisLabel,
               position: 'insideBottom',
               dy: 10,
             }}
@@ -174,6 +255,7 @@ function ChartBody({
               dataKey={key}
               stackId="cost"
               className={styles[key]}
+              maxBarSize={maxBarSize}
               isAnimationActive={false}
             />
           ))}
@@ -183,13 +265,17 @@ function ChartBody({
   );
 }
 
-type CostTooltipProps = {
+type CostTooltipProps<Row extends CostRow> = {
   active?: boolean;
-  payload?: Array<{ payload?: CostRow }>;
-  title: (row: CostRow) => string;
+  payload?: Array<{ payload?: Row }>;
+  title: (row: Row) => string;
 };
 
-function CostTooltip({ active, payload, title }: CostTooltipProps) {
+function CostTooltip<Row extends CostRow>({
+  active,
+  payload,
+  title,
+}: CostTooltipProps<Row>) {
   const row = active ? payload?.[0]?.payload : undefined;
   if (!row) return null;
   return (

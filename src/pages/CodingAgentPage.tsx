@@ -6,6 +6,7 @@ import shared from '../shared.module.css';
 import {
   ContextCostChart,
   ContextCostWindowChart,
+  RequestCostChart,
 } from './ContextCostChart.tsx';
 
 const DEFAULT_DESCRIPTION =
@@ -46,6 +47,7 @@ export function CodingAgentPage() {
           <>
             <ContextCostChart session={session} />
             <ContextCostWindowChart session={session} />
+            <RequestCostChart session={session} />
           </>
         )}
         onSessionSelect={(sessionId) =>
