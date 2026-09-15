@@ -33,7 +33,7 @@ import {
   type RequestTimeline,
 } from './coding-agent/timeline.ts';
 import { useAgentSession } from './coding-agent/use-agent-session.ts';
-import { usePlayback } from './coding-agent/use-playback.ts';
+import { usePlayback, type SeekOptions } from './coding-agent/use-playback.ts';
 import { useSessionIndex } from './coding-agent/use-session-index.ts';
 import { GENERATED_DATA_BASE_URL } from './data/dataset-catalog.ts';
 import pageStyles from './pages/CodingAgentPage.module.css';
@@ -225,8 +225,18 @@ function SessionReplay({
   const playback = usePlayback(duration, { autoPlay: true });
   // The individual functions are stable across renders; the hook result
   // object is not, so destructure before using them in callbacks.
-  const { time, playing, speed, setSpeed, toggle, play, pause, seek } =
-    playback;
+  const {
+    time,
+    playing,
+    speed,
+    setSpeed,
+    toggle,
+    play,
+    pause,
+    seek,
+    beginScrub,
+    endScrub,
+  } = playback;
   const ready = session.status === 'ready';
   const timeline = ready ? session.timeline : null;
   const packedSession = ready ? session.session : null;
@@ -350,8 +360,8 @@ function SessionReplay({
   }, [paneRequest, listOpen, toggle, clearPeek]);
 
   const handleSeek = useCallback(
-    (value: number) => {
-      seek(value);
+    (value: number, options?: SeekOptions) => {
+      seek(value, options);
       clearPeek();
     },
     [seek, clearPeek],
@@ -421,7 +431,9 @@ function SessionReplay({
   const handleRequestGoto = useCallback(
     (request: RequestTimeline) => {
       pause();
-      seek(request.endTime);
+      // A deliberate single jump — render the target immediately rather
+      // than waiting out the scrub throttle's trailing update.
+      seek(request.endTime, { immediate: true });
       setPeekLimit((limit) => Math.max(limit, liveEdgeRef.current));
       setFutureMode((mode) => (mode === 'shown' ? mode : 'peek'));
       // The seek decides where the terminal ends up; no scroll revert.
@@ -506,6 +518,8 @@ function SessionReplay({
       onToggle={handleToggle}
       onSpeedChange={setSpeed}
       onSeek={handleSeek}
+      onScrubStart={beginScrub}
+      onScrubEnd={endScrub}
     />
   );
 
