@@ -35,7 +35,8 @@ visualization needs no model or worker — sessions are static JSON — so unlik
 `<xif-contribution-text>` it works on pages without cross-origin isolation.
 
 The `src/web-component/request-cost.ts` entry defines `<xif-request-cost>`,
-a standalone embed of the page's cost-per-request chart for one session. It
+a standalone embed of the page's cost-per-request chart for one session,
+without the page's description line so hosts can supply their own copy. It
 shares the color-scheme handling and needs neither the model nor a worker:
 
 | Attribute                 | Default        | Purpose                                   |

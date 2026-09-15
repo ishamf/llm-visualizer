@@ -124,7 +124,15 @@ function relativePriceItems(session: PackedSession): PriceItem[] {
  * context allocation — just what each request cost, straight from its
  * recorded usage.
  */
-export function RequestCostChart({ session }: { session: PackedSession }) {
+export function RequestCostChart({
+  session,
+  showDescription = true,
+}: {
+  session: PackedSession;
+  /** The description line states the chart's reading and the session
+   * total; embeds that supply their own copy can drop it. */
+  showDescription?: boolean;
+}) {
   const rows = useMemo<RequestCostRow[]>(
     () =>
       session.requests.map(({ data }, index) => {
@@ -149,10 +157,13 @@ export function RequestCostChart({ session }: { session: PackedSession }) {
   return (
     <section className={styles.chartSection} aria-label="Cost per request">
       <h2 className={styles.chartTitle}>Cost per request</h2>
-      <p className={styles.chartDescription}>
-        Each request’s cost — cached, input, and output — as one bar, in the
-        order the requests were sent. The session total is {formatCost(total)}.
-      </p>
+      {showDescription && (
+        <p className={styles.chartDescription}>
+          Each request’s cost — cached, input, and output — as one bar, in the
+          order the requests were sent. The session total is {formatCost(total)}
+          .
+        </p>
+      )}
       <div className={styles.chartFigure}>
         <ChartBody
           rows={rows}
