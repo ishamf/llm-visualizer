@@ -10,6 +10,22 @@
   replayed token by token, with the provider requests that produced it.
   Documented in `docs/coding-agent-visualization.md`.
 
+## Checks
+
+Run all four after code changes (each is a standalone script):
+
+- `pnpm typecheck` — `tsc -b`. Use this, NOT bare `npx tsc --noEmit`: the
+  root `tsconfig.json` is a project-references shell with `"files": []`, so
+  bare tsc type-checks nothing and reports success on broken files.
+- `pnpm lint` — ESLint (`eslint .`). Catches parse errors tsc above might
+  miss when cached.
+- `pnpm format:check` — Prettier, no output changes.
+- `pnpm test` — Vitest, single run.
+
+When piping check output through `head`/`tail`, remember `$?` is the pipe
+command's exit code, not the checker's — use `${PIPESTATUS[0]}` or drop the
+pipe.
+
 ## Browser verification (agent-browser)
 
 Use `agent-browser` to verify UI changes against an already-running dev
