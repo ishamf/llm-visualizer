@@ -3,11 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 
 import { CodingAgentExperience } from '../CodingAgentExperience.tsx';
 import shared from '../shared.module.css';
-import {
-  ContextCostChart,
-  ContextCostWindowChart,
-  RequestCostChart,
-} from './ContextCostChart.tsx';
+import { RequestCostChart } from './RequestCostChart.tsx';
+import pageStyles from './CodingAgentPage.module.css';
 
 const DEFAULT_DESCRIPTION =
   'A recorded coding agent run, replayed token by token: thinking, tool calls, and edits on the left; the provider requests that produced them, with token counts and prices, on the right.';
@@ -45,9 +42,19 @@ export function CodingAgentPage() {
         }
         footerContent={(session) => (
           <>
-            <ContextCostChart session={session} />
-            <ContextCostWindowChart session={session} />
             <RequestCostChart session={session} />
+            {import.meta.env.DEV && (
+              <div className={pageStyles.devChartsLink}>
+                <Button
+                  component={Link}
+                  to="/dev/coding-agent-charts"
+                  variant="subtle"
+                  size="compact-sm"
+                >
+                  Cost-over-context charts (dev)
+                </Button>
+              </div>
+            )}
           </>
         )}
         onSessionSelect={(sessionId) =>

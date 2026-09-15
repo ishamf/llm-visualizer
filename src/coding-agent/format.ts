@@ -27,6 +27,11 @@ export function formatCost(amount: number): string {
   return `$${amount.toFixed(amount >= 0.01 ? 4 : 5)}`;
 }
 
+/** Rounded thousands in `11k` style, for chart ticks. */
+export function formatKiloTokens(tokens: number): string {
+  return `${Math.round(tokens / 1000)}k`;
+}
+
 /**
  * Implied price per million tokens, rounded to 3 significant digits with
  * trailing zeros trimmed (`$0.15/M`). Returns a dash when there is no

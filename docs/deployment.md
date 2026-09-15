@@ -149,7 +149,7 @@ entries share runtime chunks beneath `static/`, so the folder is deployed as
 a unit; every entry resolves its chunks and workers relative to its own URL,
 which keeps the distribution valid under an arbitrary URL prefix.
 
-The distribution defines two elements:
+The distribution defines three elements:
 
 - `xif-contribution-text` (`contribution-text.js`) — the contribution-text
   experience with in-browser generation. See
@@ -160,6 +160,11 @@ The distribution defines two elements:
   `session`, and `color-scheme` attributes behave like the contribution
   element's, with `session` selecting the replayed session (the analog of the
   page's `?session=` parameter).
+- `xif-request-cost` (`request-cost.js`) — the coding agent page's
+  cost-per-request chart for one session. Like `xif-coding-agent` it loads
+  only session JSONs; `session` (default `coding-agent`),
+  `generated-data-base-url`, and `color-scheme` behave like the coding agent
+  element's.
 
 When the contribution element omits its `model-base-url` attribute, it uses the Hugging
 Face repository configured at build time. Setting `model-base-url` instead uses

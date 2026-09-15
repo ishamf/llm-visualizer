@@ -15,13 +15,15 @@
   margin: 0;
   font-size: var(--mantine-font-size-md);
   font-weight: 600;
+  text-align: center;
 }
 
 .chartDescription {
-  margin: 0;
+  margin: 0 auto;
   max-width: 720px;
   font-size: var(--mantine-font-size-sm);
   color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
+  text-align: center;
 }
 
 .chartFigure {
@@ -126,4 +128,25 @@
   width: 10px;
   height: 10px;
   border-radius: 2px;
+}
+
+/* Relative-price illustration, appended to the legend's right edge: one
+   stacked bar whose segments reuse the category classes above. */
+.relativePrices {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.priceBar {
+  display: flex;
+  height: 10px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.priceSegment {
+  display: inline-block;
+  height: 100%;
 }

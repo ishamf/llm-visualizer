@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Request cost chart Web Component example</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --page-color: #25211d;
+        --page-background: #f3eee6;
+        font-family: Georgia, 'Times New Roman', serif;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+          --page-color: #eee9e2;
+          --page-background: #191714;
+        }
+      }
+
+      body {
+        max-width: 60rem;
+        margin: 0 auto;
+        padding: 3rem 1.5rem 5rem;
+        color: var(--page-color);
+        background: var(--page-background);
+      }
+
+      article > header {
+        max-width: 48rem;
+        margin-bottom: 2.5rem;
+      }
+
+      h1 {
+        margin-bottom: 0.75rem;
+        font-size: clamp(2.5rem, 7vw, 5.5rem);
+        line-height: 0.95;
+        letter-spacing: -0.055em;
+      }
+
+      p {
+        font-size: 1.1rem;
+        line-height: 1.65;
+      }
+
+      /* Deliberately hostile host rules: these must not reach the component. */
+      button,
+      input,
+      select,
+      textarea {
+        padding: 2rem;
+        color: lime;
+        font: inherit;
+        background: magenta;
+      }
+    </style>
+  </head>
+  <body>
+    <article>
+      <header>
+        <p>LLM Visualizer</p>
+        <h1>Cost per request</h1>
+        <p>
+          A standalone embed of the coding agent page's cost-per-request chart,
+          showing what each provider request in a recorded session cost — cached
+          at the bottom, then input and output.
+        </p>
+        <p>
+          The element automatically follows your browser's light or dark color
+          scheme; the <code>session</code> attribute picks the recorded session
+          (defaulting to <code>coding-agent</code>).
+        </p>
+      </header>
+
+      <xif-request-cost
+        generated-data-base-url="/generated/"
+        session="coding-agent"
+        color-scheme="auto"
+      ></xif-request-cost>
+    </article>
+
+    <script type="module" src="/src/web-component/request-cost.ts"></script>
+  </body>
+</html>

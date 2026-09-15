@@ -36,6 +36,12 @@
   color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
 }
 
+/* Dev-only link to the cost-over-context charts, closing out the page. */
+.devChartsLink {
+  display: flex;
+  justify-content: center;
+}
+
 .workbench {
   position: relative; /* anchors the pane backdrop */
   display: grid;

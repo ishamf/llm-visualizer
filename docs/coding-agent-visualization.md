@@ -19,7 +19,7 @@ selector, terminal, request list, playback bar — inside an
 open shadow root. It has no router and never touches the host URL. The replay
 logic itself lives in the router-free `CodingAgentExperience`; the page only
 adds the `<h1>`, description, back-to-homepage links, `?session=` URL
-sync, and the cost charts below the playback bar.
+sync, and the cost-per-request chart below the playback bar.
 
 | Attribute                 | Default                  | Purpose                                              |
 | ------------------------- | ------------------------ | ---------------------------------------------------- |
@@ -33,6 +33,19 @@ takes precedence once more. `dev/coding-agent.html` is a plain-HTML fixture
 that exercises the element against deliberately hostile host styles. The
 visualization needs no model or worker — sessions are static JSON — so unlike
 `<xif-contribution-text>` it works on pages without cross-origin isolation.
+
+The `src/web-component/request-cost.ts` entry defines `<xif-request-cost>`,
+a standalone embed of the page's cost-per-request chart for one session. It
+shares the color-scheme handling and needs neither the model nor a worker:
+
+| Attribute                 | Default        | Purpose                                   |
+| ------------------------- | -------------- | ----------------------------------------- |
+| `session`                 | `coding-agent` | Session id to chart                       |
+| `generated-data-base-url` | `/generated/`  | Base URL for the session JSON             |
+| `color-scheme`            | `auto`         | `light`, `dark`, or `auto` Mantine scheme |
+
+`dev/request-cost.html` is the plain-HTML fixture that exercises the element
+against hostile host styles.
 
 ## Data source
 
@@ -243,13 +256,29 @@ Play/pause, a seek slider, and a `m:ss` clock; space toggles playback unless
 a control has focus. Pressing play at the end restarts from the beginning.
 Playback auto-starts once the session has loaded.
 
-### Cost charts (page only)
+### Cost charts
 
-Below the playback bar, the standalone page renders three cost charts
-(`src/pages/ContextCostChart.tsx`) that are page-only: the web
-component never sees them. `CodingAgentExperience` exposes them through its
+Below the playback bar, the standalone page renders `RequestCostChart`
+(`src/pages/RequestCostChart.tsx`): one stacked bar per provider request, in
+the order the requests were sent, showing what each request cost straight
+from its recorded `usage.cost` — no context allocation. Categories stack
+cached at the bottom, then input and output; cache write is not
+charted, as recorded sessions carry none. The description line states the
+session total, and the legend's right side illustrates the relative
+per-token prices: a stacked bar whose segment widths are proportional to
+each category's accumulated cost over its tokens, with the cached segment
+as the 5 px reference. `CodingAgentExperience` exposes the chart through its
 optional `footerContent` render prop, which receives the loaded packed
-session and is rendered under the playback bar in both layouts.
+session and is rendered under the playback bar in both layouts. It is also
+published standalone as the `<xif-request-cost>` web component (see [Web
+component](#web-component)).
+
+The two cost-over-context charts that used to render beside it moved to the
+dev-only `/dev/coding-agent-charts` page
+(`src/pages/DevCodingAgentChartsPage.tsx`): linked from the coding agent
+page via a dev-only button (never rendered in production, where the route
+redirects home), with `?session=` selecting the session. All three charts
+share their chrome through `src/pages/CostChartParts.tsx`.
 
 `src/coding-agent/context-cost.ts` allocates each request's full cost —
 uncached input, cached read, cache write, and output — over the context
@@ -273,13 +302,6 @@ buckets partition the context line, each window total is an exact sum of
 the per-slice allocation; the wide window smooths the per-request spikes
 visible in the per-slice chart above.
 
-`RequestCostChart` is the simplest view: one stacked bar per provider
-request, in the order the requests were sent, showing what each request
-cost straight from its recorded `usage.cost` — no context allocation. The
-categories and their colors are shared with the context charts, stacked
-cached read at the bottom, then cache write, input, and output; the
-description line states the session total.
-
 ## Testing
 
 Timeline construction, entry/request snapshots, usage breakdowns, payload
@@ -287,6 +309,7 @@ sizes, and parser validation are covered by unit tests against a synthetic
 two-request session (`src/coding-agent/*-test.ts`); expectations are derived
 from the exported constants so retuning them keeps the tests meaningful.
 
-`dev/coding-agent.html` serves as the manual browser fixture for the web
-component; `dev/contribution-text.html` plays the same role for the
-contribution-text element.
+`dev/coding-agent.html` serves as the manual browser fixture for the
+replay element; `dev/request-cost.html` plays the same role for the
+request-cost element; `dev/contribution-text.html` for the contribution-text
+element.

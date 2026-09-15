@@ -12,7 +12,8 @@ pre-generated contribution examples. A header selector switches between
 recorded sessions. During playback the transcript streams into a
 terminal-style view while a side panel follows each provider request — what
 was sent, what came back, and what it cost — and the playback bar plays,
-pauses, and seeks the whole timeline.
+pauses, and seeks the whole timeline. Below the playback bar, a chart shows
+what each provider request cost.
 
 ## Setup
 

@@ -41,6 +41,10 @@ The app also ships smaller experiments, reachable from the dev-only picker at
   layered datasets. Its design is described in
   [the instrumentation plan](docs/plans/instrumentation-plan.md).
 
+A second dev-only page, `/dev/coding-agent-charts`, hosts the coding agent's
+cost-over-context charts (the published page shows only the simpler
+per-request cost chart, with a link to it in dev builds).
+
 ## Setup
 
 ### 1. Install dependencies

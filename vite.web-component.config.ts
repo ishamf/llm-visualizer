@@ -24,6 +24,10 @@ export default defineConfig(({ command, mode }) => {
             import.meta.dirname,
             'src/web-component/coding-agent.ts',
           ),
+          'request-cost': resolve(
+            import.meta.dirname,
+            'src/web-component/request-cost.ts',
+          ),
           'workers/browser-generation': resolve(
             import.meta.dirname,
             'src/generation/browser-generation.worker.ts',

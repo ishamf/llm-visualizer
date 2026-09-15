@@ -18,6 +18,14 @@ export function sessionIndexUrl(
   return `${sessionsBaseUrl(generatedDataBaseUrl)}index.json`;
 }
 
+/** URL of one session's packed JSON, addressed by its id. */
+export function sessionIdUrl(
+  id: string,
+  generatedDataBaseUrl: string = GENERATED_DATA_BASE_URL,
+): string {
+  return `${sessionsBaseUrl(generatedDataBaseUrl)}${id}/session.json`;
+}
+
 export function sessionUrl(
   entry: Pick<SessionIndexEntry, 'path'>,
   generatedDataBaseUrl: string = GENERATED_DATA_BASE_URL,
