@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 
 import { formatCost } from '../coding-agent/format.ts';
 import type {
@@ -124,7 +124,9 @@ function relativePriceItems(session: PackedSession): PriceItem[] {
  * context allocation — just what each request cost, straight from its
  * recorded usage.
  */
-export function RequestCostChart({
+// Memoized: the page re-renders at 60fps during playback while `session` is
+// stable, and a re-render walks the chart's ~1000 SVG nodes for nothing.
+export const RequestCostChart = memo(function RequestCostChart({
   session,
   showDescription = true,
 }: {
@@ -184,7 +186,7 @@ export function RequestCostChart({
       </div>
     </section>
   );
-}
+});
 
 /** The legend's right-side illustration of the relative per-token prices:
  * one stacked bar, its segments as wide as each category's price relative

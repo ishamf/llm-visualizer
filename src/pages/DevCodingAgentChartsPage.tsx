@@ -8,7 +8,7 @@ import {
   Text,
   Title,
 } from '@mantine/core';
-import { useMemo, type ReactNode } from 'react';
+import { memo, useMemo, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import {
@@ -46,7 +46,13 @@ const CONTEXT_CATEGORIES: ReadonlyArray<CostCategory<ContextCostRow>> = [
 ];
 
 /** Cost of each context slice: only the tokens that slice owns. */
-export function ContextCostChart({ session }: { session: PackedSession }) {
+// Memoized: the page re-renders at 60fps during playback while `session` is
+// stable, and a re-render walks the chart's ~1000 SVG nodes for nothing.
+export const ContextCostChart = memo(function ContextCostChart({
+  session,
+}: {
+  session: PackedSession;
+}) {
   const series = useMemo(() => contextCostSeries(session), [session]);
   if (series.contextTokens === 0) return null;
   return (
@@ -74,7 +80,7 @@ export function ContextCostChart({ session }: { session: PackedSession }) {
       </div>
     </section>
   );
-}
+});
 
 /**
  * Rolling-window companion: for each slice, the total cost of the trailing
@@ -82,7 +88,7 @@ export function ContextCostChart({ session }: { session: PackedSession }) {
  * tokens. Same price allocation as the per-slice chart, viewed through a
  * wide window that smooths its per-request spikes.
  */
-export function ContextCostWindowChart({
+export const ContextCostWindowChart = memo(function ContextCostWindowChart({
   session,
 }: {
   session: PackedSession;
@@ -123,7 +129,7 @@ export function ContextCostWindowChart({
       </div>
     </section>
   );
-}
+});
 
 /**
  * Dev-only companion page for the coding agent replay: the cost-over-context
