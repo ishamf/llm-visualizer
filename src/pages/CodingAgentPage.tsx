@@ -44,6 +44,7 @@ export function CodingAgentPage() {
           <>
             <RequestCostChart session={session} />
             <RequestCostChart session={session} variant="cumulative" />
+            <RequestCostChart session={session} variant="since-prompt" />
             {import.meta.env.DEV && (
               <div className={pageStyles.devChartsLink}>
                 <Button

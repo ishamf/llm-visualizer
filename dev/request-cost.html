@@ -71,10 +71,11 @@
           The element automatically follows your browser's light or dark color
           scheme; the <code>session</code> attribute picks the recorded session
           (defaulting to <code>coding-agent</code>), and the
-          <code>variant</code> attribute switches between the two charts:
+          <code>variant</code> attribute switches between the three charts:
           <code>per-request</code> (the default) shows what each provider
           request cost, <code>cumulative</code> the session's running total
-          after each request.
+          after each request, and <code>since-prompt</code> the total
+          accumulated since the nearest new prompt.
         </p>
       </header>
 
@@ -91,6 +92,14 @@
         generated-data-base-url="/generated/"
         session="coding-agent"
         variant="cumulative"
+        color-scheme="auto"
+      ></xif-request-cost>
+
+      <h2>Cost since last prompt</h2>
+      <xif-request-cost
+        generated-data-base-url="/generated/"
+        session="coding-agent"
+        variant="since-prompt"
         color-scheme="auto"
       ></xif-request-cost>
     </article>

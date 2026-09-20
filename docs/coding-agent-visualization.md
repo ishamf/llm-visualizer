@@ -40,15 +40,15 @@ the page's cost-per-request charts for one session, without the page's
 description line so hosts can supply their own copy. It shares the
 color-scheme handling and needs neither the model nor a worker:
 
-| Attribute                 | Default        | Purpose                                       |
-| ------------------------- | -------------- | --------------------------------------------- |
-| `session`                 | `coding-agent` | Session id to chart                           |
-| `variant`                 | `per-request`  | `cumulative` charts the running total instead |
-| `generated-data-base-url` | `/generated/`  | Base URL for the session JSON                 |
-| `color-scheme`            | `auto`         | `light`, `dark`, or `auto` Mantine scheme     |
+| Attribute                 | Default        | Purpose                                                                |
+| ------------------------- | -------------- | ---------------------------------------------------------------------- |
+| `session`                 | `coding-agent` | Session id to chart                                                    |
+| `variant`                 | `per-request`  | `cumulative` running total, `since-prompt` total since the last prompt |
+| `generated-data-base-url` | `/generated/`  | Base URL for the session JSON                                          |
+| `color-scheme`            | `auto`         | `light`, `dark`, or `auto` Mantine scheme                              |
 
 `dev/request-cost.html` is the plain-HTML fixture that exercises the element
-— both chart variants — against hostile host styles.
+— all three chart variants — against hostile host styles.
 
 ## Data source
 
@@ -286,16 +286,19 @@ session and is rendered under the playback bar in both layouts. They are
 also published standalone as the `<xif-request-cost>` web component (see
 [Web component](#web-component)).
 
-The page renders the chart twice: once per request, and once with
+The page renders the chart three times: once per request, once with
 `variant="cumulative"`, where bar _n_ stacks the session's running total
-after request _n_ — the same categories stacked the same way, so the bars
-are directly comparable between the two charts. The cumulative variant is
-otherwise identical, except that its tooltip reads "spent so far" and the
-relative-price legend segment is left off (the session's per-token prices
-are the same either way). Both variants also draw dashed vertical markers
-before the bar of every request that is the first to include a new user
-message — the moment a prompt was entered. Hovering a request labels its
-preceding marker "New prompt", via the chart tooltip's hover state.
+after request _n_, and once with `variant="since-prompt"`, where the running
+total resets at every prompt marker — each bar shows the cost of its
+prompt's turn so far. The categories stack the same way in all variants, so
+the bars are directly comparable. The cumulative and since-prompt variants
+are otherwise identical, except that their tooltips read "spent so far" and
+"since last prompt", and the relative-price legend segment is left off (the
+session's per-token prices are the same either way). All variants draw
+dashed vertical markers before the bar of every request that is the first
+to include a new user message — the moment a prompt was entered. Hovering
+a request labels its preceding marker "New prompt", via the chart tooltip's
+hover state.
 
 The two cost-over-context charts that used to render beside it moved to the
 dev-only `/dev/coding-agent-charts` page

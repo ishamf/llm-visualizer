@@ -88,9 +88,10 @@ export function defineRequestCostElement() {
         document.baseURI,
       ).href;
       const sessionId = this.getAttribute('session') ?? DEFAULT_SESSION_ID;
+      const variantAttr = this.getAttribute('variant');
       const variant =
-        this.getAttribute('variant') === 'cumulative'
-          ? 'cumulative'
+        variantAttr === 'cumulative' || variantAttr === 'since-prompt'
+          ? variantAttr
           : 'per-request';
 
       this.#root ??= createRoot(this.#mountNode);

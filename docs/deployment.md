@@ -166,7 +166,8 @@ The distribution defines three elements:
   `generated-data-base-url`, and `color-scheme` behave like the coding agent
   element's, and `variant` selects the chart: `per-request` (default) shows
   what each provider request cost, `cumulative` the session's running total
-  after each request.
+  after each request, and `since-prompt` the total accumulated since the
+  nearest new prompt.
 
 When the contribution element omits its `model-base-url` attribute, it uses the Hugging
 Face repository configured at build time. Setting `model-base-url` instead uses

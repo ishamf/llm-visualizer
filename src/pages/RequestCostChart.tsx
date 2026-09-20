@@ -118,9 +118,11 @@ function relativePriceItems(session: PackedSession): PriceItem[] {
   );
 }
 
-/** Whether each bar shows its request's own cost, or the session's running
- * total after it. */
-export type RequestCostChartVariant = 'per-request' | 'cumulative';
+/** Which reading each bar carries: its request's own cost, the session's
+ * running total after it, or the total accumulated since the nearest new
+ * prompt. */
+export type RequestCostChartVariant =
+  'per-request' | 'cumulative' | 'since-prompt';
 
 /**
  * 1-based request numbers of the requests that are the first to include a
@@ -151,8 +153,11 @@ function promptMarkers(session: PackedSession): number[] {
  * in the order the requests were sent, with cached at the bottom. No context
  * allocation — just what each request cost, straight from its recorded
  * usage. With `variant="cumulative"` bar n stacks the session's running
- * total after request n instead of that request's own cost, so the bars are
- * directly comparable between the two variants.
+ * total after request n instead of that request's own cost, and with
+ * `variant="since-prompt"` the running total resets at every prompt marker
+ * (each bar shows the cost of its prompt's turn so far); the categories
+ * stack the same way throughout, so the bars are directly comparable
+ * between the variants.
  */
 // Memoized: the page re-renders at 60fps during playback while `session` is
 // stable, and a re-render walks the chart's ~1000 SVG nodes for nothing.
@@ -168,22 +173,31 @@ export const RequestCostChart = memo(function RequestCostChart({
   showDescription?: boolean;
 }) {
   const cumulative = variant === 'cumulative';
+  const sincePrompt = variant === 'since-prompt';
+  const markers = useMemo(() => promptMarkers(session), [session]);
   const rows = useMemo<RequestCostRow[]>(() => {
+    // Requests that start a new prompt segment; the running sums reset
+    // there so each bar shows its prompt's accumulated cost so far.
+    const segmentStarts = sincePrompt ? new Set(markers) : null;
     const running = { cached: 0, input: 0, output: 0 };
     return session.requests.map(({ data }, index) => {
       const cost = data.response.usage.cost;
-      if (cumulative) {
-        running.cached += cost?.cacheRead ?? 0;
-        running.input += cost?.input ?? 0;
-        running.output += cost?.output ?? 0;
+      const own = {
+        cached: cost?.cacheRead ?? 0,
+        input: cost?.input ?? 0,
+        output: cost?.output ?? 0,
+      };
+      if (segmentStarts?.has(index + 1)) {
+        running.cached = 0;
+        running.input = 0;
+        running.output = 0;
       }
-      const values = cumulative
-        ? { ...running }
-        : {
-            cached: cost?.cacheRead ?? 0,
-            input: cost?.input ?? 0,
-            output: cost?.output ?? 0,
-          };
+      if (cumulative || sincePrompt) {
+        running.cached += own.cached;
+        running.input += own.input;
+        running.output += own.output;
+      }
+      const values = cumulative || sincePrompt ? { ...running } : own;
       return {
         request: index + 1,
         ...values,
@@ -192,7 +206,7 @@ export const RequestCostChart = memo(function RequestCostChart({
         total: values.cached + values.input + values.output,
       };
     });
-  }, [session, cumulative]);
+  }, [session, cumulative, sincePrompt, markers]);
   // The session total — the sum of the raw per-request costs. For the
   // cumulative rows summing `row.total` would re-accumulate the running
   // sums; the last row's total is the same number, but this holds for both
@@ -206,20 +220,21 @@ export const RequestCostChart = memo(function RequestCostChart({
   // The relative-price bar illustrates the session's per-token prices, which
   // are the same either way; it stays on the per-request chart only.
   const priceItems = useMemo(
-    () => (cumulative ? [] : relativePriceItems(session)),
-    [cumulative, session],
+    () => (cumulative || sincePrompt ? [] : relativePriceItems(session)),
+    [cumulative, sincePrompt, session],
   );
-  const markers = useMemo(() => promptMarkers(session), [session]);
+  // The costliest prompt turn: the running sums reset at each segment start,
+  // so the segment's last bar is its full cost and no other bar exceeds it
+  // — the chart's maximum over the bars is exactly the turn total.
+  const costliestTurn = Math.max(...rows.map((row) => row.total));
+  const title = cumulative
+    ? 'Cumulative cost per request'
+    : sincePrompt
+      ? 'Cost since last prompt'
+      : 'Cost per request';
   return (
-    <section
-      className={styles.chartSection}
-      aria-label={
-        cumulative ? 'Cumulative cost per request' : 'Cost per request'
-      }
-    >
-      <h2 className={styles.chartTitle}>
-        {cumulative ? 'Cumulative cost per request' : 'Cost per request'}
-      </h2>
+    <section className={styles.chartSection} aria-label={title}>
+      <h2 className={styles.chartTitle}>{title}</h2>
       {showDescription && (
         <p className={styles.chartDescription}>
           {cumulative ? (
@@ -228,6 +243,12 @@ export const RequestCostChart = memo(function RequestCostChart({
               same cached, input, and output segments stacked on top of each
               other. Dashed lines mark new prompts. The session ends at{' '}
               {formatCost(total)}.
+            </>
+          ) : sincePrompt ? (
+            <>
+              The session’s cost accumulated since the nearest new prompt — it
+              resets at every dashed line. The costliest prompt turn cost{' '}
+              {formatCost(costliestTurn)}.
             </>
           ) : (
             <>
@@ -251,16 +272,20 @@ export const RequestCostChart = memo(function RequestCostChart({
           ariaLabel={
             cumulative
               ? 'Stacked bar chart of cumulative cost per provider request'
-              : 'Stacked bar chart of cost per provider request'
+              : sincePrompt
+                ? 'Stacked bar chart of cost since last prompt per provider request'
+                : 'Stacked bar chart of cost per provider request'
           }
           tooltipTitle={(row) =>
             cumulative
               ? `Request ${row.request}: ${formatCost(row.total)} spent so far`
-              : `Request ${row.request}: ${formatCost(row.total)}`
+              : sincePrompt
+                ? `Request ${row.request}: ${formatCost(row.total)} since last prompt`
+                : `Request ${row.request}: ${formatCost(row.total)}`
           }
         />
         <ChartLegend categories={REQUEST_CATEGORIES}>
-          {!cumulative && priceItems.length > 0 && (
+          {!cumulative && !sincePrompt && priceItems.length > 0 && (
             <RelativePrices items={priceItems} />
           )}
         </ChartLegend>
