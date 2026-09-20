@@ -119,6 +119,7 @@ export function ChartBody<Row extends CostRow>({
   ariaLabel,
   tooltipTitle,
   markers,
+  onBarClick,
   xKey = 'start',
   xTickFormatter = formatKiloTokens,
   xAxisLabel = 'context tokens',
@@ -134,6 +135,10 @@ export function ChartBody<Row extends CostRow>({
    * each row's left band edge; none when omitted. While a row is hovered,
    * the marker preceding it is labeled "New prompt". */
   markers?: ReadonlyArray<number>;
+  /** Called with the clicked bar's row; when set, bars show a pointer
+   * cursor. The per-request charts use it to jump the session's replay to
+   * the clicked request. */
+  onBarClick?: (row: Row) => void;
   /** Row field plotted on the x axis. */
   xKey?: 'start' | 'request';
   /** X tick formatting; the context charts show token kilos. */
@@ -149,7 +154,13 @@ export function ChartBody<Row extends CostRow>({
   const labelInterval = Math.max(0, Math.ceil(rows.length / 8) - 1);
 
   return (
-    <div className={styles.chart} role="img" aria-label={ariaLabel}>
+    <div
+      className={
+        onBarClick ? `${styles.chart} ${styles.clickableChart}` : styles.chart
+      }
+      role="img"
+      aria-label={ariaLabel}
+    >
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={rows}
@@ -201,6 +212,12 @@ export function ChartBody<Row extends CostRow>({
               className={styles[key]}
               maxBarSize={maxBarSize}
               isAnimationActive={false}
+              onClick={
+                onBarClick
+                  ? // Each stacked segment carries the same row.
+                    (bar) => onBarClick(bar.payload as Row)
+                  : undefined
+              }
             />
           ))}
         </BarChart>

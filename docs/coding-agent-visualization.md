@@ -297,8 +297,20 @@ are otherwise identical, except that their tooltips read "spent so far" and
 session's per-token prices are the same either way). All variants draw
 dashed vertical markers before the bar of every request that is the first
 to include a new user message — the moment a prompt was entered. Hovering
+to include a new user message — the moment a prompt was entered. Hovering
 a request labels its preceding marker "New prompt", via the chart tooltip's
 hover state.
+
+Clicking a bar in any of the three charts also brings the user back to the
+replay: it scrolls the visualization into view and seeks to the moment that
+request's response finished streaming — the same pause, immediate seek, and
+bounded peek the request pane's Go to button performs. Charts emit the jump
+through a session-keyed pub-sub (`src/coding-agent/request-jump.ts`), and a
+replay listens only for the session it currently plays, replacing the
+listener when the selection changes — so chart and replay need no wiring
+beyond the session id, which is how standalone `<xif-coding-agent>` and
+`<xif-request-cost>` elements on a host page connect without any plumbing.
+Clicks never change which session a visualization replays.
 
 The two cost-over-context charts that used to render beside it moved to the
 dev-only `/dev/coding-agent-charts` page

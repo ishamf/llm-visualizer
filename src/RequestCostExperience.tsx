@@ -45,6 +45,7 @@ export function RequestCostExperience({
   return (
     <RequestCostChart
       session={state.session}
+      sessionId={sessionId}
       variant={variant}
       showDescription={showDescription}
     />

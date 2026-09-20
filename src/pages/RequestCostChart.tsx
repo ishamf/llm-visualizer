@@ -7,6 +7,10 @@ import type {
   PackedUsageCost,
 } from '../coding-agent/packed-session.ts';
 import {
+  emitRequestJump,
+  type RequestJump,
+} from '../coding-agent/request-jump.ts';
+import {
   ChartBody,
   ChartLegend,
   type CostCategory,
@@ -163,10 +167,16 @@ function promptMarkers(session: PackedSession): number[] {
 // stable, and a re-render walks the chart's ~1000 SVG nodes for nothing.
 export const RequestCostChart = memo(function RequestCostChart({
   session,
+  sessionId,
   variant = 'per-request',
   showDescription = true,
 }: {
   session: PackedSession;
+  /** Id of the session this chart's session JSON was loaded for, used to
+   * key bar-click jumps through the request-jump pub-sub. Optional: embeds
+   * that do not pair the chart with a same-session replay can omit it, and
+   * clicking a bar then does nothing. */
+  sessionId?: string;
   variant?: RequestCostChartVariant;
   /** The description line states the chart's reading and the session
    * total; embeds that supply their own copy can drop it. */
@@ -227,6 +237,18 @@ export const RequestCostChart = memo(function RequestCostChart({
   // so the segment's last bar is its full cost and no other bar exceeds it
   // — the chart's maximum over the bars is exactly the turn total.
   const costliestTurn = Math.max(...rows.map((row) => row.total));
+  // Bar clicks ask the session's replay to jump to the clicked request
+  // through the request-jump pub-sub (session-keyed, no direct wiring).
+  const handleBarClick = useMemo(
+    () =>
+      sessionId
+        ? (row: RequestCostRow): void =>
+            emitRequestJump(sessionId, {
+              request: row.request,
+            } satisfies RequestJump)
+        : undefined,
+    [sessionId],
+  );
   const title = cumulative
     ? 'Cumulative cost per request'
     : sincePrompt
@@ -264,6 +286,7 @@ export const RequestCostChart = memo(function RequestCostChart({
           rows={rows}
           categories={REQUEST_CATEGORIES}
           markers={markers}
+          onBarClick={handleBarClick}
           xKey="request"
           xTickFormatter={(value) => String(value)}
           xAxisLabel="request"

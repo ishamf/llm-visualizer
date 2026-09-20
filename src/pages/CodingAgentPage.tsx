@@ -40,11 +40,19 @@ export function CodingAgentPage() {
             ← Back to homepage
           </Button>
         }
-        footerContent={(session) => (
+        footerContent={(session, sessionId) => (
           <>
-            <RequestCostChart session={session} />
-            <RequestCostChart session={session} variant="cumulative" />
-            <RequestCostChart session={session} variant="since-prompt" />
+            <RequestCostChart session={session} sessionId={sessionId} />
+            <RequestCostChart
+              session={session}
+              sessionId={sessionId}
+              variant="cumulative"
+            />
+            <RequestCostChart
+              session={session}
+              sessionId={sessionId}
+              variant="since-prompt"
+            />
             {import.meta.env.DEV && (
               <div className={pageStyles.devChartsLink}>
                 <Button

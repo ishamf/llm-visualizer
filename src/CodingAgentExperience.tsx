@@ -35,6 +35,10 @@ import {
 import { useAgentSession } from './coding-agent/use-agent-session.ts';
 import { usePlayback, type SeekOptions } from './coding-agent/use-playback.ts';
 import { useSessionIndex } from './coding-agent/use-session-index.ts';
+import {
+  onRequestJump,
+  type RequestJump,
+} from './coding-agent/request-jump.ts';
 import { GENERATED_DATA_BASE_URL } from './data/dataset-catalog.ts';
 import pageStyles from './pages/CodingAgentPage.module.css';
 import shared from './shared.module.css';
@@ -59,10 +63,10 @@ export type CodingAgentExperienceProps = {
   errorAction?: ReactNode;
   /**
    * Page-only content rendered below the playback bar once the session has
-   * loaded, receiving the packed session — e.g. the standalone app's cost
-   * charts. Not tied to playback.
+   * loaded, receiving the packed session and its session id — e.g. the
+   * standalone app's cost charts. Not tied to playback.
    */
-  footerContent?: (session: PackedSession) => ReactNode;
+  footerContent?: (session: PackedSession, sessionId: string) => ReactNode;
   /**
    * Base URL of the generated data; the session index is loaded from
    * `<base>coding-agent/index.json`. Defaults to the build-time
@@ -211,7 +215,7 @@ function SessionReplay({
   onSelect,
 }: {
   errorAction?: ReactNode;
-  footerContent?: (session: PackedSession) => ReactNode;
+  footerContent?: (session: PackedSession, sessionId: string) => ReactNode;
   generatedDataBaseUrl: string;
   headerContent?: ReactNode;
   headerLead?: ReactNode;
@@ -445,6 +449,22 @@ function SessionReplay({
     [pause, seek],
   );
 
+  // Cost-chart bar clicks (session-keyed request-jump pub-sub) bring the
+  // user back here: scroll this replay into view, then jump to the clicked
+  // request's time exactly like the request pane's Go to button. The
+  // subscription is keyed to the selected session — selecting another
+  // session (or leaving the replay idle) replaces it, so charts for other
+  // sessions cannot move this playback. Re-subscribing on every jump-list
+  // identity change keeps the closure's callback fresh.
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    return onRequestJump(selected.id, (jump: RequestJump) => {
+      rootRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const request = timeline?.requests[jump.request - 1];
+      if (request) handleRequestGoto(request);
+    });
+  }, [selected.id, timeline, handleRequestGoto]);
+
   if (session.status === 'loading') {
     return (
       <Container size="sm" className={shared.pageState}>
@@ -528,7 +548,7 @@ function SessionReplay({
   // reachable below, so playback can be controlled while browsing requests.
   if (isMobile) {
     return (
-      <Container size="xl" className={pageStyles.pageContainer}>
+      <Container size="xl" className={pageStyles.pageContainer} ref={rootRef}>
         {headerLead}
         {header}
         <div className={pageStyles.mobileTerminalArea}>
@@ -561,13 +581,13 @@ function SessionReplay({
           />
         </div>
         {playbackBar}
-        {footerContent?.(session.session)}
+        {footerContent?.(session.session, selected.id)}
       </Container>
     );
   }
 
   return (
-    <Container size="xl" className={pageStyles.pageContainer}>
+    <Container size="xl" className={pageStyles.pageContainer} ref={rootRef}>
       {headerLead}
       {header}
 
@@ -620,7 +640,7 @@ function SessionReplay({
       </div>
 
       {playbackBar}
-      {footerContent?.(session.session)}
+      {footerContent?.(session.session, selected.id)}
     </Container>
   );
 }
