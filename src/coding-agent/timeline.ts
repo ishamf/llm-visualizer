@@ -26,7 +26,7 @@ export const REQUEST_GAP_MS = 10;
 /** Pause before the user starts typing a prompt. */
 export const USER_TYPING_DELAY_MS = 2000;
 /** Average typing speed for user prompts, in words per minute. */
-export const USER_TYPING_WORDS_PER_MINUTE = 45 * 4;
+export const USER_TYPING_WORDS_PER_MINUTE = 45 * 10;
 /** Assumed characters per word when converting the typing speed. */
 const TYPING_CHARACTERS_PER_WORD = 5;
 
