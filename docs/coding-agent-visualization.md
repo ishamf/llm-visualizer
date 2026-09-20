@@ -292,7 +292,10 @@ after request _n_ — the same categories stacked the same way, so the bars
 are directly comparable between the two charts. The cumulative variant is
 otherwise identical, except that its tooltip reads "spent so far" and the
 relative-price legend segment is left off (the session's per-token prices
-are the same either way).
+are the same either way). Both variants also draw dashed vertical markers
+before the bar of every request that is the first to include a new user
+message — the moment a prompt was entered. Hovering a request labels its
+preceding marker "New prompt", via the chart tooltip's hover state.
 
 The two cost-over-context charts that used to render beside it moved to the
 dev-only `/dev/coding-agent-charts` page

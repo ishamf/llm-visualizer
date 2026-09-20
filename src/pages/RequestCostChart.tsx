@@ -123,6 +123,30 @@ function relativePriceItems(session: PackedSession): PriceItem[] {
 export type RequestCostChartVariant = 'per-request' | 'cumulative';
 
 /**
+ * 1-based request numbers of the requests that are the first to include a
+ * new user message — the moment a new prompt was entered, charted as a
+ * marker before that request's bar. The first request always qualifies
+ * (it follows the initial prompt); later ones only when the messages the
+ * request newly includes contain a user role, so tool-result turns don't
+ * mark.
+ */
+function promptMarkers(session: PackedSession): number[] {
+  const markers: number[] = [];
+  let known = 0;
+  session.requests.forEach(({ messageCount }, index) => {
+    if (
+      session.prompt.messages
+        .slice(known, messageCount)
+        .some((message) => message.role === 'user')
+    ) {
+      markers.push(index + 1);
+    }
+    known = Math.max(known, messageCount);
+  });
+  return markers;
+}
+
+/**
  * The coding agent page's cost charts: one stacked bar per provider request,
  * in the order the requests were sent, with cached at the bottom. No context
  * allocation — just what each request cost, straight from its recorded
@@ -185,6 +209,7 @@ export const RequestCostChart = memo(function RequestCostChart({
     () => (cumulative ? [] : relativePriceItems(session)),
     [cumulative, session],
   );
+  const markers = useMemo(() => promptMarkers(session), [session]);
   return (
     <section
       className={styles.chartSection}
@@ -201,13 +226,14 @@ export const RequestCostChart = memo(function RequestCostChart({
             <>
               The session’s cost as it accumulates, request by request — the
               same cached, input, and output segments stacked on top of each
-              other. The session ends at {formatCost(total)}.
+              other. Dashed lines mark new prompts. The session ends at{' '}
+              {formatCost(total)}.
             </>
           ) : (
             <>
               Each request’s cost — cached, input, and output — as one bar, in
-              the order the requests were sent. The session total is{' '}
-              {formatCost(total)}.
+              the order the requests were sent. Dashed lines mark new prompts.
+              The session total is {formatCost(total)}.
             </>
           )}
         </p>
@@ -216,6 +242,7 @@ export const RequestCostChart = memo(function RequestCostChart({
         <ChartBody
           rows={rows}
           categories={REQUEST_CATEGORIES}
+          markers={markers}
           xKey="request"
           xTickFormatter={(value) => String(value)}
           xAxisLabel="request"

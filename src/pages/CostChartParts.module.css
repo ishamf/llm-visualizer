@@ -55,6 +55,15 @@
   fill: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
 }
 
+/* Vertical prompt markers (ReferenceLine): a dashed line at the marked
+   request's left band edge. The hovered request's preceding marker gets a
+   Recharts label ("New prompt"), styled by the shared `.recharts-label`
+   rule above. */
+.promptMarker :global(line) {
+  stroke: light-dark(var(--mantine-color-gray-5), var(--mantine-color-dark-3));
+  stroke-dasharray: 3 3;
+}
+
 .tooltip {
   padding: 6px 10px;
   border: 1px solid

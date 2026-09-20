@@ -3,10 +3,12 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
+  useActiveTooltipDataPoints,
 } from 'recharts';
 
 import type { ContextCostBucket } from '../coding-agent/context-cost.ts';
@@ -49,6 +51,62 @@ export type CostCategory<Row extends CostRow = CostRow> = {
   label: string;
 };
 
+/** Text shown on the prompt marker preceding the hovered request. */
+const PROMPT_MARKER_LABEL = {
+  value: 'New prompt',
+  position: 'insideTopLeft' as const,
+  offset: 10,
+};
+
+/** The chart's prompt markers, isolated per the Recharts performance
+ * guide's component-isolation pattern: the component subscribes to the
+ * tooltip's active state through `useActiveTooltipDataPoints`, so hovering
+ * re-renders only these markers while the rest of the chart stays
+ * static. Rendered as a `BarChart` child; `ReferenceLine` resolves its own
+ * coordinates from the chart context. */
+function PromptMarkers({
+  markers,
+  xKey,
+}: {
+  markers: ReadonlyArray<number>;
+  /** Row field plotted on the x axis. */
+  xKey: 'start' | 'request';
+}) {
+  // Rows under the chart's tooltip, or undefined when nothing is hovered.
+  const activePoints = useActiveTooltipDataPoints<CostRow>();
+  // Category keys are numeric row fields (see `NumericRowKeys`), but the
+  // generic lookup stays opaque to TS.
+  const activeX =
+    activePoints?.length && activePoints[0]
+      ? ((activePoints[0] as unknown as Record<string, number | undefined>)[
+          xKey
+        ] ?? null)
+      : null;
+  // The marker preceding the hovered row — the prompt that produced it.
+  let activeMarker: number | null = null;
+  if (activeX != null) {
+    for (const marker of markers) {
+      if (marker <= activeX) activeMarker = marker;
+      else break;
+    }
+  }
+  return (
+    <>
+      {markers.map((marker) => (
+        <ReferenceLine
+          key={marker}
+          x={marker}
+          // On the category axis `start` is the marked bar's left band
+          // edge — between the previous bar and the marked one.
+          position="start"
+          className={styles.promptMarker}
+          label={marker === activeMarker ? PROMPT_MARKER_LABEL : false}
+        />
+      ))}
+    </>
+  );
+}
+
 /**
  * The shared stacked-bar chart body: one stack of `categories` per row,
  * with cost-formatted axes and a per-category tooltip. The x axis defaults
@@ -60,6 +118,7 @@ export function ChartBody<Row extends CostRow>({
   categories,
   ariaLabel,
   tooltipTitle,
+  markers,
   xKey = 'start',
   xTickFormatter = formatKiloTokens,
   xAxisLabel = 'context tokens',
@@ -71,6 +130,10 @@ export function ChartBody<Row extends CostRow>({
   categories: ReadonlyArray<CostCategory<Row>>;
   ariaLabel: string;
   tooltipTitle: (row: Row) => string;
+  /** Row x values of vertical prompt markers, drawn as dashed lines at
+   * each row's left band edge; none when omitted. While a row is hovered,
+   * the marker preceding it is labeled "New prompt". */
+  markers?: ReadonlyArray<number>;
   /** Row field plotted on the x axis. */
   xKey?: 'start' | 'request';
   /** X tick formatting; the context charts show token kilos. */
@@ -125,6 +188,7 @@ export function ChartBody<Row extends CostRow>({
             }
             cursor={{ opacity: 0.08 }}
           />
+          {markers && <PromptMarkers markers={markers} xKey={xKey} />}
           {categories.map(({ key }) => (
             <Bar
               key={key}
@@ -160,8 +224,6 @@ function CostTooltip<Row extends CostRow>({
 }: CostTooltipProps<Row>) {
   const row = active ? payload?.[0]?.payload : undefined;
   if (!row) return null;
-  // Category keys are numeric row fields (see `NumericRowKeys`), but the
-  // generic lookup stays opaque to TS.
   const costOf = (key: NumericRowKeys<Row>): number => row[key] as number;
   return (
     <div className={styles.tooltip}>
