@@ -312,6 +312,14 @@ beyond the session id, which is how standalone `<xif-coding-agent>` and
 `<xif-request-cost>` elements on a host page connect without any plumbing.
 Clicks never change which session a visualization replays.
 
+Pointer environments without hover (phones, tablets) get the tooltip
+instead: their tooltip is pinned on tap (`Tooltip trigger="click"`), so
+tapping a bar shows its costs and further taps move the tooltip between
+requests, and the tooltip carries a Go to button performing the same jump
+the click would. The mode is driven by the `hover` media query
+(`src/pages/use-hover-capable.ts`) and flips live — pull out a stylus and
+the charts switch to hover-with-click-to-jump mid-session.
+
 The two cost-over-context charts that used to render beside it moved to the
 dev-only `/dev/coding-agent-charts` page
 (`src/pages/DevCodingAgentChartsPage.tsx`): linked from the coding agent

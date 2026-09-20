@@ -11,6 +11,8 @@ import {
   useActiveTooltipDataPoints,
 } from 'recharts';
 
+import { useCanHover } from './use-hover-capable.ts';
+
 import type { ContextCostBucket } from '../coding-agent/context-cost.ts';
 import { formatCost, formatKiloTokens } from '../coding-agent/format.ts';
 import styles from './CostChartParts.module.css';
@@ -154,6 +156,12 @@ export function ChartBody<Row extends CostRow>({
 }) {
   // At most eight x labels.
   const labelInterval = Math.max(0, Math.ceil(rows.length / 8) - 1);
+  // Whether the user's primary input can hover — see `use-hover-capable.ts`.
+  // Hover-capable environments jump on chart click (see the chart's
+  // `onClick`); no-hover environments pin the tooltip on tap instead and
+  // jump through the tooltip's "Go to" button. Reactive: flipping the
+  // capability (a stylus coming out) switches the behavior live.
+  const canHover = useCanHover();
 
   return (
     <div className={styles.chart} role="img" aria-label={ariaLabel}>
@@ -169,8 +177,12 @@ export function ChartBody<Row extends CostRow>({
           // row the tooltip shows, so the click target is the full
           // column instead of the (possibly tiny) bar. Clicks with no
           // active tooltip carry no index and do nothing.
+          // Pointer environments without hover jump through the
+          // tooltip's "Go to" button instead: a click fires on the
+          // revealing tap too, so click-to-jump here would jump before
+          // the user can compare other requests' tooltips.
           onClick={
-            onBarClick
+            onBarClick && canHover
               ? (nextState) => {
                   // The index may be a string (Recharts' `TooltipIndex`);
                   // numeric row arrays resolve it the same either way.
@@ -207,8 +219,21 @@ export function ChartBody<Row extends CostRow>({
             width={56}
           />
           <Tooltip
+            // Pin-on-tap for no-hover environments: `trigger="click"`
+            // resolves the tooltip from the interaction each tap's
+            // synthesized click records, so a tap shows the tooltip and
+            // it stays until the next tap — compare requests freely.
+            // (With the default `hover` trigger there is no `mouseleave`
+            // on touch, so the state merely lingers.) Charts not paired
+            // with a replay stay hover-triggered: nothing to jump to, and
+            // taps then just update the tooltip like a mouse would.
+            trigger={onBarClick && !canHover ? 'click' : 'hover'}
             content={
-              <CostTooltip categories={categories} title={tooltipTitle} />
+              <CostTooltip
+                categories={categories}
+                title={tooltipTitle}
+                goTo={onBarClick && !canHover ? onBarClick : undefined}
+              />
             }
             cursor={{ opacity: 0.08 }}
           />
@@ -238,6 +263,10 @@ type CostTooltipProps<Row extends CostRow> = {
   payload?: Array<{ payload?: Row }>;
   categories: ReadonlyArray<CostCategory<Row>>;
   title: (row: Row) => string;
+  /** When set, the tooltip renders a "Go to" button calling this with the
+   * shown row — the no-hover replacement for the chart's click-to-jump
+   * (see `useCanHover`). */
+  goTo?: (row: Row) => void;
 };
 
 function CostTooltip<Row extends CostRow>({
@@ -245,6 +274,7 @@ function CostTooltip<Row extends CostRow>({
   payload,
   categories,
   title,
+  goTo,
 }: CostTooltipProps<Row>) {
   const row = active ? payload?.[0]?.payload : undefined;
   if (!row) return null;
@@ -259,6 +289,33 @@ function CostTooltip<Row extends CostRow>({
             {label} {formatCost(costOf(key))}
           </div>
         ))}
+      {goTo && (
+        <button
+          type="button"
+          className={styles.tooltipGoTo}
+          // Jump on press, not on the click that follows: the tap's
+          // synthesized mouse events can re-anchor the tooltip — and move
+          // this button with it — out from under the finger before the
+          // click fires, while the press itself happens on the button as
+          // it is. Keyboard users get the click (its `detail` is 0; real
+          // presses already jumped via `pointerdown`).
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            goTo(row);
+          }}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (event.detail === 0) goTo(row);
+          }}
+          // Keep the tap on the button: as an overlay of the chart, a
+          // touch that bubbles through would move the tooltip's anchor
+          // (and this button with it) out from under the finger before
+          // the tap completes.
+          onTouchStart={(event) => event.stopPropagation()}
+        >
+          Go to
+        </button>
+      )}
     </div>
   );
 }

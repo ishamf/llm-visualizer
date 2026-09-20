@@ -81,6 +81,36 @@
   font-weight: 600;
 }
 
+/* Touch-only tooltip jump button (see `touchOnly` in CostChartParts.tsx):
+ * compact, since tooltips sit tight on small screens. */
+.tooltipGoTo {
+  margin-top: 6px;
+  padding: 2px 12px;
+  border: 1px solid
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  border-radius: var(--mantine-radius-sm);
+  background: light-dark(
+    var(--mantine-color-gray-0),
+    var(--mantine-color-dark-5)
+  );
+  color: light-dark(var(--mantine-color-gray-8), var(--mantine-color-dark-0));
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation; /* no double-tap-zoom delay on the button */
+  /* Recharts' tooltip wrapper is a display-only overlay with
+     `pointer-events: none`; re-enable them here so taps reach the button
+     instead of falling through to the chart. */
+  pointer-events: auto;
+}
+
+.tooltipGoTo:active {
+  background: light-dark(
+    var(--mantine-color-gray-2),
+    var(--mantine-color-dark-4)
+  );
+}
+
 /* Stacked bar categories; shades stay legible on both color schemes. Both
    fill (SVG bars) and background (legend swatches) pick up the color. */
 .cached {
