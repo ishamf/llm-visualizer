@@ -266,6 +266,12 @@ function SessionReplay({
   const [paneRevertOnClose, setPaneRevertOnClose] = useState(true);
   /** Which pane accordion section is expanded; reset when the pane opens. */
   const [paneSection, setPaneSection] = useState<ExpandedSection>('input');
+  /**
+   * Bumped on every request jump (pane Go to, cost-chart click); the
+   * terminal watches it and scrolls to the bottom, pinned (see
+   * `AgentTerminal`).
+   */
+  const [jumpSignal, setJumpSignal] = useState(0);
   // Whether playback was running when the pane opened, so closing it can
   // resume. Set only on the open transition (switching requests keeps it);
   // manual play/pause while the pane is open cancels it.
@@ -440,6 +446,9 @@ function SessionReplay({
       seek(request.endTime, { immediate: true });
       setPeekLimit((limit) => Math.max(limit, liveEdgeRef.current));
       setFutureMode((mode) => (mode === 'shown' ? mode : 'peek'));
+      // Tell the terminal to end the jump pinned to the bottom — a leftover
+      // scroll offset would otherwise point at unrelated content.
+      setJumpSignal((signal) => signal + 1);
       // The seek decides where the terminal ends up; no scroll revert.
       setPaneRevertOnClose(false);
       setPaneRequest(null);
@@ -560,6 +569,7 @@ function SessionReplay({
             highlightedEntryIds={paneHighlight.highlightIds}
             scrollAnchorEntryId={paneHighlight.anchorId}
             highlightVariant={paneSection === 'output' ? 'group' : 'boundary'}
+            jumpSignal={jumpSignal}
           />
           <MobileRequestOverlay
             states={requestStates}
@@ -600,6 +610,7 @@ function SessionReplay({
           highlightedEntryIds={paneHighlight.highlightIds}
           scrollAnchorEntryId={paneHighlight.anchorId}
           highlightVariant={paneSection === 'output' ? 'group' : 'boundary'}
+          jumpSignal={jumpSignal}
         />
         <div className={pageStyles.requestArea}>
           <RequestList

@@ -85,7 +85,13 @@ export function usePinnedAutoScroll(
     const container = containerRef.current;
     if (!container || !pinnedRef.current || !followRef.current) return;
     container.scrollTop = container.scrollHeight;
-  }, [watchValue]);
+    // `pinned` is a dependency on purpose: attaching the pin can itself
+    // change content height (attaching unfreezes the away-collapse, which
+    // expands the newest thinking block), and the scroll event that pin()
+    // generates is processed after that growth — the handler would then
+    // read a stale distance past the threshold and detach again. Scrolling
+    // to the bottom once more after the re-render keeps the pin attached.
+  }, [watchValue, pinned]);
 
   const pin = useCallback(() => {
     updatePinned(true);

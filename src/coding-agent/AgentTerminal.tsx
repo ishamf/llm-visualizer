@@ -363,6 +363,14 @@ type AgentTerminalProps = {
    * `group` draws a closed box around the response entries.
    */
   highlightVariant: 'boundary' | 'group';
+  /**
+   * Monotonically increasing counter of request jumps (the pane's Go to
+   * button and cost-chart clicks). Every change scrolls the terminal to
+   * the bottom and re-pins: the seek renders a snapshot the user did not
+   * navigate to, so any leftover scroll offset would point at unrelated
+   * content — and an unpinned terminal would then sit there detached.
+   */
+  jumpSignal: number;
 };
 
 export function AgentTerminal({
@@ -373,6 +381,7 @@ export function AgentTerminal({
   highlightedEntryIds,
   scrollAnchorEntryId,
   highlightVariant,
+  jumpSignal,
 }: AgentTerminalProps) {
   const { containerRef, pinned, pin, unpin } = usePinnedAutoScroll(states);
   // Cancel function of the running focus animation, if any.
@@ -513,6 +522,20 @@ export function AgentTerminal({
     unpin,
     containerRef,
   ]);
+
+  // A request jump always ends at the live edge: scroll to the bottom and
+  // re-pin. Runs after the seek's snapshot is committed, so the bottom is
+  // the jumped-to content's bottom; the scroll handler then keeps the pin.
+  // (Closing the pane after its Go to button pins through the close branch
+  // below; this effect covers jumps that happen with the pane closed.)
+  const prevJumpSignalRef = useRef(jumpSignal);
+  useEffect(() => {
+    if (prevJumpSignalRef.current === jumpSignal) return;
+    prevJumpSignalRef.current = jumpSignal;
+    if (!containerRef.current) return;
+    cancelScrollRef.current?.();
+    pin();
+  }, [jumpSignal, pin, containerRef]);
 
   // Stop a running focus animation when the terminal unmounts.
   useEffect(() => () => cancelScrollRef.current?.(), []);
