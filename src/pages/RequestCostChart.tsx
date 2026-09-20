@@ -173,9 +173,9 @@ export const RequestCostChart = memo(function RequestCostChart({
 }: {
   session: PackedSession;
   /** Id of the session this chart's session JSON was loaded for, used to
-   * key bar-click jumps through the request-jump pub-sub. Optional: embeds
+   * key chart-click jumps through the request-jump pub-sub. Optional: embeds
    * that do not pair the chart with a same-session replay can omit it, and
-   * clicking a bar then does nothing. */
+   * clicking the chart then does nothing. */
   sessionId?: string;
   variant?: RequestCostChartVariant;
   /** The description line states the chart's reading and the session
@@ -237,8 +237,9 @@ export const RequestCostChart = memo(function RequestCostChart({
   // so the segment's last bar is its full cost and no other bar exceeds it
   // — the chart's maximum over the bars is exactly the turn total.
   const costliestTurn = Math.max(...rows.map((row) => row.total));
-  // Bar clicks ask the session's replay to jump to the clicked request
-  // through the request-jump pub-sub (session-keyed, no direct wiring).
+  // Clicking the chart while a tooltip shows a request asks the session's
+  // replay to jump to it through the request-jump pub-sub (session-keyed,
+  // no direct wiring).
   const handleBarClick = useMemo(
     () =>
       sessionId

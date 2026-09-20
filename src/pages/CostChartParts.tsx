@@ -135,9 +135,11 @@ export function ChartBody<Row extends CostRow>({
    * each row's left band edge; none when omitted. While a row is hovered,
    * the marker preceding it is labeled "New prompt". */
   markers?: ReadonlyArray<number>;
-  /** Called with the clicked bar's row; when set, bars show a pointer
-   * cursor. The per-request charts use it to jump the session's replay to
-   * the clicked request. */
+  /** Called with the row the click's tooltip shows; when set, the chart
+   * accepts clicks. The per-request charts use it to jump the session's
+   * replay to the clicked request: any click in the plot area while a
+   * tooltip is visible targets that row, so the jump does not depend on
+   * hitting the bar itself (which can be a sliver). */
   onBarClick?: (row: Row) => void;
   /** Row field plotted on the x axis. */
   xKey?: 'start' | 'request';
@@ -154,13 +156,7 @@ export function ChartBody<Row extends CostRow>({
   const labelInterval = Math.max(0, Math.ceil(rows.length / 8) - 1);
 
   return (
-    <div
-      className={
-        onBarClick ? `${styles.chart} ${styles.clickableChart}` : styles.chart
-      }
-      role="img"
-      aria-label={ariaLabel}
-    >
+    <div className={styles.chart} role="img" aria-label={ariaLabel}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={rows}
@@ -168,6 +164,23 @@ export function ChartBody<Row extends CostRow>({
           barCategoryGap={barCategoryGap}
           barGap={0}
           accessibilityLayer
+          // On the chart, not the `Bar`s: a click anywhere in the plot
+          // area while the tooltip is active counts as a click on the
+          // row the tooltip shows, so the click target is the full
+          // column instead of the (possibly tiny) bar. Clicks with no
+          // active tooltip carry no index and do nothing.
+          onClick={
+            onBarClick
+              ? (nextState) => {
+                  // The index may be a string (Recharts' `TooltipIndex`);
+                  // numeric row arrays resolve it the same either way.
+                  const index = nextState.activeTooltipIndex;
+                  if (index == null) return;
+                  const row = rows[Number(index)];
+                  if (row) onBarClick(row);
+                }
+              : undefined
+          }
         >
           <CartesianGrid vertical={false} />
           <XAxis
@@ -212,12 +225,6 @@ export function ChartBody<Row extends CostRow>({
               className={styles[key]}
               maxBarSize={maxBarSize}
               isAnimationActive={false}
-              onClick={
-                onBarClick
-                  ? // Each stacked segment carries the same row.
-                    (bar) => onBarClick(bar.payload as Row)
-                  : undefined
-              }
             />
           ))}
         </BarChart>
