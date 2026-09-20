@@ -43,6 +43,7 @@ export function CodingAgentPage() {
         footerContent={(session) => (
           <>
             <RequestCostChart session={session} />
+            <RequestCostChart session={session} variant="cumulative" />
             {import.meta.env.DEV && (
               <div className={pageStyles.devChartsLink}>
                 <Button

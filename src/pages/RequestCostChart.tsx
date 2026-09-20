@@ -118,52 +118,98 @@ function relativePriceItems(session: PackedSession): PriceItem[] {
   );
 }
 
+/** Whether each bar shows its request's own cost, or the session's running
+ * total after it. */
+export type RequestCostChartVariant = 'per-request' | 'cumulative';
+
 /**
- * The coding agent page's cost chart: one stacked bar per provider request,
- * in the order the requests were sent, with cached at the bottom. No
- * context allocation — just what each request cost, straight from its
- * recorded usage.
+ * The coding agent page's cost charts: one stacked bar per provider request,
+ * in the order the requests were sent, with cached at the bottom. No context
+ * allocation — just what each request cost, straight from its recorded
+ * usage. With `variant="cumulative"` bar n stacks the session's running
+ * total after request n instead of that request's own cost, so the bars are
+ * directly comparable between the two variants.
  */
 // Memoized: the page re-renders at 60fps during playback while `session` is
 // stable, and a re-render walks the chart's ~1000 SVG nodes for nothing.
 export const RequestCostChart = memo(function RequestCostChart({
   session,
+  variant = 'per-request',
   showDescription = true,
 }: {
   session: PackedSession;
+  variant?: RequestCostChartVariant;
   /** The description line states the chart's reading and the session
    * total; embeds that supply their own copy can drop it. */
   showDescription?: boolean;
 }) {
-  const rows = useMemo<RequestCostRow[]>(
-    () =>
-      session.requests.map(({ data }, index) => {
-        const cost = data.response.usage.cost;
-        const values = {
-          cached: cost?.cacheRead ?? 0,
-          input: cost?.input ?? 0,
-          output: cost?.output ?? 0,
-        };
-        return {
-          request: index + 1,
-          ...values,
-          // The bar's total; summing the charted components keeps it
-          // consistent with the segments actually drawn.
-          total: values.cached + values.input + values.output,
-        };
-      }),
-    [session],
+  const cumulative = variant === 'cumulative';
+  const rows = useMemo<RequestCostRow[]>(() => {
+    const running = { cached: 0, input: 0, output: 0 };
+    return session.requests.map(({ data }, index) => {
+      const cost = data.response.usage.cost;
+      if (cumulative) {
+        running.cached += cost?.cacheRead ?? 0;
+        running.input += cost?.input ?? 0;
+        running.output += cost?.output ?? 0;
+      }
+      const values = cumulative
+        ? { ...running }
+        : {
+            cached: cost?.cacheRead ?? 0,
+            input: cost?.input ?? 0,
+            output: cost?.output ?? 0,
+          };
+      return {
+        request: index + 1,
+        ...values,
+        // The bar's total; summing the charted components keeps it
+        // consistent with the segments actually drawn.
+        total: values.cached + values.input + values.output,
+      };
+    });
+  }, [session, cumulative]);
+  // The session total — the sum of the raw per-request costs. For the
+  // cumulative rows summing `row.total` would re-accumulate the running
+  // sums; the last row's total is the same number, but this holds for both
+  // variants.
+  const total = session.requests.reduce((sum, { data }) => {
+    const cost = data.response.usage.cost;
+    return (
+      sum + (cost?.cacheRead ?? 0) + (cost?.input ?? 0) + (cost?.output ?? 0)
+    );
+  }, 0);
+  // The relative-price bar illustrates the session's per-token prices, which
+  // are the same either way; it stays on the per-request chart only.
+  const priceItems = useMemo(
+    () => (cumulative ? [] : relativePriceItems(session)),
+    [cumulative, session],
   );
-  const total = rows.reduce((sum, row) => sum + row.total, 0);
-  const priceItems = useMemo(() => relativePriceItems(session), [session]);
   return (
-    <section className={styles.chartSection} aria-label="Cost per request">
-      <h2 className={styles.chartTitle}>Cost per request</h2>
+    <section
+      className={styles.chartSection}
+      aria-label={
+        cumulative ? 'Cumulative cost per request' : 'Cost per request'
+      }
+    >
+      <h2 className={styles.chartTitle}>
+        {cumulative ? 'Cumulative cost per request' : 'Cost per request'}
+      </h2>
       {showDescription && (
         <p className={styles.chartDescription}>
-          Each request’s cost — cached, input, and output — as one bar, in the
-          order the requests were sent. The session total is {formatCost(total)}
-          .
+          {cumulative ? (
+            <>
+              The session’s cost as it accumulates, request by request — the
+              same cached, input, and output segments stacked on top of each
+              other. The session ends at {formatCost(total)}.
+            </>
+          ) : (
+            <>
+              Each request’s cost — cached, input, and output — as one bar, in
+              the order the requests were sent. The session total is{' '}
+              {formatCost(total)}.
+            </>
+          )}
         </p>
       )}
       <div className={styles.chartFigure}>
@@ -175,13 +221,21 @@ export const RequestCostChart = memo(function RequestCostChart({
           xAxisLabel="request"
           barCategoryGap="25%"
           maxBarSize={48}
-          ariaLabel="Stacked bar chart of cost per provider request"
+          ariaLabel={
+            cumulative
+              ? 'Stacked bar chart of cumulative cost per provider request'
+              : 'Stacked bar chart of cost per provider request'
+          }
           tooltipTitle={(row) =>
-            `Request ${row.request}: ${formatCost(row.total)}`
+            cumulative
+              ? `Request ${row.request}: ${formatCost(row.total)} spent so far`
+              : `Request ${row.request}: ${formatCost(row.total)}`
           }
         />
         <ChartLegend categories={REQUEST_CATEGORIES}>
-          {priceItems.length > 0 && <RelativePrices items={priceItems} />}
+          {!cumulative && priceItems.length > 0 && (
+            <RelativePrices items={priceItems} />
+          )}
         </ChartLegend>
       </div>
     </section>

@@ -19,7 +19,7 @@ selector, terminal, request list, playback bar — inside an
 open shadow root. It has no router and never touches the host URL. The replay
 logic itself lives in the router-free `CodingAgentExperience`; the page only
 adds the `<h1>`, description, back-to-homepage links, `?session=` URL
-sync, and the cost-per-request chart below the playback bar.
+sync, and the cost-per-request charts below the playback bar.
 
 | Attribute                 | Default                  | Purpose                                              |
 | ------------------------- | ------------------------ | ---------------------------------------------------- |
@@ -34,19 +34,21 @@ that exercises the element against deliberately hostile host styles. The
 visualization needs no model or worker — sessions are static JSON — so unlike
 `<xif-contribution-text>` it works on pages without cross-origin isolation.
 
-The `src/web-component/request-cost.ts` entry defines `<xif-request-cost>`,
-a standalone embed of the page's cost-per-request chart for one session,
-without the page's description line so hosts can supply their own copy. It
-shares the color-scheme handling and needs neither the model nor a worker:
+`<xif-request-cost>` (`src/web-component/request-cost-element.tsx`, defined
+by the same `coding-agent.ts` entry as the replay) is a standalone embed of
+the page's cost-per-request charts for one session, without the page's
+description line so hosts can supply their own copy. It shares the
+color-scheme handling and needs neither the model nor a worker:
 
-| Attribute                 | Default        | Purpose                                   |
-| ------------------------- | -------------- | ----------------------------------------- |
-| `session`                 | `coding-agent` | Session id to chart                       |
-| `generated-data-base-url` | `/generated/`  | Base URL for the session JSON             |
-| `color-scheme`            | `auto`         | `light`, `dark`, or `auto` Mantine scheme |
+| Attribute                 | Default        | Purpose                                       |
+| ------------------------- | -------------- | --------------------------------------------- |
+| `session`                 | `coding-agent` | Session id to chart                           |
+| `variant`                 | `per-request`  | `cumulative` charts the running total instead |
+| `generated-data-base-url` | `/generated/`  | Base URL for the session JSON                 |
+| `color-scheme`            | `auto`         | `light`, `dark`, or `auto` Mantine scheme     |
 
 `dev/request-cost.html` is the plain-HTML fixture that exercises the element
-against hostile host styles.
+— both chart variants — against hostile host styles.
 
 ## Data source
 
@@ -278,11 +280,19 @@ charted, as recorded sessions carry none. The description line states the
 session total, and the legend's right side illustrates the relative
 per-token prices: a stacked bar whose segment widths are proportional to
 each category's accumulated cost over its tokens, with the cached segment
-as the 5 px reference. `CodingAgentExperience` exposes the chart through its
-optional `footerContent` render prop, which receives the loaded packed
-session and is rendered under the playback bar in both layouts. It is also
-published standalone as the `<xif-request-cost>` web component (see [Web
-component](#web-component)).
+as the 5 px reference. `CodingAgentExperience` exposes the charts through
+its optional `footerContent` render prop, which receives the loaded packed
+session and is rendered under the playback bar in both layouts. They are
+also published standalone as the `<xif-request-cost>` web component (see
+[Web component](#web-component)).
+
+The page renders the chart twice: once per request, and once with
+`variant="cumulative"`, where bar _n_ stacks the session's running total
+after request _n_ — the same categories stacked the same way, so the bars
+are directly comparable between the two charts. The cumulative variant is
+otherwise identical, except that its tooltip reads "spent so far" and the
+relative-price legend segment is left off (the session's per-token prices
+are the same either way).
 
 The two cost-over-context charts that used to render beside it moved to the
 dev-only `/dev/coding-agent-charts` page

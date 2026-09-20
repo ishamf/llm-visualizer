@@ -3,17 +3,21 @@ import { Alert, Text } from '@mantine/core';
 import { sessionIdUrl } from './coding-agent/session-urls.ts';
 import { useAgentSession } from './coding-agent/use-agent-session.ts';
 import { GENERATED_DATA_BASE_URL } from './data/dataset-catalog.ts';
-import { RequestCostChart } from './pages/RequestCostChart.tsx';
+import {
+  RequestCostChart,
+  type RequestCostChartVariant,
+} from './pages/RequestCostChart.tsx';
 
 /**
- * Router-free embed of the coding agent page's cost-per-request chart for
+ * Router-free embed of the coding agent page's cost-per-request charts for
  * one session: loads the session's packed JSON and renders the chart, with
- * plain loading and error states. The standalone page feeds the chart from
+ * plain loading and error states. The standalone page feeds the charts from
  * its already-loaded replay session instead.
  */
 export function RequestCostExperience({
   generatedDataBaseUrl = GENERATED_DATA_BASE_URL,
   sessionId,
+  variant = 'per-request',
   showDescription = true,
 }: {
   /** Base URL of the generated data; the session loads from
@@ -21,6 +25,8 @@ export function RequestCostExperience({
   generatedDataBaseUrl?: string;
   /** Id of the session to chart (`coding-agent` by convention). */
   sessionId: string;
+  /** Which chart to render (see `RequestCostChart`). */
+  variant?: RequestCostChartVariant;
   /** Whether to render the chart's description line; embeds that supply
    * their own copy can drop it. */
   showDescription?: boolean;
@@ -39,6 +45,7 @@ export function RequestCostExperience({
   return (
     <RequestCostChart
       session={state.session}
+      variant={variant}
       showDescription={showDescription}
     />
   );

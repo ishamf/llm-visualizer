@@ -63,24 +63,38 @@
         <p>LLM Visualizer</p>
         <h1>Cost per request</h1>
         <p>
-          A standalone embed of the coding agent page's cost-per-request chart,
-          showing what each provider request in a recorded session cost — cached
-          at the bottom, then input and output.
+          A standalone embed of the coding agent page's cost-per-request charts
+          for a recorded coding agent session — cached at the bottom, then input
+          and output.
         </p>
         <p>
           The element automatically follows your browser's light or dark color
           scheme; the <code>session</code> attribute picks the recorded session
-          (defaulting to <code>coding-agent</code>).
+          (defaulting to <code>coding-agent</code>), and the
+          <code>variant</code> attribute switches between the two charts:
+          <code>per-request</code> (the default) shows what each provider
+          request cost, <code>cumulative</code> the session's running total
+          after each request.
         </p>
       </header>
 
+      <h2>Per-request cost</h2>
       <xif-request-cost
         generated-data-base-url="/generated/"
         session="coding-agent"
+        variant="per-request"
+        color-scheme="auto"
+      ></xif-request-cost>
+
+      <h2>Cumulative cost</h2>
+      <xif-request-cost
+        generated-data-base-url="/generated/"
+        session="coding-agent"
+        variant="cumulative"
         color-scheme="auto"
       ></xif-request-cost>
     </article>
 
-    <script type="module" src="/src/web-component/request-cost.ts"></script>
+    <script type="module" src="/src/web-component/coding-agent.ts"></script>
   </body>
 </html>

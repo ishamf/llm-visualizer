@@ -32,6 +32,7 @@ export function defineRequestCostElement() {
       'color-scheme',
       'generated-data-base-url',
       'session',
+      'variant',
     ];
 
     readonly #mountNode: HTMLDivElement;
@@ -87,6 +88,10 @@ export function defineRequestCostElement() {
         document.baseURI,
       ).href;
       const sessionId = this.getAttribute('session') ?? DEFAULT_SESSION_ID;
+      const variant =
+        this.getAttribute('variant') === 'cumulative'
+          ? 'cumulative'
+          : 'per-request';
 
       this.#root ??= createRoot(this.#mountNode);
       this.#root.render(
@@ -100,6 +105,7 @@ export function defineRequestCostElement() {
           <RequestCostExperience
             generatedDataBaseUrl={generatedDataBaseUrl}
             sessionId={sessionId}
+            variant={variant}
             showDescription={false}
           />
         </MantineProvider>,

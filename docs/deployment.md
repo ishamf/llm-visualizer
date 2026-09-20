@@ -161,10 +161,12 @@ The distribution defines three elements:
   element's, with `session` selecting the replayed session (the analog of the
   page's `?session=` parameter).
 - `xif-request-cost` (`request-cost.js`) — the coding agent page's
-  cost-per-request chart for one session. Like `xif-coding-agent` it loads
+  cost-per-request charts for one session. Like `xif-coding-agent` it loads
   only session JSONs; `session` (default `coding-agent`),
   `generated-data-base-url`, and `color-scheme` behave like the coding agent
-  element's.
+  element's, and `variant` selects the chart: `per-request` (default) shows
+  what each provider request cost, `cumulative` the session's running total
+  after each request.
 
 When the contribution element omits its `model-base-url` attribute, it uses the Hugging
 Face repository configured at build time. Setting `model-base-url` instead uses
