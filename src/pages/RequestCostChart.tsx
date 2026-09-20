@@ -230,7 +230,7 @@ export const RequestCostChart = memo(function RequestCostChart({
   const title = cumulative
     ? 'Cumulative cost per request'
     : sincePrompt
-      ? 'Cost since last prompt'
+      ? 'Cumulative cost since last prompt'
       : 'Cost per request';
   return (
     <section className={styles.chartSection} aria-label={title}>
@@ -273,7 +273,7 @@ export const RequestCostChart = memo(function RequestCostChart({
             cumulative
               ? 'Stacked bar chart of cumulative cost per provider request'
               : sincePrompt
-                ? 'Stacked bar chart of cost since last prompt per provider request'
+                ? 'Stacked bar chart of cumulative cost since last prompt per provider request'
                 : 'Stacked bar chart of cost per provider request'
           }
           tooltipTitle={(row) =>
