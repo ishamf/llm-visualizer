@@ -4,4 +4,6 @@
 
 /web-component/*
   Access-Control-Allow-Origin: https://ishamf.dev
-  
+
+/web-component/*.js
+  cache-control: public, max-age=0, must-revalidate
