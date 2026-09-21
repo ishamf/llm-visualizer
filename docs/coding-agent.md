@@ -20,8 +20,8 @@ what each provider request cost.
 The replay needs a recorded session in `generated/coding-agent/`; the folder
 layout is described in
 [Data source](coding-agent-visualization.md#data-source). You can download
-the example session (TODO: add link) or record your own with the recorder
-plugin (TODO: add link).
+the [example session](https://gist.github.com/ishamf/409f81c6f79dfa8f8c0b902a1062a60e) 
+or record your own with the [recorder plugin](https://github.com/ishamf/pi-visualization-recorder).
 
 With a session folder in place, compile the session index that the page
 loads:
